@@ -489,6 +489,17 @@
                                 </div>
                             </div>
                             <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🌗</span><div><strong data-i18n="settings_bgdim">Wallpaper overlay</strong><br><small data-i18n="settings_bgdim_desc">Veil over bright images or videos (color follows the accent by default)</small></div></div>
+                                <div class="settings-actions">
+                                    <div class="settings-range-wrap"><input type="range" id="settings-bgdim" class="settings-range" min="0" max="90" value="0" step="5"><span class="settings-range-value" id="bgdim-label">0%</span></div>
+                                    <button class="settings-reset-btn" id="settings-bgdim-color-clear" data-i18n="settings_name_clear">Reset</button>
+                                    <label class="settings-color-btn settings-color-custom" data-bgdim="custom" title="Custom" data-i18n-title="accent_custom">
+                                        <span class="custom-swatch">🎨</span>
+                                        <input type="color" id="settings-bgdim-color" value="#ffc857">
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="settings-row">
                                 <div class="settings-label"><span class="settings-icon">🧙</span><div><strong data-i18n="settings_portrait">Portrait</strong><br><small data-i18n="settings_portrait_desc">Replace the hero portrait image</small></div></div>
                                 <div class="settings-actions">
                                     <button class="settings-reset-btn" id="settings-portrait-pick" data-i18n="settings_portrait_pick">Upload…</button>

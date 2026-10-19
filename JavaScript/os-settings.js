@@ -240,6 +240,37 @@ function initSettings() {
     wireRange('settings-border-alpha', 'border-alpha-label', 'aruta_border_alpha', 100, '%', applyBorderAlpha);
     wireRange('settings-blur', 'blur-label', 'aruta_blur', 18, 'px', applyBlur);
     wireRange('settings-radius', 'radius-label', 'aruta_radius', 100, '%', applyRadius);
+    wireRange('settings-bgdim', 'bgdim-label', 'aruta_bg_dim', 0, '%', applyBgDim);
+
+    // ── Wallpaper overlay colour (defaults to the accent) ──
+    const bgdimPicker = document.getElementById('settings-bgdim-color');
+    const bgdimClear = document.getElementById('settings-bgdim-color-clear');
+    const bgdimBtn = document.querySelector('.settings-color-btn[data-bgdim="custom"]');
+    const markBgDimColor = (hex) => {
+        if (!bgdimBtn) return;
+        bgdimBtn.classList.toggle('active', !!hex);
+        if (hex) bgdimBtn.style.setProperty('--custom-color', hex);
+        else bgdimBtn.style.removeProperty('--custom-color');
+    };
+    if (bgdimPicker) {
+        const saved = localStorage.getItem('aruta_bg_dim_color');
+        if (saved) bgdimPicker.value = saved;
+        markBgDimColor(saved);
+        const onPick = () => {
+            applyBgDimColor(bgdimPicker.value);
+            localStorage.setItem('aruta_bg_dim_color', bgdimPicker.value);
+            markBgDimColor(bgdimPicker.value);
+        };
+        bgdimPicker.addEventListener('input', onPick);
+        bgdimPicker.addEventListener('change', onPick);
+    }
+    if (bgdimClear) {
+        bgdimClear.addEventListener('click', () => {
+            applyBgDimColor(null);
+            localStorage.removeItem('aruta_bg_dim_color');
+            markBgDimColor(null);
+        });
+    }
 
     // ── Background tint ──
     const bgtintPicker = document.getElementById('settings-bgtint-custom');
@@ -380,12 +411,17 @@ function initSettings() {
             localStorage.removeItem('aruta_blur');
             localStorage.removeItem('aruta_radius');
             localStorage.removeItem('aruta_bgtint');
+            localStorage.removeItem('aruta_bg_dim');
+            localStorage.removeItem('aruta_bg_dim_color');
             applyMagic(null);
             applyBorderTint(null);
             applyBorderAlpha(100);
             applyBlur(18);
             applyRadius(100);
             applyBgTint(null);
+            applyBgDim(0);
+            applyBgDimColor(null);
+            document.querySelector('.settings-color-btn[data-bgdim="custom"]')?.classList.remove('active');
             // Performance toggles back to defaults (apply only if overridden)
             for (const [id, config] of Object.entries(PERF_TOGGLES)) {
                 localStorage.removeItem('aruta_' + id);
@@ -429,6 +465,7 @@ function initSettings() {
             resetRange('settings-border-alpha', 'border-alpha-label', 100, '%');
             resetRange('settings-blur', 'blur-label', 18, 'px');
             resetRange('settings-radius', 'radius-label', 100, '%');
+            resetRange('settings-bgdim', 'bgdim-label', 0, '%');
             // Reset appearance customizations (backgrounds + rotation, portrait, name)
             window.appearance?.reset().then(refreshAppearanceUI);
             refreshAppearanceUI();
@@ -680,6 +717,19 @@ function applyBgTint(hex) {
     }
 }
 
+// Wallpaper overlay: opacity (0–90%) and colour of #user-bg-layer::after.
+// No colour override = follow the accent (--gold).
+function applyBgDim(pct) {
+    const s = document.documentElement.style;
+    if (pct > 0) s.setProperty('--bg-dim', Math.min(90, pct) / 100);
+    else s.removeProperty('--bg-dim');
+}
+function applyBgDimColor(hex) {
+    const s = document.documentElement.style;
+    if (hex) s.setProperty('--bg-dim-color', hex);
+    else s.removeProperty('--bg-dim-color');
+}
+
 /**
  * Re-apply every persisted Appearance tweak at page load — including the
  * accent, whose restore used to live only in the lazy initSettings(), so
@@ -701,6 +751,8 @@ function restoreThemeTweaks() {
     applyBlur(parseInt(localStorage.getItem('aruta_blur') ?? '18', 10));
     applyRadius(parseInt(localStorage.getItem('aruta_radius') ?? '100', 10));
     applyBgTint(localStorage.getItem('aruta_bgtint') || null);
+    applyBgDim(parseInt(localStorage.getItem('aruta_bg_dim') ?? '0', 10));
+    applyBgDimColor(localStorage.getItem('aruta_bg_dim_color') || null);
 }
 window.restoreThemeTweaks = restoreThemeTweaks;
 
