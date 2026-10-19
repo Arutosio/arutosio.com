@@ -117,6 +117,28 @@
     function _userBackgrounds(meta) {
         return Array.isArray(meta.backgrounds) ? meta.backgrounds : [];
     }
+    /** Site defaults as playlist entries. Static entries carry `src` instead of IDB bytes. */
+    function _siteDefaults() {
+        const items = Array.isArray(SITE_BG.items) ? SITE_BG.items : [];
+        return items
+            .filter(it => it && it.src)
+            .map((it, i) => ({
+                id: 'default_' + i,
+                kind: it.kind || _kindFromSrc(it.src),
+                src: it.src,
+                filename: decodeURIComponent(String(it.src).split(/[\\/]/).pop() || ''),
+                slot: it.slot || null,
+            }));
+    }
+    /** Until the user edits the playlist, meta.backgrounds is absent and the site
+     *  defaults apply. The first edit copies them in so they can be removed or re-slotted. */
+    function _effectiveBackgrounds(meta) {
+        return Array.isArray(meta.backgrounds) ? meta.backgrounds : _siteDefaults();
+    }
+    function _materialize(meta) {
+        if (!Array.isArray(meta.backgrounds)) meta.backgrounds = _siteDefaults();
+        return meta.backgrounds;
+    }
 
     // ── File size / type validation ────────────────────────
     function _validate(file) {
@@ -183,14 +205,10 @@
         return /\.(webm|mp4|m4v|mov|ogv)(\?|#|$)/i.test(src || '') ? 'video' : 'image';
     }
     function _playlist() {
-        const user = _userBackgrounds(_readMeta());
-        if (user.length) {
-            return user.map(b => ({ id: b.id, kind: b.kind, slot: b.slot || null, user: true }));
-        }
-        const defaults = Array.isArray(SITE_BG.items) ? SITE_BG.items : [];
-        return defaults
-            .filter(it => it && it.src)
-            .map((it, i) => ({ id: 'default_' + i, kind: it.kind || _kindFromSrc(it.src), src: it.src, slot: it.slot || null }));
+        return _effectiveBackgrounds(_readMeta()).map(b => ({
+            id: b.id, kind: b.kind, slot: b.slot || null,
+            src: b.src || null, user: !b.src,
+        }));
     }
     function _candidates(mode, slot) {
         const list = _playlist();
@@ -367,7 +385,7 @@
     async function addBackgrounds(files) {
         const list = Array.from(files || []);
         const meta = _readMeta();
-        const bgs = _userBackgrounds(meta);
+        const bgs = _materialize(meta);
         let added = 0, failure = null;
         for (const file of list) {
             const v = _validate(file);
@@ -385,9 +403,11 @@
     }
 
     async function removeBackground(id) {
-        await _del(BG_KEY_PREFIX + id);
         const meta = _readMeta();
-        meta.backgrounds = _userBackgrounds(meta).filter(b => b.id !== id);
+        const bgs = _materialize(meta);
+        const target = bgs.find(b => b.id === id);
+        if (target && !target.src) await _del(BG_KEY_PREFIX + id);
+        meta.backgrounds = bgs.filter(b => b.id !== id);
         _writeMeta(meta);
         _refresh();
         return { ok: true };
@@ -395,7 +415,7 @@
 
     function setBackgroundSlot(id, slot) {
         const meta = _readMeta();
-        const b = _userBackgrounds(meta).find(x => x.id === id);
+        const b = _materialize(meta).find(x => x.id === id);
         if (!b) return { ok: false, reason: 'not_found' };
         b.slot = SLOT_IDS.includes(slot) ? slot : null;
         _writeMeta(meta);
@@ -414,11 +434,27 @@
         return getRotation();
     }
 
-    async function clearBackgrounds() {
+    async function _deleteUploads() {
         const all = await _readAll();
         for (const key of Object.keys(all)) {
             if (key.startsWith(BG_KEY_PREFIX) || key === 'background') await _del(key);
         }
+    }
+
+    /** Remove every background, site defaults included (desktop falls back to the gradient). */
+    async function clearBackgrounds() {
+        await _deleteUploads();
+        const meta = _readMeta();
+        meta.backgrounds = [];
+        delete meta.background;
+        _writeMeta(meta);
+        _refresh();
+        return { ok: true };
+    }
+
+    /** Drop the user's playlist and go back to the site's default backgrounds. */
+    async function restoreDefaultBackgrounds() {
+        await _deleteUploads();
         const meta = _readMeta();
         delete meta.backgrounds;
         delete meta.background;
@@ -477,12 +513,13 @@
 
     function get() {
         const meta = _readMeta();
-        const backgrounds = _userBackgrounds(meta);
+        const backgrounds = _effectiveBackgrounds(meta);
         return {
             name: meta.name || null,
             backgrounds,
             background: backgrounds[0] || null,
-            defaultBackgrounds: Array.isArray(SITE_BG.items) ? SITE_BG.items.length : 0,
+            usingDefaultBackgrounds: !Array.isArray(meta.backgrounds),
+            defaultBackgrounds: _siteDefaults().length,
             rotation: getRotation(),
             currentSlot: currentSlot(),
             portrait: meta.portrait || null,
@@ -536,6 +573,7 @@
         setRotation,
         getRotation,
         clearBackgrounds,
+        restoreDefaultBackgrounds,
         setBackground,
         setPortrait,
         setName,

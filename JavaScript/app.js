@@ -79,7 +79,8 @@ function showApp() {
 function animateSectionEntrance(sectionId) {
     switch (sectionId) {
         case 'home':
-            flyingLettersInit();
+            // Settings → Performance → Intro animation (window._introEnabled set by restorePerfToggles)
+            if (window._introEnabled !== false) flyingLettersInit();
             break;
 
         case 'about':
@@ -228,8 +229,8 @@ function bootApp() {
         }
     }
 
-    if (sessionStorage.getItem('aruta_summoned')) {
-        // Repeat visit — everything loaded, reveal immediately
+    if (sessionStorage.getItem('aruta_summoned') || window._introEnabled === false) {
+        // Repeat visit (or intro disabled) — everything loaded, reveal immediately
         const overlay = document.getElementById('summon-overlay');
         if (overlay) overlay.remove();
         showApp();

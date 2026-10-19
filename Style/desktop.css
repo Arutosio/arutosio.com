@@ -402,3 +402,10 @@ body.hero-hidden .char-name,
 body.hero-hidden .char-class {
     animation-play-state: paused;
 }
+
+/* § EFFECT TOGGLES (Settings → Performance)
+ * Off-classes set by applyPerfToggle(); SITE_CONFIG.effects picks the
+ * per-site default (e.g. arutosio.com ships with both hidden).
+ * ──────────────────────────────── */
+body.hide-hero #sec-home { display: none; }
+body.hide-bg-rings .magic-bg .bg-ring { display: none; }

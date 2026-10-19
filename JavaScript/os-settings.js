@@ -388,12 +388,11 @@ function initSettings() {
             applyBgTint(null);
             // Performance toggles back to defaults (apply only if overridden)
             for (const [id, config] of Object.entries(PERF_TOGGLES)) {
-                const had = localStorage.getItem('aruta_' + id) != null;
                 localStorage.removeItem('aruta_' + id);
-                const defOn = config.def !== false;
+                const defOn = perfDefault(id, config);
                 const tgl = document.getElementById(id);
                 if (tgl) tgl.classList.toggle('active', defOn);
-                if (had) applyPerfToggle(config, defOn);
+                applyPerfToggle(config, defOn);
             }
             // Disable any live widgets before wiping their state so their
             // iframes tear down cleanly; then clear the persisted positions.
@@ -503,11 +502,9 @@ function initSettings() {
         if (!toggle) continue;
 
         // Restore from localStorage (def: false toggles are opt-in)
-        const saved = localStorage.getItem('aruta_' + id);
-        const defOn = config.def !== false;
-        const enabled = saved == null ? defOn : saved === 'true';
+        const enabled = perfEnabled(id, config);
         toggle.classList.toggle('active', enabled);
-        if (enabled !== defOn) applyPerfToggle(config, enabled);
+        if (enabled !== perfBaseline(config)) applyPerfToggle(config, enabled);
 
         toggle.addEventListener('click', () => {
             toggle.classList.toggle('active');
@@ -531,7 +528,24 @@ const PERF_TOGGLES = {
     'settings-clickspells': { key: '_clickSpellsEnabled' },
     'settings-circles': { key: '_circleRotationEnabled' },
     'settings-glowpulse': { bodyClass: 'glow-pulse', def: false },
+    'settings-hero': { offClass: 'hide-hero' },
+    'settings-bgrings': { offClass: 'hide-bg-rings' },
+    'settings-intro': { key: '_introEnabled' },
 };
+
+/** State the page has with no toggle applied (markup/CSS defaults). */
+function perfBaseline(config) {
+    return config.def !== false;
+}
+/** Default for this site: SITE_CONFIG.effects can override the baseline per toggle id. */
+function perfDefault(id, config) {
+    const override = window.SITE_CONFIG?.effects?.[id];
+    return typeof override === 'boolean' ? override : perfBaseline(config);
+}
+function perfEnabled(id, config) {
+    const saved = localStorage.getItem('aruta_' + id);
+    return saved == null ? perfDefault(id, config) : saved === 'true';
+}
 
 /**
  * Apply a performance toggle — show/hide elements, set window flags or
@@ -552,6 +566,7 @@ function applyPerfToggle(config, enabled) {
     }
     if (config.key) window[config.key] = enabled;
     if (config.bodyClass) document.body.classList.toggle(config.bodyClass, enabled);
+    if (config.offClass) document.body.classList.toggle(config.offClass, !enabled);
     if (config.cursorClass) {
         if (enabled) document.documentElement.classList.add('magic-cursor-active');
         else document.documentElement.classList.remove('magic-cursor-active');
@@ -565,10 +580,8 @@ function applyPerfToggle(config, enabled) {
  */
 function restorePerfToggles() {
     for (const [id, config] of Object.entries(PERF_TOGGLES)) {
-        const saved = localStorage.getItem('aruta_' + id);
-        const defOn = config.def !== false;
-        const enabled = saved == null ? defOn : saved === 'true';
-        if (enabled !== defOn) applyPerfToggle(config, enabled);
+        const enabled = perfEnabled(id, config);
+        if (enabled !== perfBaseline(config)) applyPerfToggle(config, enabled);
     }
 }
 window.restorePerfToggles = restorePerfToggles;
@@ -938,9 +951,14 @@ function refreshAppearanceUI() {
     const portraitStatus = document.getElementById('settings-portrait-status');
     const nameInput = document.getElementById('settings-name-input');
     const bgs = state.backgrounds || [];
-    if (bgStatus) bgStatus.textContent = bgs.length
-        ? (t.settings_bg_count || '{n} in rotation').replace('{n}', bgs.length)
-        : dflt;
+    const count = (t.settings_bg_count || '{n} in rotation').replace('{n}', bgs.length);
+    // No backgrounds: "Default" means the stock gradient, unless the site's own defaults were removed.
+    if (bgStatus) bgStatus.textContent = !bgs.length
+        ? (state.defaultBackgrounds ? (t.settings_bg_none || 'None') : dflt)
+        : state.usingDefaultBackgrounds ? dflt + ' · ' + count : count;
+    const bgDefaults = document.getElementById('settings-bg-defaults');
+    // Only offered when the site ships defaults and the user has diverged from them.
+    if (bgDefaults) bgDefaults.hidden = !state.defaultBackgrounds || state.usingDefaultBackgrounds;
     renderBackgroundList(bgs, state.rotation.mode);
     const modeSel = document.getElementById('settings-bg-mode');
     const intervalInput = document.getElementById('settings-bg-interval');
@@ -981,6 +999,12 @@ function renderBackgroundList(bgs, mode) {
         name.title = name.textContent;
 
         li.append(icon, name);
+        if (bg.src) {
+            const tag = document.createElement('span');
+            tag.className = 'settings-bg-item-tag';
+            tag.textContent = t.settings_bg_default_tag || 'default';
+            li.appendChild(tag);
+        }
 
         if (mode === 'time') {
             const sel = document.createElement('select');
@@ -1053,6 +1077,13 @@ function initAppearanceCustom() {
     if (bgClear) {
         bgClear.addEventListener('click', async () => {
             await window.appearance.clearBackgrounds();
+            refreshAppearanceUI();
+        });
+    }
+    const bgDefaults = document.getElementById('settings-bg-defaults');
+    if (bgDefaults) {
+        bgDefaults.addEventListener('click', async () => {
+            await window.appearance.restoreDefaultBackgrounds();
             refreshAppearanceUI();
         });
     }

@@ -17,4 +17,11 @@ window.SITE_CONFIG = {
             { src: './Backgrounds/Toaru-Kagaku-no-Accelerator.webm', kind: 'video', slot: 'night' },
         ],
     },
+    // Per-site defaults for Settings → Performance toggles. The user's own
+    // choice in Settings always wins. Keep the desktop clean over the videos.
+    effects: {
+        'settings-hero': false,     // center portrait + magic circle
+        'settings-bgrings': false,  // background rings
+        'settings-intro': false,    // summoning screen + flying letters
+    },
 };
