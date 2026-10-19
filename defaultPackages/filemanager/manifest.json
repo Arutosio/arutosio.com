@@ -1,0 +1,12 @@
+{
+    "id": "filemanager",
+    "name": "Files",
+    "icon": "📁",
+    "version": "1.3.0",
+    "minSdk": 2,
+    "roles": ["app"],
+    "author": "Aruta",
+    "category": "tools",
+    "allowOrigin": true,
+    "permissions": ["storage", "notifications", "windows", "install", "profile-fs"]
+}

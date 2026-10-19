@@ -1,0 +1,7 @@
+/* ╔══════════════════════════════════════════════════════════╗
+ * ║  MAIN — deprecated bundle                                ║
+ * ║  Stylesheets are now linked directly from index.html so  ║
+ * ║  the preload scanner can fetch them in parallel. Keeping ║
+ * ║  this file as a no-op avoids breaking any third-party    ║
+ * ║  link that still points here.                            ║
+ * ╚══════════════════════════════════════════════════════════╝ */

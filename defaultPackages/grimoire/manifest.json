@@ -1,0 +1,12 @@
+{
+    "id": "grimoire",
+    "name": "Grimoire",
+    "icon": "📜",
+    "version": "1.8.8",
+    "minSdk": 2,
+    "roles": ["app"],
+    "author": "Aruta",
+    "category": "tools",
+    "allowOrigin": true,
+    "permissions": ["storage"]
+}

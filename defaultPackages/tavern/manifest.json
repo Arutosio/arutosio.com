@@ -1,0 +1,18 @@
+{
+  "id": "tavern",
+  "name": "Tavern",
+  "icon": "🍺",
+  "version": "2.2.1",
+  "minSdk": 2,
+  "roles": ["app", "widget"],
+  "unmountOnClose": true,
+  "entries": { "app": "ui.js", "widget": "widget.js" },
+  "widget": {
+    "defaultWidth": 320,
+    "defaultHeight": 420,
+    "defaultAnchor": "bottom-right"
+  },
+  "category": "tools",
+  "author": "Aruta",
+  "permissions": ["storage"]
+}

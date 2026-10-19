@@ -1,0 +1,16 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 5f7a39f..a721f86 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -234,7 +234,10 @@ if(WIN32)
+ elseif(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+ 	set(BUILD_STATIC ON)
+ 	set(BUILD_SHARED OFF)
+-	set(USE_PTHREADS ON)
++	# aruta.sh single-thread build: no SharedArrayBuffer on GitHub Pages
++	# (no COOP/COEP headers), so pthreads are unavailable. threading.h
++	# auto-defines DISABLE_THREADING when USE_PTHREADS is off.
++	set(USE_PTHREADS OFF)
+ 	add_definitions(-D_GNU_SOURCE)
+ 	list(APPEND OS_DEFINES ENABLE_VFS_FD)
+ 	list(APPEND CORE_VFS_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/util/vfs/vfs-fd.c ${CMAKE_CURRENT_SOURCE_DIR}/src/util/vfs/vfs-dirent.c)

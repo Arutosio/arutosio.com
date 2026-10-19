@@ -1,5 +1,6 @@
 name: Deploy to GitHub Pages
 
+# Static site mirrored from aruta.sh (tools/sync-arutosio.sh) — no build step.
 on:
   push:
     branches: [master]
@@ -21,27 +22,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Preserve GitHub Pages metadata
-        run: |
-          if [ -f CNAME ]; then cp CNAME dist/CNAME; fi
-          if [ -f .nojekyll ]; then cp .nojekyll dist/.nojekyll; else touch dist/.nojekyll; fi
-
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: .
 
   deploy:
     needs: build

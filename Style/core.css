@@ -1,0 +1,585 @@
+/* ╔══════════════════════════════════════════════════════════╗
+ * ║  CORE — Variables, Base Reset, Animations, Scrollbar    ║
+ * ║  Foundation styles shared across the entire site        ║
+ * ╚══════════════════════════════════════════════════════════╝ */
+
+/* § THEME VARIABLES
+ * ──────────────────────────────── */
+:root {
+    /* Raw background bases — referenced by the Background Tint setting so a
+       JS-composed gradient stays theme-aware when dark/light switches. */
+    --bg-base: #0c0a1a;
+    --bg-core: #1a1035;
+    --bg:          #0c0a1a;
+    --bg-grad:     radial-gradient(ellipse at 50% 40%, #1a1035 0%, #0c0a1a 65%);
+    /* Border system — borders/glows derive from --border-tint (defaults to
+       the accent) times --border-alpha so they follow accent changes and the
+       Settings → Appearance border controls. */
+    --border-tint:  var(--gold);
+    --border-alpha: 1;
+    --card-border: color-mix(in srgb, var(--border-tint) calc(28% * var(--border-alpha)), transparent);
+    --card-glow:   color-mix(in srgb, var(--border-tint) 6%, transparent);
+    --gold:        #ffc857;
+    --gold-light:  #ffe4a0;
+    --purple:      #a78bfa;
+    --text:        #e0daf0;
+    --text-dim:    #9fa3c0;
+    --text-faint:  #6f6b88;
+    --seal-bg:     color-mix(in srgb, var(--border-tint) 4%, transparent);
+    --seal-border: color-mix(in srgb, var(--border-tint) calc(12% * var(--border-alpha)), transparent);
+    --hud-bg:      rgba(6, 4, 16, 0.85);
+    --mc-color:    #a78bfa;
+    --magic-orb:   color-mix(in srgb, var(--purple) 55%, transparent);
+    --bg-ring-col: #a78bfa;
+    --font-display: 'Cinzel', Georgia, serif;
+    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+    /* Semantic brand colors (stable across themes for status/intent) */
+    --green:  #34d399;  --green-light:  #6ee7b7;
+    --red:    #fb7185;  --red-light:    #fda4af;
+    --cyan:   #22d3ee;  --cyan-light:   #67e8f9;
+    --emerald:#34d399;
+
+    /* Brand opacity ramps — auto-track the active theme via color-mix */
+    --gold-04:   color-mix(in srgb, var(--gold)  4%, transparent);
+    --gold-06:   color-mix(in srgb, var(--gold)  6%, transparent);
+    --gold-08:   color-mix(in srgb, var(--gold)  8%, transparent);
+    --gold-10:   color-mix(in srgb, var(--gold) 10%, transparent);
+    --gold-12:   color-mix(in srgb, var(--gold) 12%, transparent);
+    --gold-15:   color-mix(in srgb, var(--gold) 15%, transparent);
+    --gold-18:   color-mix(in srgb, var(--gold) 18%, transparent);
+    --gold-20:   color-mix(in srgb, var(--gold) 20%, transparent);
+    --gold-22:   color-mix(in srgb, var(--gold) 22%, transparent);
+    --gold-25:   color-mix(in srgb, var(--gold) 25%, transparent);
+    --gold-28:   color-mix(in srgb, var(--gold) 28%, transparent);
+    --gold-30:   color-mix(in srgb, var(--gold) 30%, transparent);
+    --gold-35:   color-mix(in srgb, var(--gold) 35%, transparent);
+    --gold-40:   color-mix(in srgb, var(--gold) 40%, transparent);
+    --gold-50:   color-mix(in srgb, var(--gold) 50%, transparent);
+    --purple-15: color-mix(in srgb, var(--purple) 15%, transparent);
+    --purple-18: color-mix(in srgb, var(--purple) 18%, transparent);
+    --purple-25: color-mix(in srgb, var(--purple) 25%, transparent);
+
+    /* Ink ramp — pure-black transparencies for shadows + scrims.
+       Not theme-aware on purpose: drop shadows stay inky in both modes. */
+    --ink-04: rgba(0,0,0,0.04); --ink-15: rgba(0,0,0,0.15);
+    --ink-20: rgba(0,0,0,0.2);  --ink-25: rgba(0,0,0,0.25);
+    --ink-30: rgba(0,0,0,0.3);
+    --ink-35: rgba(0,0,0,0.35); --ink-40: rgba(0,0,0,0.4);
+    --ink-50: rgba(0,0,0,0.5);  --ink-60: rgba(0,0,0,0.6);
+    --ink-80: rgba(0,0,0,0.8);
+
+    /* Form controls / chrome surfaces (theme-aware — overridden in light) */
+    --input-bg:          rgba(20,12,40,0.55);
+    --input-border:      color-mix(in srgb, var(--border-tint) calc(30% * var(--border-alpha)), transparent);
+    --input-text:        var(--text);
+    --toggle-thumb:      #fffaf0;
+    --toggle-track-on:   var(--gold);
+    --toggle-track-off:  rgba(255,255,255,0.15);
+    --panel-bg:          rgba(6,4,16,0.85);
+    --panel-border:      color-mix(in srgb, var(--border-tint) calc(25% * var(--border-alpha)), transparent);
+    --accent-contrast:   #2a1a08;
+
+    /* Font-size scale. 15 distinct rem values were collapsed into 8 tokens.
+       Max snap drift: ±0.05rem (~0.8px @ 16px root). clamp() / vw values
+       stay inline because they're intentionally fluid.
+         xs   ← 0.7  / 0.75
+         sm   ← 0.78 / 0.8 / 0.82
+         base ← 0.85 / 0.88
+         md   ← 0.9  / 0.92
+         lg   ← 0.95 / 1.0  / 1.05
+         xl   ← 1.1
+         2xl  ← 1.3
+         3xl  ← 2.0    */
+    --text-xs:   0.7rem;
+    --text-sm:   0.8rem;
+    --text-base: 0.85rem;
+    --text-md:   0.9rem;
+    --text-lg:   1rem;
+    --text-xl:   1.1rem;
+    --text-2xl:  1.3rem;
+    --text-3xl:  2rem;
+
+    /* Font-weight scale (matches loaded Inter/Cinzel weights) */
+    --fw-normal: 500;
+    --fw-medium: 600;
+    --fw-bold:   700;
+    --fw-heavy:  900;
+
+    /* Radii — scaled by the Settings → Appearance roundness slider */
+    --radius-scale: 1;
+    --radius-xs: calc(4px  * var(--radius-scale));
+    --radius-sm: calc(6px  * var(--radius-scale));
+    --radius-md: calc(8px  * var(--radius-scale));
+    --radius-lg: calc(10px * var(--radius-scale));
+    --radius-xl: calc(12px * var(--radius-scale));
+
+    /* Spacing */
+    --space-1: 4px;  --space-2: 6px;  --space-3: 8px;
+    --space-4: 12px; --space-5: 16px; --space-6: 24px;
+
+    /* Z-index scale */
+    --z-bg: 0; --z-fog: 1; --z-app: 2; --z-portrait: 5;
+    --z-window: 10; --z-widget: 15; --z-spell: 50;
+    --z-taskbar: 100; --z-menu: 200;
+    --z-summon: 999;
+    --z-ripple: 9990; --z-achievement: 9990;
+    --z-toast: 9995; --z-modal: 9998; --z-cursor: 99999;
+
+    /* Easings */
+    --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+
+    /* Glassmorphism blur depths */
+    --blur-subtle: 6px;
+    --blur-glass:  18px;
+    --blur-deep:   24px;
+
+    /* Transition durations (by how quickly they *feel*):
+       snap  = micro-feedback     (0.15s)
+       fast  = UI hover/state     (0.2s)
+       quick = snappier UI        (0.25s)
+       brisk = card/tilt settle   (0.28s)
+       mellow= short fades        (0.3s)
+       base  = theme/color swaps  (0.5s)
+       slow  = page reveals       (0.6s) */
+    --dur-snap:   0.15s;
+    --dur-fast:   0.2s;
+    --dur-quick:  0.25s;
+    --dur-brisk:  0.28s;
+    --dur-mellow: 0.3s;
+    --dur-base:   0.5s;
+    --dur-slow:   0.6s;
+
+    /* Border recipes */
+    --border-subtle: 1px solid var(--seal-border);
+    --border-card:   1px solid var(--card-border);
+}
+
+[data-theme="light"] {
+    --bg-base: #fbf6e8;
+    --bg-core: #fffdf4;
+    --bg:          #fbf6e8;
+    --bg-grad:     radial-gradient(ellipse at 50% 30%, #fffdf4 0%, #f6efdc 50%, #ece3c8 100%);
+    --card-border: color-mix(in srgb, var(--border-tint) calc(42% * var(--border-alpha)), transparent);
+    --card-glow:   color-mix(in srgb, var(--border-tint) 6%, transparent);
+    --gold:        #8b6914;
+    --gold-light:  #a07a20;
+    --purple:      #7a4e06;
+    --text:        #2a1a08;
+    --text-dim:    #4a3520;
+    --text-faint:  #7a5c40;
+    --seal-bg:     color-mix(in srgb, var(--border-tint) 6%, transparent);
+    --seal-border: color-mix(in srgb, var(--border-tint) calc(18% * var(--border-alpha)), transparent);
+    --hud-bg:      rgba(240, 232, 216, 0.92);
+    --mc-color:    #8b6914;
+    --magic-orb:   color-mix(in srgb, var(--purple) 25%, transparent);
+    --bg-ring-col: #8b6914;
+
+    /* Ink ramp — light variant: warm brown transparencies for shadow/scrim
+       so elevations remain visible without black blotches on parchment. */
+    --ink-04: rgba(90,60,20,0.04); --ink-15: rgba(90,60,20,0.15);
+    --ink-20: rgba(90,60,20,0.20); --ink-25: rgba(90,60,20,0.25);
+    --ink-30: rgba(90,60,20,0.30);
+    --ink-35: rgba(90,60,20,0.35); --ink-40: rgba(90,60,20,0.40);
+    --ink-50: rgba(90,60,20,0.50); --ink-60: rgba(90,60,20,0.60);
+    --ink-80: rgba(90,60,20,0.80);
+
+    /* Form controls / chrome surfaces (light) */
+    --input-bg:          rgba(255,245,220,0.85);
+    --input-border:      color-mix(in srgb, var(--border-tint) calc(40% * var(--border-alpha)), transparent);
+    --input-text:        #2a1a08;
+    --toggle-thumb:      #fffaf0;
+    --toggle-track-on:   var(--gold);
+    --toggle-track-off:  rgba(90,60,20,0.25);
+    --panel-bg:          rgba(248,238,218,0.92);
+    --panel-border:      color-mix(in srgb, var(--border-tint) calc(35% * var(--border-alpha)), transparent);
+    --accent-contrast:   #fffaf0;
+}
+
+/* § UTILITIES
+ *   .glass-panel — arcane-themed glass surface (taskbar, menu, windows, panels)
+ *   .arcane-input — shared input/button base (term input, selects, toggles)
+ *   Keyboard-focus outline for every interactive element — accessibility.
+ * ──────────────────────────────── */
+.glass-panel {
+    background: var(--hud-bg);
+    border: var(--border-card);
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(var(--blur-glass));
+    -webkit-backdrop-filter: blur(var(--blur-glass));
+}
+.arcane-input {
+    background: var(--input-bg);
+    color: var(--input-text);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    font-family: inherit;
+    font-size: var(--text-base);
+    transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.arcane-input:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 8px var(--gold-25);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible,
+.taskbar-tab:focus-visible,
+.tray-btn:focus-visible,
+.win-btn:focus-visible,
+.start-item:focus-visible,
+.start-action:focus-visible,
+.settings-cat:focus-visible,
+.settings-toggle:focus-visible,
+.confirm-btn:focus-visible,
+.term-input:focus-visible,
+.perm-toggle:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+/* § ACCESSIBILITY — reduced motion
+ * Honor user OS preference: kill all animations + transitions for users
+ * with vestibular sensitivity. Keeps the interface usable but static.
+ * ──────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* § LOW POWER MODE
+ * Auto-applied on weak/battery devices (or forced via Settings → Performance).
+ * Drops the heaviest GPU work: full-screen fog blur is removed, and the glass
+ * backdrop-blur radii are cut (they feed every .glass-panel / window / taskbar
+ * via backdrop-filter). Particle density + parallax are trimmed in JS.
+ * ──────────────────────────────── */
+body.low-power {
+    --blur-subtle: 3px;
+    --blur-glass:  7px;
+    --blur-deep:   8px;
+}
+body.low-power .ambient-fog { display: none; }
+
+/* § RESET & BASE
+ * ──────────────────────────────── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* Vanilla Tilt glare overlay */
+.js-tilt-glare { border-radius: inherit; }
+
+html { height: 100%; overflow: hidden; }
+
+button, select { font: inherit; }
+
+body {
+    background: var(--bg);
+    background-image: var(--bg-grad);
+    background-attachment: fixed;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-weight: var(--fw-normal);
+    height: 100dvh;
+    overflow: hidden;
+    transition: background-color var(--dur-slow), color var(--dur-base);
+}
+
+/* § RUNE PARTICLE CANVAS
+ * ──────────────────────────────── */
+#rune-bg {
+    position: fixed; inset: 0;
+    z-index: var(--z-bg); pointer-events: none;
+    will-change: contents;
+}
+
+/* § MAGIC CURSOR (desktop only)
+ * cursor:none applied by JS class on <html> — see initMagicCursor()
+ * ──────────────────────────────── */
+html.magic-cursor-active, html.magic-cursor-active * { cursor: none !important; }
+#magic-cursor {
+    position: fixed; top: 0; left: 0;
+    pointer-events: none; z-index: var(--z-cursor);
+    will-change: transform;
+    transform: translate(-999px, -999px);
+}
+.cursor-ring { display: none; }
+.cursor-dot {
+    position: absolute;
+    width: 7px; height: 7px;
+    top: -3px; left: -3px;
+    border-radius: 50%;
+    background: #f0f8ff;
+    box-shadow: 0 0 8px #f0f8ff, 0 0 18px rgba(200, 230, 255, 0.8), 0 0 32px rgba(130, 190, 255, 0.4);
+    transition: width .12s, height .12s, top .12s, left .12s, background .3s, box-shadow .3s;
+}
+#magic-cursor.cursor-hover .cursor-dot {
+    width: 10px; height: 10px;
+    top: -5px; left: -5px;
+}
+[data-theme="light"] .cursor-dot {
+    background: #1a0c04;
+    box-shadow: 0 0 8px rgba(26,12,4,0.9), 0 0 18px rgba(72,40,8,0.5), 0 0 32px rgba(72,40,8,0.22);
+}
+
+/* § MAIN APP
+ * ──────────────────────────────── */
+#app {
+    position: relative; z-index: var(--z-app); height: 100dvh;
+    display: block;
+    padding: 0; overflow: hidden;
+    transition: opacity var(--dur-base);
+}
+#app.hidden  { opacity: 0; pointer-events: none; }
+#app.visible { animation: pageReveal 1s var(--ease-standard) forwards; }
+@keyframes pageReveal {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* § SUMMONING OVERLAY
+ * ──────────────────────────────── */
+#summon-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+#summon-overlay {
+    position: fixed; inset: 0; background: #050310;
+    z-index: var(--z-summon); display: flex; align-items: center; justify-content: center;
+    transition: opacity 1.2s var(--ease-standard);
+}
+#summon-overlay.fade-out { opacity: 0; pointer-events: none; }
+
+[data-theme="light"] #summon-overlay { background: #e2d8bc; }
+
+.summon-text-wrap {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 24px; z-index: var(--z-app); pointer-events: none;
+}
+.summon-logo {
+    font-family: 'IM Fell English', Georgia, serif;
+    font-size: clamp(2.2rem, 7vw, 4rem);
+    font-weight: var(--fw-heavy); color: #c0c8e0; letter-spacing: 0.12em;
+    text-shadow: 0 0 20px rgba(192,200,224,0.8), 0 0 60px rgba(192,200,224,0.4), 0 0 100px color-mix(in srgb, var(--purple) 30%, transparent);
+    animation: summonPulse 2s ease-in-out infinite alternate;
+}
+[data-theme="light"] .summon-logo {
+    color: #7a4e06;
+    text-shadow: 0 0 18px rgba(122,78,6,0.7), 0 0 50px rgba(122,78,6,0.3), 0 0 90px rgba(139,28,34,0.25);
+    animation: summonPulseLight 2s ease-in-out infinite alternate;
+}
+@keyframes summonPulse {
+    from { text-shadow: 0 0 20px rgba(192,200,224,0.7), 0 0 50px rgba(192,200,224,0.3); }
+    to   { text-shadow: 0 0 30px rgba(192,200,224,1),   0 0 80px rgba(192,200,224,0.5), 0 0 120px color-mix(in srgb, var(--purple) 40%, transparent); }
+}
+@keyframes summonPulseLight {
+    from { text-shadow: 0 0 18px rgba(122,78,6,0.6), 0 0 45px rgba(122,78,6,0.25); }
+    to   { text-shadow: 0 0 28px rgba(122,78,6,0.9), 0 0 70px rgba(122,78,6,0.4), 0 0 110px rgba(139,28,34,0.3); }
+}
+#summon-log {
+    font-family: 'IM Fell English', Georgia, serif;
+    font-style: italic; font-size: clamp(1.1rem, 3vw, 1.4rem);
+    color: #a0a8c0; text-align: center;
+    width: min(560px, 88vw); min-height: 120px; line-height: 2.2; opacity: 0.9;
+}
+[data-theme="light"] #summon-log { color: #6b3c18; }
+.summon-line { display: block; animation: summonLineIn 0.4s ease forwards; }
+@keyframes summonLineIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* § CLICK SPELL BURST
+ * ──────────────────────────────── */
+.spell-burst {
+    position: fixed; pointer-events: none; z-index: var(--z-spell);
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--gold);
+    box-shadow: 0 0 6px var(--gold), 0 0 12px color-mix(in srgb, var(--purple) 50%, transparent);
+    animation: spellBurstFly 0.8s cubic-bezier(0.25, 0, 0.25, 1) forwards;
+}
+.spell-burst::after {
+    content: attr(data-rune);
+    position: absolute; top: -8px; left: -4px;
+    font-size: var(--text-lg); color: var(--gold); opacity: 0.7;
+}
+@keyframes spellBurstFly {
+    0%   { opacity: 1; transform: translate(0, 0) scale(1); }
+    70%  { opacity: 0.6; }
+    100% { opacity: 0; transform: translate(var(--bx), var(--by)) scale(0); }
+}
+
+/* § ACHIEVEMENT TOASTS
+ * ──────────────────────────────── */
+.achievement-toast {
+    position: fixed; bottom: 20px; right: 20px; z-index: var(--z-ripple);
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 20px;
+    background: var(--hud-bg);
+    backdrop-filter: blur(var(--blur-glass)); -webkit-backdrop-filter: blur(var(--blur-glass));
+    border: 1px solid var(--gold);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 32px var(--ink-40), 0 0 20px var(--gold-10);
+    transform: translateX(120%);
+    transition: transform 0.4s var(--ease-bounce);
+    pointer-events: none;
+}
+.achievement-toast.ach-show { transform: translateX(0); }
+.ach-icon { font-size: 1.6rem; flex-shrink: 0; }
+.ach-body { display: flex; flex-direction: column; gap: 2px; }
+.ach-name {
+    font-size: var(--text-base); font-weight: var(--fw-bold); color: var(--gold);
+    letter-spacing: 0.06em;
+}
+.ach-desc { font-size: var(--text-xs); color: var(--text-dim); }
+
+/* § SHARE BUTTON FEEDBACK
+ * ──────────────────────────────── */
+.share-copied {
+    color: #53fc18 !important;
+    text-shadow: 0 0 10px rgba(83,252,24,0.4) !important;
+}
+
+/* § EASTER EGG — Konami rune storm
+ * ──────────────────────────────── */
+@keyframes eggRuneFall {
+    0%   { opacity: 0; transform: translateY(0) rotate(0deg); }
+    10%  { opacity: 0.9; }
+    80%  { opacity: 0.7; }
+    100% { opacity: 0; transform: translateY(110vh) rotate(360deg); }
+}
+
+/* § CUSTOM SCROLLBAR
+ * ──────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--gold-20); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold-40); }
+[data-theme="light"]::-webkit-scrollbar-track { background: var(--bg); }
+[data-theme="light"]::-webkit-scrollbar-thumb { background: rgba(139, 105, 20, 0.2); border-radius: 3px; }
+[data-theme="light"]::-webkit-scrollbar-thumb:hover { background: rgba(139, 105, 20, 0.4); }
+
+/* § TOAST NOTIFICATIONS — arcane themed popups
+ * ──────────────────────────────── */
+.toast-container {
+    position: fixed; bottom: 20px; right: 20px; z-index: var(--z-toast);
+    display: flex; flex-direction: column-reverse; gap: 10px;
+    pointer-events: none;
+    max-width: min(360px, calc(100vw - 40px));
+}
+.toast {
+    position: relative; overflow: hidden;
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 18px 12px 16px;
+    background: var(--hud-bg);
+    backdrop-filter: blur(var(--blur-glass)); -webkit-backdrop-filter: blur(var(--blur-glass));
+    border: 1px solid var(--card-border);
+    border-left: 3px solid var(--gold);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 32px var(--ink-40), 0 0 16px var(--gold-08);
+    color: var(--text);
+    font-size: var(--text-sm);
+    transform: translateX(120%);
+    opacity: 0;
+    transition: transform 0.4s var(--ease-bounce), opacity var(--dur-mellow);
+    pointer-events: auto;
+}
+.toast.toast-show { transform: translateX(0); opacity: 1; }
+.toast.toast-hide { transform: translateX(120%); opacity: 0; }
+.toast-icon {
+    font-size: var(--text-xl); color: var(--gold); flex-shrink: 0;
+    text-shadow: 0 0 6px var(--gold-35);
+}
+.toast-msg { flex: 1; line-height: 1.35; }
+.toast-close {
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; font-size: var(--text-md); padding: 2px 4px;
+    transition: color var(--dur-fast);
+}
+.toast-close:hover { color: var(--gold); }
+.toast::after {
+    content: ''; position: absolute; left: 0; bottom: 0;
+    height: 2px; width: 100%; background: var(--gold);
+    transform-origin: left;
+    animation: toastProgress var(--toast-duration, 3500ms) linear forwards;
+    opacity: 0.5;
+}
+.toast.toast-success { border-left-color: var(--green); }
+.toast.toast-success .toast-icon { color: var(--green); text-shadow: 0 0 6px color-mix(in srgb, var(--green) 40%, transparent); }
+.toast.toast-success::after { background: var(--green); }
+.toast.toast-error { border-left-color: var(--red); }
+.toast.toast-error .toast-icon { color: var(--red); text-shadow: 0 0 6px color-mix(in srgb, var(--red) 40%, transparent); }
+.toast.toast-error::after { background: var(--red); }
+.toast.toast-warning { border-left-color: #ffb347; }
+.toast.toast-warning .toast-icon { color: #ffb347; text-shadow: 0 0 6px rgba(255,179,71,0.4); }
+.toast.toast-warning::after { background: #ffb347; }
+
+/* Light-theme toast parity — accent colors stay legible on light hud-bg */
+[data-theme="light"] .toast.toast-success { border-left-color: #2f8a55; }
+[data-theme="light"] .toast.toast-success .toast-icon,
+[data-theme="light"] .toast.toast-success::after { color: #2f8a55; background: #2f8a55; }
+[data-theme="light"] .toast.toast-error { border-left-color: #c23a4f; }
+[data-theme="light"] .toast.toast-error .toast-icon,
+[data-theme="light"] .toast.toast-error::after { color: #c23a4f; background: #c23a4f; }
+[data-theme="light"] .toast.toast-warning { border-left-color: #b86a0c; }
+[data-theme="light"] .toast.toast-warning .toast-icon,
+[data-theme="light"] .toast.toast-warning::after { color: #b86a0c; background: #b86a0c; }
+@keyframes toastProgress { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@media (max-width: 640px) {
+    .toast-container { left: 12px; right: 12px; bottom: 12px; max-width: none; }
+}
+
+/* § CONFIRM MODAL — themed dialog
+ * ──────────────────────────────── */
+.confirm-backdrop {
+    position: fixed; inset: 0; z-index: var(--z-modal);
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(6, 4, 16, 0.55);
+    backdrop-filter: blur(var(--blur-subtle)); -webkit-backdrop-filter: blur(var(--blur-subtle));
+    opacity: 0; transition: opacity var(--dur-quick);
+}
+.confirm-backdrop.confirm-show { opacity: 1; }
+.confirm-modal {
+    min-width: 300px; max-width: min(460px, calc(100vw - 32px));
+    padding: 22px 22px 18px;
+    background: var(--hud-bg);
+    border: 1px solid var(--card-border);
+    border-left: 3px solid var(--gold);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 12px 48px var(--ink-50), 0 0 24px var(--gold-10);
+    color: var(--text);
+    transform: translateY(-10px) scale(0.96);
+    transition: transform var(--dur-mellow) var(--ease-bounce);
+}
+.confirm-backdrop.confirm-show .confirm-modal { transform: translateY(0) scale(1); }
+.confirm-modal.confirm-warning { border-left-color: #ffb347; }
+.confirm-modal.confirm-error { border-left-color: #ff6b6b; }
+.confirm-msg {
+    font-size: var(--text-md); line-height: 1.45; margin-bottom: 18px;
+    font-family: var(--font-display);
+    letter-spacing: 0.02em;
+}
+.confirm-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.confirm-btn {
+    padding: 8px 18px;
+    background: transparent;
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-md);
+    color: var(--text); font-size: var(--text-sm); cursor: pointer;
+    font-family: var(--font-display); letter-spacing: 0.04em;
+    transition: background-color var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
+}
+.confirm-btn:hover { border-color: var(--gold); color: var(--gold); }
+.confirm-btn.confirm-ok {
+    background: var(--gold-12);
+    border-color: var(--gold); color: var(--gold);
+}
+.confirm-btn.confirm-ok:hover { background: var(--gold-22); }

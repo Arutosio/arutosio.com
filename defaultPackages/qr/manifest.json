@@ -1,0 +1,10 @@
+{
+    "id": "qr",
+    "name": "QR Encoder",
+    "icon": "▣",
+    "version": "1.0.1",
+    "minSdk": 2,
+    "roles": ["command"],
+    "author": "Aruta",
+    "permissions": ["terminal", "fetch"]
+}

@@ -1,0 +1,303 @@
+/* ╔══════════════════════════════════════════════════════════╗
+ * ║  TERMINAL · PERMISSIONS · INSTALLER  styling             ║
+ * ╚══════════════════════════════════════════════════════════╝ */
+
+/* ── Terminal window ────────────────────────────────────── */
+#win-terminal {
+    height: min(520px, calc(100dvh - 120px));
+    width: min(720px, calc(100vw - 80px));
+}
+#win-terminal .win-content {
+    padding: 0;
+    background: rgba(8, 6, 18, 0.92);
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+#win-terminal.win-maximized { height: auto; }
+.term-screen {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 320px;
+    font-family: 'IM Fell English', 'Cinzel', 'Courier New', monospace;
+    font-size: var(--text-lg);
+    font-weight: var(--fw-medium);
+    letter-spacing: 0.02em;
+    color: var(--gold-light, #ffe4a0);
+}
+.term-line { font-family: inherit; }
+/* Keep monospaced alignment for command tables (help, apps, commands) */
+.term-output pre, .term-output code { font-family: 'Courier New', monospace; font-weight: var(--fw-bold); }
+.term-output {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 1rem 1rem 0.5rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.term-line {
+    margin: 0;
+    padding: 0;
+    min-height: 1.2em;
+}
+.term-output       { color: #e8e8f0; }
+.term-info         { color: var(--cyan); }
+.term-success      { color: var(--green); }
+.term-error        { color: var(--red); }
+.term-dim          { color: rgba(232, 232, 240, 0.45); font-style: italic; }
+.term-prompt       { color: var(--gold); font-weight: var(--fw-bold); }
+.term-cmd          { color: var(--purple); }
+.term-key          { color: var(--gold); font-weight: var(--fw-bold); }
+.term-value        { color: var(--purple); }
+.term-num          { color: #fb923c; }
+.term-str          { color: var(--green); }
+.term-muted        { color: rgba(232, 232, 240, 0.6); }
+
+.term-inputline {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 1rem 0.9rem;
+    border-top: 1px solid var(--gold-18);
+    background: var(--ink-30);
+}
+.term-input-wrap {
+    position: relative;
+    flex: 1;
+    margin-left: 0.4rem;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+.term-input {
+    flex: 1;
+    width: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: transparent;
+    font-family: inherit;
+    font-size: inherit;
+    caret-color: var(--gold, #ffc857);
+    padding: 0;
+    position: relative;
+    z-index: 1;
+}
+.term-input::selection { background: var(--gold-22, rgba(255, 200, 87, 0.3)); color: var(--gold-light, #ffe4a0); }
+.term-input::placeholder { color: rgba(255, 228, 160, 0.4); }
+.term-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    font-family: inherit;
+    font-size: inherit;
+    letter-spacing: inherit;
+    padding: 0;
+    white-space: pre;
+    overflow: hidden;
+    color: var(--gold-light, #ffe4a0);
+    display: flex;
+    align-items: center;
+    z-index: 0;
+}
+.term-overlay .term-cmd-ok { color: #6ee7b7; font-weight: var(--fw-bold, 600); }
+.term-overlay .term-cmd-bad { color: #fb7185; font-weight: var(--fw-bold, 600); }
+.term-overlay .term-ghost { opacity: 0.45; font-style: italic; }
+
+/* Custom-app windows: full-bleed iframe content
+   The built-in .os-window has no explicit height — its children drive it.
+   For an iframe-based app that wants "height:100%" of its container, we
+   give the custom window an explicit height and let the content area grow
+   via flex: 1 so the iframe fills the remaining space below the titlebar. */
+.os-window.os-window-custom {
+    height: min(640px, calc(100dvh - 120px));
+    width: min(720px, calc(100vw - 80px));
+}
+.os-window-custom .win-content {
+    padding: 0;
+    overflow: hidden;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+}
+.custom-app-content {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 0;
+    display: flex;
+}
+.sandbox-iframe { display: block; flex: 1 1 auto; width: 100%; height: 100%; }
+
+/* When maximized the window fills the viewport below the taskbar —
+   ensure the iframe follows along without fighting the flex chain. */
+.os-window-custom.win-maximized { height: auto; }
+
+/* ── Permission modal ───────────────────────────────────── */
+.perm-modal { max-width: 460px; }
+.perm-header {
+    display: flex; align-items: center; gap: 0.8rem; margin-bottom: 0.8rem;
+}
+.perm-icon { font-size: var(--text-3xl); }
+.perm-title { font-weight: var(--fw-bold); font-size: var(--text-lg); color: var(--gold, #ffc857); }
+.perm-body {
+    background: var(--ink-25);
+    padding: 0.8rem 1rem;
+    border-radius: var(--radius-md);
+    margin-bottom: 1rem;
+    line-height: 1.4;
+    color: var(--text-dim);
+}
+.perm-actions { gap: 0.5rem; flex-wrap: wrap; }
+.perm-always { background: linear-gradient(135deg, var(--green), #059669) !important; color: #062014 !important; }
+
+/* ── Settings → Permessi page ───────────────────────────── */
+#settings-perms-list { display: flex; flex-direction: column; gap: 0.8rem; }
+.perm-app {
+    border: 1px solid var(--gold-22);
+    border-radius: var(--radius-xl);
+    padding: 0.85rem 1rem;
+    background: rgba(255, 255, 255, 0.025);
+}
+.perm-app-head {
+    display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem;
+}
+.perm-app-icon { font-size: 1.4rem; }
+.perm-app-name { color: var(--gold, #ffc857); }
+.perm-app-type {
+    margin-left: auto;
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    opacity: 0.6;
+    padding: 0.15rem 0.5rem;
+    border: 1px solid var(--gold-30);
+    border-radius: var(--radius-sm);
+}
+.perm-store-notice {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.7rem 0.9rem;
+    margin-bottom: 0.4rem;
+    background: rgba(255, 200, 87, 0.06);
+    border: 1px dashed var(--gold-30);
+    border-radius: var(--radius-xl);
+    font-size: var(--text-sm);
+}
+.perm-store-notice-text { flex: 1; opacity: 0.85; }
+.perm-store-open {
+    background: transparent;
+    border: 1px solid var(--gold-30);
+    color: var(--gold, #ffc857);
+    border-radius: var(--radius-sm);
+    padding: 0.35rem 0.7rem;
+    font-family: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s, border-color 0.12s;
+}
+.perm-store-open:hover {
+    background: rgba(255, 200, 87, 0.12);
+    border-color: var(--gold, #ffc857);
+}
+
+.perm-app-perms { display: flex; flex-direction: column; gap: 0.35rem; }
+.perm-item {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.3rem 0.5rem;
+    border-radius: var(--radius-sm);
+}
+.perm-item:hover { background: rgba(255, 255, 255, 0.04); }
+.perm-name { font-weight: var(--fw-normal); }
+.perm-state {
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius-xs);
+    opacity: 0.85;
+}
+.perm-state-granted { background: rgba(52, 211, 153, 0.18); color: var(--green); }
+.perm-state-denied  { background: rgba(251, 113, 133, 0.18); color: var(--red); }
+.perm-state-ask     { background: var(--purple-18); color: #c4b5fd; }
+.perm-toggle {
+    background: transparent;
+    border: 1px solid var(--gold-40);
+    color: var(--gold, #ffc857);
+    border-radius: var(--radius-sm);
+    padding: 0.25rem 0.6rem;
+    cursor: pointer;
+    font-size: var(--text-sm);
+}
+.perm-toggle:hover { background: var(--gold-12); }
+.perm-empty, .perm-empty-small {
+    text-align: center;
+    padding: 1rem;
+    opacity: 0.5;
+    font-style: italic;
+}
+
+/* ── Install confirm modal ──────────────────────────────── */
+.install-modal { max-width: 520px; }
+.install-body {
+    background: var(--ink-30);
+    padding: 0.8rem 1rem;
+    border-radius: var(--radius-md);
+    margin-bottom: 1rem;
+    font-family: 'Courier New', monospace;
+    font-size: var(--text-base);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    color: var(--gold-light, #ffe4a0);
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+/* ── Install dropzone overlay ───────────────────────────── */
+.install-dropzone {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(12, 10, 26, 0.78);
+    backdrop-filter: blur(var(--blur-subtle));
+    display: none;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+.install-dropzone.show { display: flex; }
+.install-dropzone-inner {
+    border: 3px dashed var(--gold, #ffc857);
+    border-radius: 24px;
+    padding: 3rem 4rem;
+    font-size: 1.5rem;
+    color: var(--gold-light, #ffe4a0);
+    background: var(--gold-06);
+    text-align: center;
+    animation: dropPulse 1.4s ease-in-out infinite;
+}
+.install-dropzone-inner > span { display: block; margin-top: 0.6rem; font-size: var(--text-xl); }
+@keyframes dropPulse {
+    0%, 100% { transform: scale(1); opacity: 0.95; }
+    50%      { transform: scale(1.03); opacity: 1; }
+}
+
+/* Light theme overrides */
+[data-theme="light"] #win-terminal .win-content { background: rgba(245, 240, 225, 0.95); }
+[data-theme="light"] .term-screen { color: #2a1a08; }
+[data-theme="light"] .term-prompt { color: #8a5a00; }
+[data-theme="light"] .term-cmd    { color: #6d28d9; }
+[data-theme="light"] .term-input  { color: transparent; caret-color: #8a5a00; }
+[data-theme="light"] .term-overlay { color: #2a1a08; }
+[data-theme="light"] .term-inputline { background: var(--ink-04); }
+
+/* Mobile */
+@media (max-width: 640px) {
+    .install-dropzone-inner { padding: 2rem; font-size: var(--text-xl); }
+    .perm-item { grid-template-columns: 1fr auto; }
+    .perm-state { grid-column: 2; }
+    .perm-toggle { grid-column: 1 / -1; justify-self: end; }
+}

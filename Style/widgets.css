@@ -1,0 +1,112 @@
+/* ╔══════════════════════════════════════════════════════════╗
+ * ║  WIDGETS — Floating draggable mini-panels                 ║
+ * ║  Third role alongside apps and commands. Frames float     ║
+ * ║  above OS windows; below taskbar. Theme-aware via         ║
+ * ║  existing glass-panel CSS vars.                           ║
+ * ╚══════════════════════════════════════════════════════════╝ */
+
+.widget-frame {
+    position: fixed;
+    z-index: var(--z-widget);
+    display: flex;
+    min-width: 200px;
+    min-height: 160px;
+    padding: 4px;
+    background: var(--card-border);
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 32px var(--ink-40), 0 0 16px var(--gold-08);
+    cursor: move;
+    user-select: none;
+    animation: widgetPop var(--dur-mellow) var(--ease-bounce);
+    transition: box-shadow var(--dur-fast);
+}
+.widget-frame:hover {
+    box-shadow: 0 10px 40px var(--ink-50), 0 0 20px var(--gold-15);
+}
+.widget-frame.widget-dragging {
+    transition: none;
+    opacity: 0.92;
+    cursor: grabbing;
+    box-shadow: 0 12px 48px var(--ink-60), 0 0 24px var(--gold-25);
+}
+
+@keyframes widgetPop {
+    from { opacity: 0; transform: scale(0.94); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+.widget-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    overflow: hidden;
+    background: var(--hud-bg);
+    border-radius: calc(var(--radius-md) - 2px);
+    cursor: auto;
+}
+.widget-iframe {
+    flex: 1;
+    border: 0;
+    background: transparent;
+}
+
+/* Light theme — use warmer surface tone to match glass panels. */
+[data-theme="light"] .widget-body {
+    background: rgba(240, 232, 216, 0.92);
+}
+
+/* Settings → Widgets row (list entry with toggle). */
+.widget-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--seal-border);
+}
+.widget-row:last-child { border-bottom: none; }
+.widget-row-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+.widget-row-icon {
+    font-size: var(--text-2xl);
+    width: 28px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.widget-row-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+.widget-row-text strong {
+    color: var(--text);
+    font-size: var(--text-base);
+}
+.widget-row-text small {
+    color: var(--text-dim);
+    font-size: var(--text-xs);
+}
+
+.widgets-empty-mobile {
+    padding: 12px 14px;
+    font-size: var(--text-sm);
+    color: var(--text-dim);
+    border: 1px dashed var(--card-border);
+    border-radius: var(--radius-md);
+    background: var(--gold-04);
+}
+
+/* Hide widgets entirely on mobile — touch target + viewport too cramped. */
+@media (max-width: 640px) {
+    .widget-frame { display: none !important; }
+}
+
+/* Reduced motion — kill entrance animation. */
+@media (prefers-reduced-motion: reduce) {
+    .widget-frame { animation: none; }
+}

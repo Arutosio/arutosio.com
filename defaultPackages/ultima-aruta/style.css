@@ -1,0 +1,446 @@
+/* Ultima Aruta — isometric emoji world */
+:root { color-scheme: dark light; }
+* { box-sizing: border-box; }
+html, body, #root {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #0a0d18;
+    overflow: hidden;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: #e8e6d9;
+}
+[data-theme="light"] html,
+[data-theme="light"] body,
+[data-theme="light"] #root { background: #e9e4d0; color: #2a241a; }
+
+/* ── World selection screen ─────────────────────────────── */
+.ua-select-shell {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 40px 24px;
+    background: radial-gradient(ellipse at 50% 20%, #1a1035 0%, #0a0814 70%);
+    overflow-y: auto;
+    font-family: 'Cinzel', Georgia, serif;
+}
+.ua-select-title {
+    font-size: 2.2rem;
+    color: #ffc857;
+    margin: 0 0 6px 0;
+    letter-spacing: 0.12em;
+    text-shadow: 0 2px 16px rgba(255, 200, 87, 0.35);
+}
+.ua-select-sub {
+    color: rgba(232, 230, 217, 0.7);
+    margin: 0 0 24px 0;
+    font-size: 0.95rem;
+    letter-spacing: 0.05em;
+}
+.ua-select-list {
+    width: min(560px, 100%);
+    display: flex; flex-direction: column; gap: 8px;
+    margin-bottom: 24px;
+}
+.ua-select-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 16px;
+    background: rgba(22, 18, 30, 0.85);
+    border: 1px solid rgba(255, 200, 87, 0.2);
+    border-radius: 6px;
+    transition: border-color 120ms, background 120ms;
+}
+.ua-select-row:hover { border-color: rgba(255, 200, 87, 0.5); background: rgba(30, 24, 44, 0.9); }
+.ua-select-name { font-size: 1.1rem; color: #e8e6d9; font-weight: 700; }
+.ua-select-info { font-size: 0.75rem; color: rgba(232, 230, 217, 0.55); margin-top: 2px; }
+.ua-select-actions { display: flex; gap: 6px; }
+.ua-select-empty {
+    text-align: center;
+    padding: 24px;
+    color: rgba(232, 230, 217, 0.55);
+    font-style: italic;
+}
+.ua-select-new {
+    width: min(560px, 100%);
+    display: flex; gap: 8px; flex-wrap: wrap;
+    padding: 14px;
+    background: rgba(22, 18, 30, 0.7);
+    border: 1px dashed rgba(255, 200, 87, 0.3);
+    border-radius: 6px;
+}
+.ua-input {
+    flex: 1; min-width: 120px;
+    padding: 8px 10px;
+    background: rgba(10, 8, 18, 0.85);
+    border: 1px solid rgba(255, 200, 87, 0.3);
+    border-radius: 4px;
+    color: #e8e6d9;
+    font-family: inherit;
+    font-size: 0.95rem;
+}
+.ua-btn {
+    padding: 8px 14px;
+    background: transparent;
+    border: 1px solid rgba(255, 200, 87, 0.4);
+    border-radius: 4px;
+    color: #ffc857;
+    font-family: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 120ms, border-color 120ms;
+    letter-spacing: 0.04em;
+}
+.ua-btn:hover { background: rgba(255, 200, 87, 0.15); border-color: rgba(255, 200, 87, 0.7); }
+.ua-btn-primary { background: rgba(255, 200, 87, 0.2); }
+.ua-btn-danger { color: #fb7185; border-color: rgba(251, 113, 133, 0.4); }
+.ua-btn-danger:hover { background: rgba(251, 113, 133, 0.15); border-color: rgba(251, 113, 133, 0.7); }
+
+.ua-shell { position: relative; width: 100%; height: 100%; }
+.ua-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: default; }
+
+.ua-hud {
+    position: absolute; top: 10px; left: 12px;
+    padding: 6px 10px;
+    background: rgba(14, 12, 20, 0.65);
+    border: 1px solid rgba(255, 200, 87, 0.3);
+    border-radius: 4px;
+    font-size: 12px;
+    pointer-events: none;
+    letter-spacing: 0.03em;
+}
+.ua-hud b { color: #ffc857; }
+
+.ua-help {
+    position: absolute; bottom: 10px; left: 12px;
+    padding: 6px 10px;
+    background: rgba(14, 12, 20, 0.55);
+    border: 1px solid rgba(255, 200, 87, 0.2);
+    border-radius: 4px;
+    font-size: 11px;
+    opacity: 0.85;
+    pointer-events: none;
+}
+
+/* ── Backpack / inventory ─────────────────────────────── */
+.ua-backpack {
+    position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 340px; height: 280px;
+    background:
+        radial-gradient(circle at 20% 10%, rgba(255, 220, 160, 0.08), transparent 60%),
+        linear-gradient(180deg, #4a341f, #2a1c10);
+    border: 3px solid #2a1a0c;
+    border-radius: 12px;
+    box-shadow:
+        inset 0 2px 6px rgba(255, 210, 140, 0.1),
+        inset 0 -8px 20px rgba(0,0,0,0.5),
+        0 10px 30px rgba(0,0,0,0.55);
+    z-index: 400;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+}
+.ua-backpack-head {
+    height: 28px;
+    padding: 0 10px;
+    display: flex; justify-content: space-between; align-items: center;
+    background: linear-gradient(180deg, #6b4a2a, #442a16);
+    border-bottom: 2px solid #2a1a0c;
+    color: #ffd38a;
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+}
+.ua-backpack-close {
+    cursor: pointer;
+    opacity: 0.8;
+    font-size: 16px;
+    padding: 0 6px;
+}
+.ua-backpack-close:hover { opacity: 1; color: #fff; }
+.ua-backpack-body {
+    flex: 1;
+    position: relative;
+    background:
+        repeating-linear-gradient(45deg, rgba(255, 220, 160, 0.03) 0 3px, transparent 3px 6px),
+        linear-gradient(180deg, #2a1c10, #1a0e05);
+    overflow: hidden;
+}
+.ua-backpack-body::before {
+    content: '';
+    position: absolute; inset: 6px;
+    border: 1px dashed rgba(255, 220, 160, 0.15);
+    border-radius: 6px;
+    pointer-events: none;
+}
+.ua-item {
+    position: absolute;
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    cursor: grab;
+    user-select: none;
+    border-radius: 4px;
+    transition: background 120ms;
+}
+.ua-item:hover { background: rgba(255, 220, 160, 0.1); }
+.ua-item:active { cursor: grabbing; }
+
+/* ── Paperdoll ─────────────────────────────────────────── */
+.ua-paperdoll {
+    position: absolute;
+    top: 14%; right: 14px;
+    width: 260px;
+    background:
+        linear-gradient(180deg, #2c2135, #161022);
+    border: 2px solid #1a1024;
+    border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.5);
+    z-index: 400;
+    color: #e8e6d9;
+    font-family: 'Cinzel', Georgia, serif;
+    user-select: none;
+}
+.ua-paperdoll-head {
+    padding: 6px 10px;
+    background: linear-gradient(180deg, #4a3366, #2a1a3d);
+    border-bottom: 1px solid rgba(255, 200, 87, 0.2);
+    display: flex; justify-content: space-between;
+    font-size: 13px; letter-spacing: 0.08em;
+    cursor: grab;
+}
+.ua-paperdoll-body {
+    padding: 10px;
+    display: grid; grid-template-columns: 72px 1fr; gap: 10px;
+}
+.ua-doll-figure {
+    font-size: 56px;
+    text-align: center;
+    background: rgba(0,0,0,0.35);
+    border: 1px dashed rgba(255, 200, 87, 0.3);
+    border-radius: 6px;
+    padding: 10px 0;
+    align-self: start;
+}
+.ua-doll-slots {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+}
+.ua-slot { display: flex; flex-direction: column; gap: 2px; }
+.ua-slot-label {
+    font-size: 0.6rem;
+    color: rgba(232, 230, 217, 0.55);
+    letter-spacing: 0.04em;
+}
+.ua-slot-cell {
+    width: 100%; height: 40px;
+    background: rgba(0,0,0,0.35);
+    border: 1px dashed rgba(255, 200, 87, 0.3);
+    border-radius: 4px;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+}
+.ua-slot-item {
+    position: static !important;
+    font-size: 22px;
+    width: 32px; height: 32px;
+    cursor: grab;
+}
+
+/* ── Stats window ─────────────────────────────────────── */
+.ua-stats {
+    position: absolute;
+    top: 14%; left: 14px;
+    width: 260px;
+    background: linear-gradient(180deg, #2c2135, #161022);
+    border: 2px solid #1a1024;
+    border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.5);
+    z-index: 400;
+    color: #e8e6d9;
+    font-family: 'Cinzel', Georgia, serif;
+}
+.ua-stats-body { padding: 14px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+
+/* ── HUB ──────────────────────────────────────────────── */
+.ua-hub {
+    position: absolute; bottom: 14px; right: 14px;
+    display: flex; gap: 6px;
+    background: rgba(14, 12, 20, 0.75);
+    border: 1px solid rgba(255, 200, 87, 0.35);
+    border-radius: 6px;
+    padding: 6px;
+    z-index: 300;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+}
+.ua-hub-btn {
+    width: 36px; height: 36px;
+    background: transparent;
+    border: 1px solid rgba(255, 200, 87, 0.25);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 18px;
+    transition: background 120ms, border-color 120ms;
+}
+.ua-hub-btn:hover { background: rgba(255, 200, 87, 0.15); border-color: rgba(255, 200, 87, 0.6); }
+
+/* ── Craft panel ──────────────────────────────────────── */
+/* ── Spellbook + Help panels ──────────────────────────── */
+.ua-magic, .ua-help-panel {
+    position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 380px; max-height: 80%;
+    background: linear-gradient(180deg, #1a1830, #0e0a1a);
+    border: 2px solid rgba(120, 100, 220, 0.5);
+    border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.5);
+    z-index: 450;
+    color: #e8e6d9;
+    font-family: 'Cinzel', Georgia, serif;
+    overflow-y: auto;
+    user-select: none;
+}
+.ua-magic-body, .ua-help-body { padding: 8px 10px; }
+.ua-help-panel { border-color: rgba(255, 200, 87, 0.4); background: linear-gradient(180deg, #2c2520, #161010); }
+
+.ua-craft {
+    position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 400px; max-height: 80%;
+    background: linear-gradient(180deg, #2c2520, #161010);
+    border: 2px solid rgba(255, 160, 60, 0.5);
+    border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.5);
+    z-index: 450;
+    color: #e8e6d9;
+    font-family: 'Cinzel', Georgia, serif;
+    overflow-y: auto;
+    user-select: none;
+}
+.ua-craft-body { padding: 8px 10px; }
+.ua-craft-cat {
+    font-size: 13px; font-weight: 700; color: #ffc857;
+    letter-spacing: 0.06em;
+    padding: 8px 4px 3px; margin-top: 4px;
+    border-bottom: 1px solid rgba(255, 200, 87, 0.2);
+}
+.ua-craft-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    padding: 5px 6px;
+    border-bottom: 1px solid rgba(255, 200, 87, 0.06);
+    font-size: 13px;
+}
+.ua-craft-item { min-width: 100px; }
+.ua-craft-ing { font-size: 11px; flex: 1; text-align: right; margin-right: 6px; }
+
+/* ── Merchant shop ─────────────────────────────────────── */
+.ua-shop {
+    position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 380px; max-height: 80%;
+    background: linear-gradient(180deg, #2c2135, #161022);
+    border: 2px solid rgba(255, 200, 87, 0.5);
+    border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.5);
+    z-index: 450;
+    color: #e8e6d9;
+    font-family: 'Cinzel', Georgia, serif;
+    overflow-y: auto;
+    user-select: none;
+}
+.ua-shop-gold {
+    padding: 8px 14px;
+    font-size: 14px;
+    border-bottom: 1px solid rgba(255, 200, 87, 0.15);
+}
+.ua-shop-section {
+    padding: 6px 14px 2px;
+    font-size: 12px;
+    color: #ffc857;
+    letter-spacing: 0.06em;
+}
+.ua-shop-list { padding: 0 10px 8px; }
+.ua-shop-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 5px 6px;
+    border-bottom: 1px solid rgba(255, 200, 87, 0.08);
+    font-size: 13px;
+}
+.ua-shop-row:last-child { border-bottom: none; }
+.ua-shop-price { color: #ffc857; font-size: 12px; min-width: 50px; text-align: right; }
+.ua-shop-buy, .ua-shop-sell { padding: 3px 10px; font-size: 11px; }
+
+.ua-drag-ghost {
+    position: fixed;
+    pointer-events: none;
+    font-size: 26px;
+    z-index: 9999;
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    filter: drop-shadow(0 3px 4px rgba(0,0,0,0.6));
+    transform: scale(1.1);
+}
+
+.ua-dialog {
+    position: absolute; bottom: 52px; left: 50%; transform: translateX(-50%);
+    min-width: 260px; max-width: 440px;
+    padding: 10px 14px;
+    background: rgba(14, 12, 20, 0.92);
+    border: 1px solid rgba(255, 200, 87, 0.55);
+    border-radius: 6px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+    display: flex; align-items: center; gap: 10px;
+    color: #e8e6d9;
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    animation: uaDialogIn 200ms ease-out;
+    z-index: 500;
+}
+.ua-dialog .ua-dialog-icon { font-size: 22px; flex: 0 0 auto; }
+.ua-dialog.ua-dialog-out { animation: uaDialogOut 400ms ease-in forwards; }
+@keyframes uaDialogIn  { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes uaDialogOut { to   { opacity: 0; transform: translate(-50%, 10px); } }
+
+.ua-minimap {
+    position: absolute; top: 10px; right: 10px;
+    width: 140px; height: 140px;
+    border: 1px solid rgba(255, 200, 87, 0.5);
+    border-radius: 3px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+    image-rendering: pixelated;
+    background: #0a0d18;
+}
+
+.ua-loading {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: #ffc857;
+    letter-spacing: 0.1em;
+}
+
+/* ── Victory overlay (Seal of Aruta) ── */
+.ua-victory {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(8, 6, 18, 0.78);
+    z-index: 600;
+    animation: uaVictoryIn 600ms ease-out;
+}
+.ua-victory-card {
+    max-width: 420px;
+    padding: 26px 32px;
+    text-align: center;
+    background: rgba(22, 17, 38, 0.97);
+    border: 1px solid rgba(255, 200, 87, 0.6);
+    border-radius: 8px;
+    box-shadow: 0 0 40px rgba(192, 160, 255, 0.25), 0 10px 40px rgba(0, 0, 0, 0.6);
+    color: #e8e6d9;
+}
+.ua-victory-card h2 { margin: 10px 0 12px; color: #ffc857; font-size: 1.25rem; }
+.ua-victory-card p  { margin: 8px 0; font-size: 0.85rem; line-height: 1.5; }
+.ua-victory-runes {
+    font-size: 2rem; letter-spacing: 16px; padding-left: 16px;
+    color: #c0a0ff;
+    text-shadow: 0 0 12px rgba(192, 160, 255, 0.8);
+}
+.ua-victory-stats { color: rgba(232, 230, 217, 0.8); }
+.ua-victory-boon  { color: #9be8a0; font-size: 0.8rem; }
+.ua-victory-card .ua-btn { margin-top: 12px; }
+@keyframes uaVictoryIn { from { opacity: 0; } to { opacity: 1; } }

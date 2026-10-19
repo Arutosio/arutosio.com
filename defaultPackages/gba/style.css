@@ -1,0 +1,234 @@
+/* GBA — ROM library + player. Inherits host theme via [data-theme]. */
+
+:root {
+    --gba-gold: #ffc857;
+    --gba-text: #e0daf0;
+    --gba-dim: #9fa3c0;
+    --gba-card: rgba(20, 14, 40, 0.75);
+    --gba-border: rgba(255, 200, 87, 0.25);
+}
+[data-theme="light"] {
+    --gba-gold: #8b6914;
+    --gba-text: #2a1a08;
+    --gba-dim: #4a3520;
+    --gba-card: rgba(255, 248, 230, 0.85);
+    --gba-border: rgba(139, 105, 20, 0.35);
+}
+
+html, body, #root { height: 100%; }
+body { color: var(--gba-text); }
+
+.gba-wrap {
+    display: flex; flex-direction: column;
+    height: 100%; padding: 12px; box-sizing: border-box;
+    position: relative;
+}
+.gba-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+}
+.gba-title { font-weight: 700; font-size: 1rem; color: var(--gba-gold); }
+.gba-add-btn {
+    cursor: pointer; font-size: 0.8rem; font-weight: 600;
+    padding: 6px 12px; border-radius: 8px;
+    border: 1px solid var(--gba-border);
+    background: rgba(255, 200, 87, 0.12);
+    color: var(--gba-gold);
+    transition: background 0.2s;
+}
+.gba-add-btn:hover { background: rgba(255, 200, 87, 0.22); }
+
+.gba-grid {
+    flex: 1; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 8px;
+    align-content: start;
+}
+.gba-card {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; border-radius: 10px;
+    background: var(--gba-card);
+    border: 1px solid var(--gba-border);
+}
+.gba-cart { font-size: 1.6rem; }
+.gba-meta { flex: 1; min-width: 0; }
+.gba-name {
+    font-weight: 700; font-size: 0.9rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gba-sub { font-size: 0.72rem; color: var(--gba-dim); margin-top: 2px; }
+.gba-actions { display: flex; gap: 6px; }
+.gba-btn {
+    cursor: pointer; border: 1px solid var(--gba-border);
+    background: transparent; color: var(--gba-text);
+    border-radius: 8px; padding: 6px 10px; font-size: 0.85rem;
+    transition: background 0.2s, border-color 0.2s;
+}
+.gba-btn:hover { background: rgba(255, 200, 87, 0.15); border-color: var(--gba-gold); }
+.gba-play { color: var(--gba-gold); font-weight: 700; }
+.gba-danger:hover { border-color: #fb7185; color: #fb7185; background: rgba(251, 113, 133, 0.1); }
+
+.gba-empty {
+    margin: auto; text-align: center; color: var(--gba-dim);
+    font-size: 0.9rem; line-height: 1.6; padding: 30px 10px;
+}
+.gba-empty-icon { font-size: 2.4rem; margin-bottom: 8px; }
+.gba-empty-hint { font-size: 0.78rem; margin-top: 6px; }
+
+.gba-foot {
+    margin-top: 10px; font-size: 0.68rem; color: var(--gba-dim);
+    text-align: center; opacity: 0.8;
+}
+
+.gba-drop-overlay {
+    position: absolute; inset: 0; z-index: 50;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(12, 10, 26, 0.85);
+    border: 2px dashed var(--gba-gold); border-radius: 12px;
+    color: var(--gba-gold); font-size: 1.1rem; font-weight: 700;
+    pointer-events: none;
+}
+.gba-drop-overlay.show { display: flex; }
+
+/* ── Player ── */
+.gba-player { display: flex; flex-direction: column; height: 100%; }
+.gba-toolbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--gba-border);
+    background: var(--gba-card);
+}
+.gba-playing {
+    font-size: 0.85rem; font-weight: 700;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gba-screen { flex: 1; position: relative; background: #000; }
+#ejs { position: absolute; inset: 0; }
+.gba-offline {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center; color: var(--gba-dim);
+    font-size: 0.9rem; line-height: 1.7;
+}
+
+/* ── Link mode ── */
+.gba-link-status {
+    margin-left: auto;
+    font-size: 0.75rem; font-weight: 700;
+    padding: 2px 8px; border-radius: 999px;
+    border: 1px solid var(--gba-border);
+    color: var(--gba-dim); background: transparent;
+    white-space: nowrap;
+}
+.gba-link-status.on { color: #4ade80; border-color: #4ade80; }
+.gba-link-screen {
+    display: flex; align-items: center; justify-content: center;
+}
+.gba-link-screen canvas {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    image-rendering: pixelated;
+}
+
+/* ── Link lobby ── */
+.gba-lobby {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+}
+.gba-lobby-box {
+    display: flex; flex-direction: column; gap: 12px; align-items: center;
+    padding: 24px 28px;
+    background: var(--gba-card);
+    border: 1px solid var(--gba-border); border-radius: 14px;
+    max-width: 340px; text-align: center;
+}
+.gba-lobby-title { font-weight: 800; font-size: 1.05rem; }
+.gba-lobby-hint { font-size: 0.8rem; color: var(--gba-dim); line-height: 1.5; }
+.gba-lobby-or { font-size: 0.75rem; color: var(--gba-dim); }
+.gba-lobby-btn { padding: 8px 16px; font-weight: 700; }
+.gba-lobby-join { display: flex; gap: 8px; }
+.gba-lobby-join input {
+    flex: 1; min-width: 0;
+    background: transparent; color: inherit;
+    border: 1px solid var(--gba-border); border-radius: 8px;
+    padding: 6px 10px; font-family: inherit; font-size: 0.85rem;
+}
+.gba-link-code {
+    font-size: 0.75rem; font-weight: 700; cursor: pointer;
+    padding: 2px 8px; border-radius: 999px;
+    border: 1px dashed var(--gba-border);
+    color: var(--gba-gold); white-space: nowrap;
+}
+.gba-link-overlay {
+    position: absolute; inset: 0; z-index: 5;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.75);
+    color: #eee; text-align: center; font-size: 0.95rem; line-height: 2;
+}
+.gba-link-overlay.hide { display: none; }
+.gba-link-overlay-code { font-weight: 800; color: var(--gba-gold); font-size: 1.2rem; letter-spacing: 1px; }
+
+/* ── ROM actions menu ── */
+.gba-actions { position: relative; }
+.gba-menu {
+    position: absolute; top: calc(100% + 4px); right: 0; z-index: 20;
+    display: flex; flex-direction: column; min-width: 175px;
+    background: var(--gba-card);
+    border: 1px solid var(--gba-border); border-radius: 10px;
+    padding: 4px;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+.gba-menu[hidden] { display: none; }
+.gba-menu-item {
+    text-align: left; cursor: pointer;
+    background: transparent; border: 0; color: var(--gba-text);
+    font-family: inherit; font-size: 0.8rem;
+    padding: 7px 10px; border-radius: 6px;
+    white-space: nowrap;
+}
+.gba-menu-item:hover { background: rgba(255, 200, 87, 0.15); }
+.gba-menu-item.gba-danger:hover { background: rgba(251, 113, 133, 0.12); color: #fb7185; }
+
+/* ── Virtual gamepad (link mode) ── */
+.gba-vpad {
+    position: absolute; inset: 0; z-index: 8;
+    pointer-events: none;
+    touch-action: none;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.gba-vpad[hidden] { display: none; }
+.gba-vpad-l, .gba-vpad-r {
+    position: absolute; bottom: 12px;
+    display: flex; flex-direction: column; gap: 14px;
+}
+.gba-vpad-l { left: 10px; align-items: flex-start; }
+.gba-vpad-r { right: 10px; align-items: flex-end; }
+.gba-vpad-c {
+    position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 12px;
+}
+.gba-vpad-btn {
+    pointer-events: auto;
+    min-width: 46px; min-height: 46px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(20, 14, 40, 0.45);
+    color: rgba(255, 255, 255, 0.85);
+    font-family: inherit; font-size: 0.95rem; font-weight: 700;
+    touch-action: none;
+}
+.gba-vpad-btn.pressed { background: rgba(255, 200, 87, 0.5); border-color: var(--gba-gold); }
+.gba-vpad-btn.round { width: 58px; height: 58px; border-radius: 50%; font-size: 1.1rem; }
+.gba-vpad-ab { display: flex; gap: 12px; align-items: flex-end; }
+.gba-vpad-btn.small { min-height: 30px; min-width: 64px; font-size: 0.6rem; border-radius: 999px; padding: 2px 10px; }
+.gba-vpad-btn.shoulder { min-width: 58px; min-height: 34px; }
+.gba-vpad-dpad {
+    display: grid;
+    grid-template-areas: ". up ." "left . right" ". down .";
+    grid-template-columns: 46px 46px 46px;
+    grid-template-rows: 46px 46px 46px;
+}
+.gba-vpad-dpad .up { grid-area: up; }
+.gba-vpad-dpad .down { grid-area: down; }
+.gba-vpad-dpad .left { grid-area: left; }
+.gba-vpad-dpad .right { grid-area: right; }
+#gba-vpad-toggle.on { background: rgba(255, 200, 87, 0.22); border-color: var(--gba-gold); }

@@ -1,0 +1,17 @@
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} \
+	-O3 \
+	--no-entry \
+	-s ALLOW_MEMORY_GROWTH=1 \
+	-s INITIAL_MEMORY=67108864 \
+	-s STACK_SIZE=1048576 \
+	-s EXPORTED_FUNCTIONS=[\"_malloc\",\"_free\"] \
+	-s EXPORTED_RUNTIME_METHODS=[\"FS\",\"cwrap\",\"ccall\",\"HEAPU8\",\"HEAP16\",\"HEAPU16\",\"HEAP32\",\"HEAPU32\",\"writeArrayToMemory\"] \
+	-s FORCE_FILESYSTEM=1 \
+	-s ENVIRONMENT='web' \
+	-s MODULARIZE=1 \
+	-s EXPORT_NAME=mGBA")
+add_executable(${BINARY_NAME}.js stmain.c)
+set_target_properties(${BINARY_NAME}.js PROPERTIES
+	COMPILE_DEFINITIONS "${OS_DEFINES};${FEATURE_DEFINES};${FUNCTION_DEFINES}"
+	OUTPUT_NAME ${BINARY_NAME})
+target_link_libraries(${BINARY_NAME}.js ${BINARY_NAME} ${OS_LIB})

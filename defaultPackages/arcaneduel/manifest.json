@@ -1,0 +1,11 @@
+{
+    "id": "arcaneduel",
+    "name": "Arcane Duel",
+    "icon": "⚔️",
+    "version": "1.0.0",
+    "minSdk": 2,
+    "roles": ["app"],
+    "author": "Aruta",
+    "category": "games",
+    "permissions": []
+}

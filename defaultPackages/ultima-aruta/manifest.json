@@ -1,0 +1,11 @@
+{
+    "id": "ultima-aruta",
+    "name": "Ultima Aruta",
+    "icon": "🗺️",
+    "version": "1.1.0",
+    "minSdk": 2,
+    "roles": ["app"],
+    "author": "Aruta",
+    "category": "games",
+    "permissions": ["storage"]
+}

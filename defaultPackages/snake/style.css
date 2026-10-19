@@ -1,0 +1,92 @@
+.wrap {
+    position: relative;
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    background: var(--bg, #0a0515);
+    background-image: radial-gradient(ellipse at top, #1a0f2e, #0a0515);
+    color: var(--text, #ffe4a0);
+    font-family: 'Cinzel', serif;
+    overflow: hidden;
+}
+.hud {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.5rem 0.9rem;
+    border-bottom: 1px solid rgba(255,200,87,0.2);
+    font-size: 0.85rem;
+    letter-spacing: 0.08em;
+    background: rgba(0,0,0,0.35);
+    flex: 0 0 auto;
+}
+.hud .score { color: #a78bfa; }
+.hud .best { opacity: 0.75; }
+.hud .pause-btn {
+    background: transparent;
+    border: 1px solid rgba(255,200,87,0.35);
+    color: #ffe4a0;
+    font-family: inherit;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+}
+.hud .pause-btn:hover { background: rgba(255,200,87,0.1); }
+.board-wrap {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+    min-width: 0;
+}
+canvas.board {
+    display: block;
+    width: 100%; height: 100%;
+    background: #0a0515;
+}
+.overlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
+    background: rgba(10,5,21,0.72);
+    backdrop-filter: blur(3px);
+    text-align: center;
+    padding: 1rem;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+.overlay .title {
+    font-size: 1.6rem;
+    color: #ffc857;
+    letter-spacing: 0.12em;
+}
+.overlay .sub {
+    font-size: 0.9rem;
+    opacity: 0.85;
+    font-family: system-ui, sans-serif;
+}
+.overlay .hint {
+    font-size: 0.75rem;
+    opacity: 0.6;
+    font-family: system-ui, sans-serif;
+    margin-top: 0.6rem;
+    line-height: 1.5;
+}
+
+/* ── Light theme overrides ───────────────────────── */
+[data-theme="light"] .wrap {
+    background-image: none;
+    background: var(--bg);
+    color: var(--text);
+}
+[data-theme="light"] .hud {
+    background: rgba(139,105,20,0.08);
+    border-bottom-color: rgba(139,105,20,0.25);
+}
+[data-theme="light"] .hud .score { color: var(--purple); }
+[data-theme="light"] .hud .pause-btn {
+    color: var(--text);
+    border-color: rgba(139,105,20,0.4);
+}
+[data-theme="light"] .hud .pause-btn:hover { background: rgba(139,105,20,0.14); }
+[data-theme="light"] canvas.board { background: #f5efdc; }
+[data-theme="light"] .overlay { background: rgba(245,239,220,0.78); }
+[data-theme="light"] .overlay .title { color: var(--gold); }

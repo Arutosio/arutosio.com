@@ -1,0 +1,404 @@
+/* ╔══════════════════════════════════════════════════════════╗
+ * ║  DESKTOP — Magic Background, Fog, Desktop Hero,        ║
+ * ║  Magic Circle, Portrait, Title, Flying Letters          ║
+ * ╚══════════════════════════════════════════════════════════╝ */
+
+/* § USER BACKGROUND (custom image/video, set via Appearance settings)
+ * Sits below .magic-bg so orbs/fog layer on top. User can disable
+ * the magic effects from the Performance panel to see it clean.
+ * ──────────────────────────────── */
+#user-bg-layer {
+    position: fixed; inset: 0;
+    z-index: -1; pointer-events: none; overflow: hidden;
+    background: transparent;
+}
+#user-bg-layer .user-bg-media {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover; object-position: center;
+    display: block;
+    /* Crossfade between playlist items (appearance.js adds .is-visible) */
+    opacity: 0;
+    transition: opacity 0.9s ease;
+}
+#user-bg-layer .user-bg-media.is-visible { opacity: 1; }
+
+/* § MAGIC BACKGROUND (GPU-only, no canvas)
+ * Two radial gradient pseudo-elements that drift slowly
+ * via CSS animations. Parallax offset via --px/--py custom
+ * properties set by initParallax() in JS.
+ * ──────────────────────────────── */
+.magic-bg {
+    position: fixed; inset: 0;
+    z-index: var(--z-bg); pointer-events: none; overflow: hidden;
+    --px: 0px; --py: 0px;
+}
+.magic-bg::before,
+.magic-bg::after {
+    content: ''; position: absolute;
+    border-radius: 50%; will-change: transform;
+}
+.magic-bg::before {
+    width: 70vmax; height: 70vmax;
+    top: -28vmax; left: -22vmax;
+    background: radial-gradient(circle, color-mix(in srgb, var(--purple) 14%, transparent) 0%, transparent 65%);
+    animation: orbA 18s ease-in-out infinite alternate;
+    translate: var(--px) var(--py);
+}
+.magic-bg::after {
+    width: 60vmax; height: 60vmax;
+    bottom: -22vmax; right: -18vmax;
+    background: radial-gradient(circle, rgba(192,200,224,0.11) 0%, transparent 65%);
+    animation: orbB 22s ease-in-out infinite alternate;
+    translate: calc(var(--px) * -0.7) calc(var(--py) * -0.7);
+}
+[data-theme="light"] .magic-bg::before { background: radial-gradient(circle, rgba(109,40,217,0.08) 0%, transparent 65%); }
+[data-theme="light"] .magic-bg::after  { background: radial-gradient(circle, rgba(120,60,10,0.07)  0%, transparent 65%); }
+
+@keyframes orbA { to { transform: translate(7vw,  10vh); } }
+@keyframes orbB { to { transform: translate(-5vw, -8vh); } }
+
+/* § BACKGROUND RINGS (SVG, slow rotation)
+ * ──────────────────────────────── */
+.bg-ring {
+    position: absolute; top: 50%; left: 50%;
+    color: var(--bg-ring-col); will-change: transform; pointer-events: none;
+}
+.bg-ring-1 {
+    width: min(95vmin, 900px); height: min(95vmin, 900px);
+    margin: calc(min(95vmin, 900px) / -2) 0 0 calc(min(95vmin, 900px) / -2);
+    translate: var(--parallax-x, 0) var(--parallax-y, 0);
+    animation: bgRing1 80s linear infinite;
+}
+.bg-ring-2 {
+    width: min(65vmin, 600px); height: min(65vmin, 600px);
+    margin: calc(min(65vmin, 600px) / -2) 0 0 calc(min(65vmin, 600px) / -2);
+    translate: var(--parallax-x, 0) var(--parallax-y, 0);
+    animation: bgRing2 55s linear infinite reverse;
+}
+@keyframes bgRing1 { to { transform: rotate(360deg); } }
+@keyframes bgRing2 { to { transform: rotate(360deg); } }
+
+/* § AMBIENT FOG
+ * Three blurred layers that drift horizontally, creating
+ * a subtle atmospheric haze effect.
+ * ──────────────────────────────── */
+.ambient-fog {
+    position: fixed; inset: 0;
+    z-index: var(--z-fog); pointer-events: none;
+    overflow: hidden;
+}
+.fog-layer {
+    position: absolute; width: 250%; height: 60%;
+    bottom: -15%; left: -30%;
+    background: radial-gradient(ellipse 80% 50% at center, color-mix(in srgb, var(--purple) 10%, transparent) 0%, color-mix(in srgb, var(--purple) 4%, transparent) 40%, transparent 70%);
+    animation: fogDrift 28s ease-in-out infinite alternate;
+    filter: blur(30px);
+    will-change: transform;
+}
+.fog-layer:nth-child(2) {
+    width: 220%; height: 50%;
+    top: -10%; bottom: auto; left: -40%;
+    background: radial-gradient(ellipse 70% 45% at center, rgba(192,200,224,0.07) 0%, rgba(192,200,224,0.02) 40%, transparent 70%);
+    animation: fogDrift2 35s ease-in-out infinite alternate;
+    filter: blur(40px);
+}
+.fog-layer:nth-child(3) {
+    width: 200%; height: 45%;
+    top: 30%; bottom: auto; left: -20%;
+    background: radial-gradient(ellipse 60% 40% at center, color-mix(in srgb, var(--purple) 6%, transparent) 0%, rgba(100,80,200,0.02) 35%, transparent 65%);
+    animation: fogDrift3 22s ease-in-out infinite alternate;
+    filter: blur(35px);
+}
+[data-theme="light"] .fog-layer {
+    background: radial-gradient(ellipse 80% 50% at center, rgba(139,28,34,0.07) 0%, rgba(139,28,34,0.025) 40%, transparent 70%);
+}
+[data-theme="light"] .fog-layer:nth-child(2) {
+    background: radial-gradient(ellipse 70% 45% at center, rgba(122,78,6,0.06) 0%, rgba(122,78,6,0.02) 40%, transparent 70%);
+}
+[data-theme="light"] .fog-layer:nth-child(3) {
+    background: radial-gradient(ellipse 60% 40% at center, rgba(139,28,34,0.05) 0%, rgba(139,28,34,0.015) 35%, transparent 65%);
+}
+@keyframes fogDrift  { to { transform: translateX(18%) translateY(-12%); } }
+@keyframes fogDrift2 { to { transform: translateX(-14%) translateY(8%); } }
+@keyframes fogDrift3 { to { transform: translateX(22%) translateY(-15%) scale(1.1); } }
+
+/* § DESKTOP LAYOUT
+ * ──────────────────────────────── */
+.desktop {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    padding: 0;
+    overflow: hidden;
+}
+
+/* Desktop Icons */
+.desktop-icons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 16px;
+    align-content: flex-start;
+    position: absolute;
+    top: 0; left: 0;
+    z-index: var(--z-fog);
+}
+.desktop-icon {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 6px;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background var(--dur-fast), transform var(--dur-snap);
+    user-select: none;
+    min-width: 80px;
+}
+.desktop-icon:hover {
+    background: var(--gold-06);
+    transform: scale(1.05);
+}
+.desktop-icon:active {
+    transform: scale(0.95);
+}
+.desktop-icon-emoji {
+    font-size: 2.2rem;
+    filter: drop-shadow(0 0 6px var(--gold-20));
+}
+.desktop-icon-label {
+    font-size: var(--text-xs);
+    color: var(--text);
+    font-weight: var(--fw-bold);
+    letter-spacing: 0.06em;
+    text-shadow: 0 1px 3px var(--ink-80);
+    text-align: center;
+}
+
+/* § DESKTOP HERO (magic circle centered on desktop)
+ * ──────────────────────────────── */
+.desktop-hero {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: var(--z-app);
+    display: flex; flex-direction: column;
+    align-items: center; gap: 28px;
+    pointer-events: auto;
+}
+
+/* § HOME HERO
+ * ──────────────────────────────── */
+.home-hero {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 28px; padding: 20px 0 8px;
+}
+.home-tagline { text-align: center; }
+
+/* § MAGIC CIRCLE FRAME
+ * Container for the 4 interactive SVG rings + portrait.
+ * Ambient glow pseudo-element fades in after mc-frame-ready.
+ * ──────────────────────────────── */
+.magic-circle-frame {
+    position: relative; width: min(500px, 90vw); height: min(500px, 90vw);
+    display: flex; align-items: center; justify-content: center;
+}
+/* Ambient glow behind the whole circle */
+.magic-circle-frame::before {
+    content: ''; position: absolute; inset: -20%; z-index: -1;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--magic-orb) 0%, transparent 65%);
+    animation: mcAmbientPulse 5s ease-in-out infinite 1.2s;
+    opacity: 0;
+}
+.magic-circle-frame.mc-frame-ready::before {
+    opacity: 0.20;
+    transition: opacity 1.2s ease;
+}
+@keyframes mcAmbientPulse {
+    0%, 100% { transform: scale(0.85); opacity: 0.15; }
+    50%      { transform: scale(1.05); opacity: 0.30; }
+}
+[data-theme="light"] .magic-circle-frame::before { opacity: 0.2; }
+
+/* § MAGIC CIRCLE SVG RINGS
+ * ──────────────────────────────── */
+.mc-svg {
+    position: absolute; top: 50%; left: 50%;
+    color: var(--mc-color);
+    /* Static glow — was an infinite mcGlowPulse animating `filter: drop-shadow`
+       on all 4 rings, which repaints the GPU every frame. The breathing glow
+       now comes solely from .magic-circle-frame::before (compositor opacity). */
+    filter: drop-shadow(0 0 5px var(--magic-orb)) drop-shadow(0 0 12px var(--magic-orb));
+    transition: color var(--dur-base), filter var(--dur-base), opacity 1.2s ease;
+    cursor: grab;
+    opacity: 0;
+}
+.mc-svg.mc-ready {
+    opacity: 1;
+}
+.mc-svg.mc-dragging { cursor: grabbing; filter: drop-shadow(0 0 14px var(--magic-orb)) drop-shadow(0 0 30px var(--magic-orb)) !important; }
+/* Ring sizes — percentage of frame, so they scale with viewport */
+.mc-outer { width: 100%; height: 100%; margin: -50% 0 0 -50%; animation-delay: 0s; }
+.mc-mid   { width: 86%;  height: 86%;  margin: -43% 0 0 -43%; animation-delay: 1s; }
+.mc-rune  { width: 74%;  height: 74%;  margin: -37% 0 0 -37%; animation-delay: 2s; }
+.mc-inner { width: 64%;  height: 64%;  margin: -32% 0 0 -32%; animation-delay: 3s; }
+@keyframes spinCW { to { transform: rotate(360deg); } }
+
+/* § PORTRAIT
+ * ──────────────────────────────── */
+.portrait-img-wrap {
+    position: relative; z-index: var(--z-portrait);
+    width: 53%; height: 53%; border-radius: 50%; overflow: hidden;
+    border: 2.5px solid var(--gold);
+    /* Static glow — was an infinite portraitPulse animating a 4-layer box-shadow,
+       repainting the portrait region every frame. The hero's breathing now comes
+       from .magic-circle-frame::before (compositor-only opacity pulse). */
+    box-shadow: 0 0 0 5px rgba(192,200,224,0.20),
+                0 0 24px rgba(192,200,224,0.52),
+                0 0 52px color-mix(in srgb, var(--purple) 36%, transparent),
+                0 0 88px color-mix(in srgb, var(--purple) 16%, transparent),
+                inset 0 0 24px var(--ink-50);
+    transition: border-color var(--dur-base);
+}
+[data-theme="light"] .portrait-img-wrap {
+    box-shadow: 0 0 0 5px rgba(122,78,6,0.24),
+                0 0 24px rgba(122,78,6,0.54),
+                0 0 52px rgba(139,28,34,0.36),
+                0 0 88px rgba(139,28,34,0.15),
+                inset 0 0 18px rgba(40,20,5,0.3);
+}
+.portrait-img {
+    width: 100%; height: 100%;
+    object-fit: cover; object-position: top center;
+    transition: transform var(--dur-base) ease;
+}
+.portrait-img-wrap:hover .portrait-img { transform: scale(1.06); }
+
+/* § BREATHING GLOW (opt-in, Settings → Performance)
+ * Restores the animated pulses replaced by static glows in the perf pass —
+ * they repaint portrait + rings every frame, so they're off by default and
+ * skipped in low-power mode. body.glow-pulse is set by os-settings.js.
+ * ──────────────────────────────── */
+body.glow-pulse:not(.low-power) .mc-svg {
+    animation: mcGlowPulse 5s ease-in-out infinite;
+}
+@keyframes mcGlowPulse {
+    0%, 100% { filter: drop-shadow(0 0 3px var(--magic-orb)) drop-shadow(0 0 8px var(--magic-orb)); opacity: 0.75; }
+    50%      { filter: drop-shadow(0 0 6px var(--magic-orb)) drop-shadow(0 0 16px var(--magic-orb)); opacity: 0.95; }
+}
+body.glow-pulse:not(.low-power) .portrait-img-wrap {
+    animation: portraitPulse 4s ease-in-out infinite alternate;
+}
+@keyframes portraitPulse {
+    from {
+        box-shadow: 0 0 0 4px rgba(192,200,224,0.15),
+                    0 0 18px rgba(192,200,224,0.40),
+                    0 0 40px color-mix(in srgb, var(--purple) 28%, transparent),
+                    0 0 70px color-mix(in srgb, var(--purple) 12%, transparent),
+                    inset 0 0 24px var(--ink-50);
+    }
+    to {
+        box-shadow: 0 0 0 6px rgba(192,200,224,0.28),
+                    0 0 32px rgba(192,200,224,0.70),
+                    0 0 65px color-mix(in srgb, var(--purple) 50%, transparent),
+                    0 0 110px color-mix(in srgb, var(--purple) 22%, transparent),
+                    inset 0 0 24px var(--ink-50);
+    }
+}
+[data-theme="light"] body.glow-pulse:not(.low-power) .portrait-img-wrap {
+    animation-name: portraitPulseLight;
+}
+@keyframes portraitPulseLight {
+    from {
+        box-shadow: 0 0 0 4px rgba(122,78,6,0.18),
+                    0 0 18px rgba(122,78,6,0.42),
+                    0 0 40px rgba(139,28,34,0.28),
+                    0 0 70px rgba(139,28,34,0.12),
+                    inset 0 0 18px rgba(40,20,5,0.3);
+    }
+    to {
+        box-shadow: 0 0 0 6px rgba(122,78,6,0.32),
+                    0 0 32px rgba(122,78,6,0.68),
+                    0 0 65px rgba(139,28,34,0.48),
+                    0 0 110px rgba(139,28,34,0.20),
+                    inset 0 0 18px rgba(40,20,5,0.3);
+    }
+}
+
+/* § TITLE & BIO
+ * ──────────────────────────────── */
+.char-name {
+    font-family: 'IM Fell English', Georgia, serif;
+    font-size: clamp(2.2rem, 5.5vw, 3.6rem); font-weight: var(--fw-heavy);
+    color: var(--gold-light); letter-spacing: 0.04em; line-height: 1.1; margin-bottom: 10px;
+    text-shadow: 0 0 28px rgba(192,200,224,0.45), 0 2px 6px var(--ink-60);
+    transition: color var(--dur-base);
+    animation: titleBreathe 6s ease-in-out infinite;
+    min-height: 1.2em; /* prevent layout shift during flying letters */
+}
+/* Flying letter spans — start with rune glow, transition to gold */
+.fly-letter {
+    will-change: transform, opacity;
+    text-shadow: 0 0 14px rgba(110,142,251,0.8), 0 0 30px rgba(110,142,251,0.4);
+    transition: color var(--dur-slow) ease, text-shadow var(--dur-slow) ease;
+}
+.fly-letter-landed {
+    color: var(--gold-light) !important;
+    text-shadow: 0 0 20px rgba(192,200,224,0.6), 0 0 40px color-mix(in srgb, var(--purple) 20%, transparent);
+}
+[data-theme="light"] .fly-letter {
+    text-shadow: 0 0 14px rgba(90,50,10,0.6), 0 0 30px rgba(90,50,10,0.3);
+}
+[data-theme="light"] .fly-letter-landed {
+    color: var(--gold-light) !important;
+    text-shadow: 0 0 16px rgba(122,78,6,0.5), 0 0 30px rgba(122,78,6,0.2);
+}
+/* GPU-friendly: static text-shadow + opacity pulse instead of animated text-shadow */
+@keyframes titleBreathe {
+    0%, 100% { opacity: 0.85; }
+    50%      { opacity: 1; }
+}
+[data-theme="light"] .char-name {
+    animation: titleBreathe 6s ease-in-out infinite;
+}
+.char-class {
+    font-family: 'IM Fell English', Georgia, serif;
+    font-size: var(--text-base); font-weight: var(--fw-bold); letter-spacing: 0.18em;
+    color: var(--purple); margin-bottom: 22px; transition: color var(--dur-base);
+    animation: classFlicker 4s ease-in-out infinite;
+}
+@keyframes classFlicker {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.7; }
+    52%      { opacity: 1; }
+    54%      { opacity: 0.75; }
+    56%      { opacity: 1; }
+}
+.char-bio {
+    font-size: 1.12rem; line-height: 1.90;
+    color: var(--text); opacity: 0.9; margin-bottom: 8px; transition: color var(--dur-base);
+}
+.cursor {
+    display: inline-block; width: 2px; height: 1em;
+    background: var(--gold); margin-left: 2px; vertical-align: middle;
+    animation: blinkCursor 0.8s step-end infinite; transition: background var(--dur-base);
+}
+@keyframes blinkCursor { 50% { opacity: 0; } }
+
+/* § HERO PAUSED (a window covers the desktop)
+ * Freeze every continuous home-hero animation while it's hidden behind a
+ * window — they keep compositing/repainting on the GPU otherwise, draining
+ * battery for pixels nobody can see. Toggled by syncHeroActivity() in
+ * os-windows.js; the rune canvas + ring rAF pause in their own JS loops.
+ * ──────────────────────────────── */
+body.hero-hidden .fog-layer,
+body.hero-hidden .magic-bg::before,
+body.hero-hidden .magic-bg::after,
+body.hero-hidden .bg-ring,
+body.hero-hidden .magic-circle-frame::before,
+body.hero-hidden .mc-svg,
+body.hero-hidden .portrait-img-wrap,
+body.hero-hidden .char-name,
+body.hero-hidden .char-class {
+    animation-play-state: paused;
+}

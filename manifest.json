@@ -1,0 +1,16 @@
+{
+    "name": "Arutosio — Tome of the Wandering Mage",
+    "short_name": "Arutosio",
+    "description": "Streamer · Programmer · Adventurer",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#0c0a1a",
+    "theme_color": "#0c0a1a",
+    "icons": [
+        {
+            "src": "/Brand/ArutosioIcon.ico",
+            "sizes": "256x256 128x128 64x64 48x48 32x32 16x16",
+            "type": "image/x-icon"
+        }
+    ]
+}

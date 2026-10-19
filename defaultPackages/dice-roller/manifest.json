@@ -1,0 +1,13 @@
+{
+    "id": "dice-roller",
+    "name": "Dice Roller",
+    "icon": "🎲",
+    "version": "2.0.0",
+    "minSdk": 2,
+    "roles": ["app", "command"],
+    "entries": { "app": "ui.js", "command": "cli.js" },
+    "commandAlias": "roll",
+    "author": "Aruta",
+    "category": "games",
+    "permissions": ["storage", "terminal"]
+}

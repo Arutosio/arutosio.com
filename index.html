@@ -1,21 +1,758 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-        <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-        <title>arutOS</title>
-        <link rel="shortcut icon" href="/img/icons/ArutosioIcon.ico" />
+<!DOCTYPE html>
+<html lang="it" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arutosio — Tome of the Wandering Mage</title>
+    <meta name="description" content="Stefano Aruta — Streamer, Programmer, Adventurer.">
+    <link rel="icon" href="Brand/ArutosioIcon.ico">
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" id="meta-theme-color" content="#0c0a1a">
+    <script>
+        // Restore theme + font-size + font-family synchronously so the first
+        // paint already reflects the user's saved preferences. Running this
+        // from app.js at DOMContentLoaded leaves a visible flash on mobile
+        // when the default (dark) theme renders before the override applies.
+        (function() {
+            try {
+                var t = localStorage.getItem('aruta_theme');
+                if (!t) t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+                document.documentElement.setAttribute('data-theme', t);
+                var fs = localStorage.getItem('aruta_fontsize');
+                if (fs) document.documentElement.style.fontSize = fs + '%';
+                var f = localStorage.getItem('aruta_font');
+                var FONTS = {
+                    medieval: ["'IM Fell English', Georgia, serif", "'IM Fell English', Georgia, serif"],
+                    modern:   ["-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif", "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"],
+                    serif:    ["Georgia, 'Times New Roman', serif", "Georgia, 'Times New Roman', serif"],
+                    mono:     ["'Courier New', Consolas, monospace", "'Courier New', Consolas, monospace"],
+                    nordic:   ["'Cinzel', Georgia, serif", "'Cinzel', Georgia, serif"]
+                };
+                if (f && FONTS[f]) {
+                    document.documentElement.style.setProperty('--font-body', FONTS[f][0]);
+                    document.documentElement.style.setProperty('--font-display', FONTS[f][1]);
+                }
+            } catch (e) {}
+        })();
+    </script>
+    <meta property="og:type"        content="website">
+    <meta property="og:url"         content="https://arutosio.com">
+    <meta property="og:title"       content="Arutosio — The Wandering Mage">
+    <meta property="og:description" content="Streamer · Programmer · Adventurer.">
+    <meta property="og:image"       content="https://arutosio.com/Images/aru2_meta.png">
+    <meta property="og:image:width"  content="1628">
+    <meta property="og:image:height" content="1558">
+    <meta property="og:image:type"   content="image/png">
+    <link rel="canonical"           href="https://arutosio.com">
+    <meta name="keywords"           content="Aruta, streamer, programmer, Twitch, Kick, YouTube, gaming, anime, Ultima Online, Minecraft">
+    <meta name="twitter:card"       content="summary_large_image">
+    <meta name="twitter:site"       content="@arutash">
+    <meta name="twitter:title"      content="Arutosio — The Wandering Mage">
+    <meta name="twitter:image"      content="https://arutosio.com/Images/aru2_meta.png">
+    <meta name="twitter:description" content="Streamer · Programmer · Adventurer. Watch live on Twitch, Kick & YouTube.">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="Stefano Aruta">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Inter:wght@400;600;700;900&family=Cinzel:wght@500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <link rel="preload" as="image" href="./Images/aru_portrait.webp" fetchpriority="high">
+    <!-- Stylesheets loaded explicitly so the preload scanner can fetch all 6 in
+         parallel. A single main.css with @import would serialize discovery and
+         cause a visible FOUC on slower (mobile) connections. -->
+    <link rel="stylesheet" href="Style/core.css">
+    <link rel="stylesheet" href="Style/desktop.css">
+    <link rel="stylesheet" href="Style/os.css">
+    <link rel="stylesheet" href="Style/sections.css">
+    <link rel="stylesheet" href="Style/responsive.css">
+    <link rel="stylesheet" href="Style/terminal.css">
+    <link rel="stylesheet" href="Style/widgets.css">
+    <!-- VanillaTilt removed — replaced with pure CSS/JS tilt -->
+</head>
+<body>
 
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
-            rel="stylesheet"
-        />
-    </head>
-    <body>
-        <div id="root"></div>
-        <script type="module" src="/src/main.tsx"></script>
-    </body>
+<!-- ░░ RUNE PARTICLE CANVAS ░░ -->
+<canvas id="rune-bg" aria-hidden="true"></canvas>
+
+<!-- ░░ MAGIC CURSOR ░░ -->
+<div id="magic-cursor" aria-hidden="true">
+    <div class="cursor-ring"></div>
+    <div class="cursor-dot"></div>
+</div>
+
+<!-- ░░ USER BACKGROUND (image/video set via Appearance settings) ░░ -->
+<div id="user-bg-layer" aria-hidden="true" style="display:none;"></div>
+
+<!-- ░░ CSS MAGIC BACKGROUND (no canvas, GPU only) ░░ -->
+<div class="magic-bg" aria-hidden="true">
+    <svg class="bg-ring bg-ring-1" viewBox="0 0 900 900">
+        <circle cx="450" cy="450" r="420" fill="none" stroke="currentColor" stroke-width="1"   stroke-dasharray="6 14"  opacity="0.07"/>
+        <polygon points="450,50 800,650 100,650"       fill="none" stroke="currentColor" stroke-width="0.8"                   opacity="0.045"/>
+        <circle cx="450" cy="450" r="310" fill="none" stroke="currentColor" stroke-width="0.8" stroke-dasharray="3 10"  opacity="0.055"/>
+        <circle cx="450" cy="450" r="180" fill="none" stroke="currentColor" stroke-width="0.6" stroke-dasharray="2 8"   opacity="0.04"/>
+    </svg>
+    <svg class="bg-ring bg-ring-2" viewBox="0 0 600 600">
+        <circle cx="300" cy="300" r="280" fill="none" stroke="currentColor" stroke-width="0.8" stroke-dasharray="4 10" opacity="0.05"/>
+        <polygon points="300,30 540,440 60,440"        fill="none" stroke="currentColor" stroke-width="0.6"                  opacity="0.035"/>
+    </svg>
+</div>
+
+<!-- ░░ AMBIENT FOG ░░ -->
+<div class="ambient-fog" aria-hidden="true">
+    <div class="fog-layer"></div>
+    <div class="fog-layer"></div>
+    <div class="fog-layer"></div>
+</div>
+
+<!-- ░░ SUMMONING OVERLAY ░░ -->
+<div id="summon-overlay">
+    <canvas id="summon-canvas"></canvas>
+    <div class="summon-text-wrap">
+        <div class="summon-logo">✦ ARUTOSIO ✦</div>
+        <div id="summon-log"></div>
+    </div>
+</div>
+
+<!-- ░░ APP ░░ -->
+<main id="app" class="hidden">
+
+    <!-- ══ TASKBAR ══ -->
+    <header class="taskbar">
+        <!-- Left: start button only -->
+        <div class="taskbar-left">
+            <button class="taskbar-start" id="start-btn" aria-label="Start menu" title="Start" data-i18n-aria="start_btn_aria" data-i18n-title="start_btn">
+                <span class="start-icon">⚜</span>
+            </button>
+            <div class="taskbar-sep" aria-hidden="true"></div>
+        </div>
+        <!-- Middle: open window tabs -->
+        <div class="taskbar-tabs" id="taskbar-tabs">
+            <!-- Populated dynamically by JS -->
+        </div>
+        <!-- Right: system tray -->
+        <div class="taskbar-tray">
+            <div class="taskbar-sep" aria-hidden="true"></div>
+            <button class="tray-btn tray-btn-sys" id="sysinfo-btn" title="System Info" aria-label="System info" data-i18n-title="sysinfo_btn" data-i18n-aria="sysinfo_btn">
+                <i class="fas fa-circle-info"></i>
+                <span class="tray-btn-label">SYS</span>
+            </button>
+            <!-- System Info Popover -->
+            <div class="sysinfo-panel" id="sysinfo-panel" style="display: none;">
+                <div class="sysinfo-header" data-i18n="sysinfo_title">System Information</div>
+                <div class="sysinfo-rows" id="sysinfo-rows">
+                    <div class="sysinfo-row"><span class="sysinfo-label" data-i18n="sysinfo_loading">Loading...</span></div>
+                </div>
+            </div>
+            <div class="taskbar-sep" aria-hidden="true"></div>
+            <div class="taskbar-clock">
+                <span class="hud-date" id="hud-date">----/--/--</span>
+                <span class="hud-clock-sep" aria-hidden="true">·</span>
+                <span class="hud-time" id="hud-time">--:--:--</span>
+            </div>
+        </div>
+        <!-- Hidden elements used by Settings -->
+        <button class="tray-btn" id="sound-btn" style="display:none;" title="Toggle ambient sound" aria-label="Toggle ambient sound">
+            <i class="fas fa-volume-mute" id="sound-icon"></i>
+        </button>
+        <button class="tray-btn" id="theme-btn" style="display:none;" title="Toggle theme">
+            <i class="fas fa-moon" id="theme-icon"></i>
+        </button>
+        <select id="lang-select" class="lang-select" style="display:none;" aria-label="Language">
+            <option value="it">IT</option>
+            <option value="en">EN</option>
+            <option value="es">ES</option>
+            <option value="ja">JA</option>
+            <option value="fn">ᚠᚾ</option>
+        </select>
+        <!-- Start menu -->
+        <div class="start-menu" id="start-menu" style="display: none;">
+            <div class="start-header">
+                <span class="start-logo">⚜</span>
+                <div class="start-header-text">
+                    <span class="start-title">Arutosio</span>
+                    <span class="start-subtitle" data-i18n="start_subtitle">Tome of the Wandering Mage</span>
+                </div>
+            </div>
+            <!-- Items rendered dynamically by registry.js:renderStartMenuItems
+                 so that built-ins + installed packages can be grouped by
+                 category (info/games/tools/creativity/other/system). -->
+            <div class="start-items" id="start-items"></div>
+            <div class="start-divider"></div>
+            <div class="start-actions">
+                <button class="start-action" id="start-share">📤 <span data-i18n="start_share">Share</span></button>
+            </div>
+            <div class="start-footer">
+                <span>© 2025 Stefano Aruta</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- ══ DESKTOP ══ -->
+    <div class="desktop" id="desktop">
+        <!-- Desktop Hero (magic circle + portrait + title) -->
+        <div class="home-hero desktop-hero" id="sec-home">
+            <div class="magic-circle-frame">
+                <!-- Outer ring: triple rings + 12 rune nodes + text arc (CW, slow) -->
+                <svg class="mc-svg mc-outer" viewBox="0 0 200 200" aria-hidden="true">
+                    <defs>
+                        <path id="mc-text-ring" d="M 8,100 A 92,92 0 0,1 192,100 A 92,92 0 0,1 8,100"/>
+                    </defs>
+                    <!-- Triple outer rings -->
+                    <circle cx="100" cy="100" r="97"  fill="none" stroke="currentColor" stroke-width="0.5" opacity="0.25"/>
+                    <circle cx="100" cy="100" r="95"  fill="none" stroke="currentColor" stroke-width="1.0" stroke-dasharray="5 7" opacity="0.60"/>
+                    <circle cx="100" cy="100" r="92"  fill="none" stroke="currentColor" stroke-width="0.3" opacity="0.20"/>
+                    <circle cx="100" cy="100" r="88"  fill="none" stroke="currentColor" stroke-width="0.4" stroke-dasharray="1 4" opacity="0.30"/>
+                    <!-- 4 cardinal glowing nodes -->
+                    <circle cx="100" cy="3"   r="3.5" fill="currentColor" opacity="0.90"/>
+                    <circle cx="197" cy="100" r="3.5" fill="currentColor" opacity="0.90"/>
+                    <circle cx="3"   cy="100" r="3.5" fill="currentColor" opacity="0.90"/>
+                    <circle cx="100" cy="197" r="3.5" fill="currentColor" opacity="0.90"/>
+                    <!-- 8 intercardinal nodes -->
+                    <circle cx="167" cy="33"  r="2.2" fill="currentColor" opacity="0.55"/>
+                    <circle cx="167" cy="167" r="2.2" fill="currentColor" opacity="0.55"/>
+                    <circle cx="33"  cy="167" r="2.2" fill="currentColor" opacity="0.55"/>
+                    <circle cx="33"  cy="33"  r="2.2" fill="currentColor" opacity="0.55"/>
+                    <circle cx="134" cy="10"  r="1.5" fill="currentColor" opacity="0.35"/>
+                    <circle cx="190" cy="66"  r="1.5" fill="currentColor" opacity="0.35"/>
+                    <circle cx="10"  cy="134" r="1.5" fill="currentColor" opacity="0.35"/>
+                    <circle cx="66"  cy="190" r="1.5" fill="currentColor" opacity="0.35"/>
+                    <!-- Rune text arc -->
+                    <text font-family="serif" font-size="5.5" fill="currentColor" opacity="0.48" letter-spacing="2.4">
+                        <textPath href="#mc-text-ring">✦ ARCANUM ✦ IGNIS ✦ AQUA ✦ TERRA ✦ VENTUS ✦ LUX ✦ VIA ✦ SOMNIUM ✦</textPath>
+                    </text>
+                </svg>
+                <!-- Middle ring: hexagram + double ring + tick marks (CCW, medium) -->
+                <svg class="mc-svg mc-mid" viewBox="0 0 200 200" aria-hidden="true">
+                    <circle cx="100" cy="100" r="84" fill="none" stroke="currentColor" stroke-width="0.4" opacity="0.22"/>
+                    <circle cx="100" cy="100" r="82" fill="none" stroke="currentColor" stroke-width="0.9" stroke-dasharray="2 4" opacity="0.45"/>
+                    <circle cx="100" cy="100" r="80" fill="none" stroke="currentColor" stroke-width="0.3" opacity="0.18"/>
+                    <!-- Hexagram (Star of David) -->
+                    <polygon points="100,20 170,140 30,140" fill="none" stroke="currentColor" stroke-width="0.8" opacity="0.35"/>
+                    <polygon points="100,180 30,60 170,60"  fill="none" stroke="currentColor" stroke-width="0.8" opacity="0.35"/>
+                    <!-- 6 vertex nodes -->
+                    <circle cx="100" cy="20"  r="2.5" fill="currentColor" opacity="0.65"/>
+                    <circle cx="170" cy="140" r="2.5" fill="currentColor" opacity="0.65"/>
+                    <circle cx="30"  cy="140" r="2.5" fill="currentColor" opacity="0.65"/>
+                    <circle cx="100" cy="180" r="2.5" fill="currentColor" opacity="0.65"/>
+                    <circle cx="30"  cy="60"  r="2.5" fill="currentColor" opacity="0.65"/>
+                    <circle cx="170" cy="60"  r="2.5" fill="currentColor" opacity="0.65"/>
+                    <!-- 12 tick marks around the ring -->
+                    <line x1="100" y1="18" x2="100" y2="24" stroke="currentColor" stroke-width="0.6" opacity="0.30"/>
+                    <line x1="141" y1="29" x2="138" y2="34" stroke="currentColor" stroke-width="0.6" opacity="0.30"/>
+                    <line x1="171" y1="59" x2="165" y2="62" stroke="currentColor" stroke-width="0.6" opacity="0.30"/>
+                    <line x1="182" y1="100" x2="176" y2="100" stroke="currentColor" stroke-width="0.6" opacity="0.30"/>
+                    <line x1="171" y1="141" x2="165" y2="138" stroke="currentColor" stroke-width="0.6" opacity="0.30"/>
+                    <line x1="141" y1="171" x2="138" y2="166" stroke="currentColor" stroke-width="0.6" opacity="0.30"/>
+                    <line x1="100" y1="182" x2="100" y2="176" stroke="currentColor" stroke-width="0.6" opacity="0.30"/>
+                    <line x1="59"  y1="171" x2="62"  y2="166" stroke="currentColor" stroke-width="0.6" opacity="0.30"/>
+                    <line x1="29"  y1="141" x2="35"  y2="138" stroke="currentColor" stroke-width="0.6" opacity="0.30"/>
+                    <line x1="18"  y1="100" x2="24"  y2="100" stroke="currentColor" stroke-width="0.6" opacity="0.30"/>
+                    <line x1="29"  y1="59" x2="35"   y2="62" stroke="currentColor" stroke-width="0.6" opacity="0.30"/>
+                    <line x1="59"  y1="29" x2="62"   y2="34" stroke="currentColor" stroke-width="0.6" opacity="0.30"/>
+                </svg>
+                <!-- Rune compass ring (NEW — draggable, CCW fast) -->
+                <svg class="mc-svg mc-rune" viewBox="0 0 200 200" aria-hidden="true">
+                    <circle cx="100" cy="100" r="77" fill="none" stroke="currentColor" stroke-width="0.6" stroke-dasharray="1 3" opacity="0.30"/>
+                    <circle cx="100" cy="100" r="75" fill="none" stroke="currentColor" stroke-width="0.8" opacity="0.40"/>
+                    <!-- 8 rune symbols around the ring -->
+                    <text x="100" y="27"  text-anchor="middle" fill="currentColor" font-size="9" opacity="0.55" font-family="serif">ᚠ</text>
+                    <text x="153" y="53"  text-anchor="middle" fill="currentColor" font-size="9" opacity="0.55" font-family="serif">ᚢ</text>
+                    <text x="175" y="103" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.55" font-family="serif">ᚦ</text>
+                    <text x="153" y="153" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.55" font-family="serif">ᚨ</text>
+                    <text x="100" y="178" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.55" font-family="serif">ᚱ</text>
+                    <text x="47"  y="153" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.55" font-family="serif">ᚲ</text>
+                    <text x="25"  y="103" text-anchor="middle" fill="currentColor" font-size="9" opacity="0.55" font-family="serif">ᚷ</text>
+                    <text x="47"  y="53"  text-anchor="middle" fill="currentColor" font-size="9" opacity="0.55" font-family="serif">ᚹ</text>
+                </svg>
+                <!-- Inner ring: pentagon + triangle + triple rings (CW, fast) -->
+                <svg class="mc-svg mc-inner" viewBox="0 0 200 200" aria-hidden="true">
+                    <circle cx="100" cy="100" r="73" fill="none" stroke="currentColor" stroke-width="0.4" opacity="0.22"/>
+                    <circle cx="100" cy="100" r="71" fill="none" stroke="currentColor" stroke-width="1.1" opacity="0.70"/>
+                    <circle cx="100" cy="100" r="69" fill="none" stroke="currentColor" stroke-width="0.3" opacity="0.18"/>
+                    <circle cx="100" cy="100" r="65" fill="none" stroke="currentColor" stroke-width="0.5" stroke-dasharray="3 5" opacity="0.30"/>
+                    <!-- Inner triangle -->
+                    <polygon points="100,30 160,135 40,135" fill="none" stroke="currentColor" stroke-width="1.0" opacity="0.42"/>
+                    <!-- Inner pentagon (inverted) -->
+                    <polygon points="100,155 39,73 69,28 131,28 161,73" fill="none" stroke="currentColor" stroke-width="0.5" opacity="0.18"/>
+                    <!-- Triangle vertex nodes -->
+                    <circle cx="100" cy="30"  r="3" fill="currentColor" opacity="0.75"/>
+                    <circle cx="160" cy="135" r="3" fill="currentColor" opacity="0.75"/>
+                    <circle cx="40"  cy="135" r="3" fill="currentColor" opacity="0.75"/>
+                </svg>
+                <div class="portrait-img-wrap">
+                    <img src="./Images/aru_portrait.webp" alt="Arutosio" class="portrait-img" width="600" height="575" decoding="async" fetchpriority="high">
+                </div>
+            </div>
+            <div class="home-tagline">
+                <h1 class="char-name">Arutosio</h1>
+                <div class="char-class" data-i18n="char_class">Streamer · Programmer · Adventurer</div>
+            </div>
+        </div>
+
+        <!-- Windows -->
+        <div class="os-window" id="win-about" data-window="about" style="display:none;">
+            <div class="win-titlebar">
+                <span class="win-title">📖 <span data-i18n="sec_about">About</span></span>
+                <div class="win-controls">
+                    <button class="win-btn win-minimize" title="Minimize" data-i18n-title="win_minimize">▬</button>
+                    <button class="win-btn win-maximize" title="Maximize" data-i18n-title="win_maximize">☐</button>
+                    <button class="win-btn win-close" title="Close" data-i18n-title="win_close">✕</button>
+                </div>
+            </div>
+            <div class="win-content">
+                <section class="page-section" id="sec-about">
+                    <p class="char-bio" id="char-bio"></p>
+                    <div class="rune-divider"><div class="rune-line"></div><span class="rune-sym" aria-hidden="true">⋆ ✦ ⋆</span><div class="rune-line"></div></div>
+                    <div class="interest-grid" id="interest-grid"></div>
+                    <div class="rune-divider"><div class="rune-line"></div><span class="rune-sym" aria-hidden="true">⊕ ◈ ⊕</span><div class="rune-line"></div></div>
+                    <h2 class="section-title" data-i18n="projects_title">Progetti in Corso</h2>
+                    <div class="projects-grid" id="projects-grid"></div>
+                </section>
+            </div>
+        </div>
+
+        <div class="os-window" id="win-live" data-window="live" style="display:none;">
+            <div class="win-titlebar">
+                <span class="win-title">🔮 <span data-i18n="sec_live">Live</span></span>
+                <div class="win-controls">
+                    <button class="win-btn win-minimize" title="Minimize" data-i18n-title="win_minimize">▬</button>
+                    <button class="win-btn win-maximize" title="Maximize" data-i18n-title="win_maximize">☐</button>
+                    <button class="win-btn win-close" title="Close" data-i18n-title="win_close">✕</button>
+                </div>
+            </div>
+            <div class="win-content">
+                <section class="page-section" id="sec-live">
+                    <h2 class="section-title" data-i18n="live_title">Reame Live</h2>
+                    <p class="live-desc" data-i18n="live_desc">Osserva il mago in azione attraverso il portale</p>
+
+                    <!-- Platform selector tabs -->
+                    <div class="live-tabs">
+                        <button class="live-tab active" data-platform="twitch">
+                            <i class="fab fa-twitch"></i> Twitch
+                        </button>
+                        <button class="live-tab" data-platform="kick">
+                            <i class="fas fa-broadcast-tower"></i> Kick
+                        </button>
+                        <button class="live-tab" data-platform="youtube">
+                            <i class="fab fa-youtube"></i> YouTube
+                        </button>
+                    </div>
+
+                    <!-- Stream container: player + chat -->
+                    <div class="live-container">
+                        <div class="live-player" id="live-player">
+                            <!-- iframe injected by JS -->
+                        </div>
+                        <div class="live-chat" id="live-chat">
+                            <!-- iframe injected by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Offline message with schedule -->
+                    <div class="live-offline" id="live-offline" style="display: none;">
+                        <span class="live-offline-icon" aria-hidden="true">🔮</span>
+                        <p class="live-offline-text" data-i18n="live_offline">Il mago non è nel reame... segui per essere avvisato del prossimo rituale.</p>
+                        <div class="live-schedule">
+                            <h3 class="live-schedule-title" data-i18n="live_schedule_title">✦ Prossimi Rituali ✦</h3>
+                            <div class="live-schedule-items">
+                                <div class="live-schedule-item"><span class="live-schedule-day" data-i18n="live_day_tue">Martedì</span><span class="live-schedule-time">21:00 CET</span></div>
+                                <div class="live-schedule-item"><span class="live-schedule-day" data-i18n="live_day_thu">Giovedì</span><span class="live-schedule-time">21:00 CET</span></div>
+                                <div class="live-schedule-item"><span class="live-schedule-day" data-i18n="live_day_sat">Sabato</span><span class="live-schedule-time">16:00 CET</span></div>
+                            </div>
+                        </div>
+                        <div class="live-countdown-wrap">
+                            <span class="live-countdown-label" data-i18n="live_countdown">Prossimo rituale tra</span>
+                            <span class="live-countdown" id="live-countdown">--:--:--</span>
+                        </div>
+                    </div>
+
+                    <!-- Clip gallery -->
+                    <div class="rune-divider"><div class="rune-line"></div><span class="rune-sym" aria-hidden="true">✦ ⚔ ✦</span><div class="rune-line"></div></div>
+                    <h2 class="section-title" data-i18n="clips_title">Momenti Epici</h2>
+                    <div class="clips-grid" id="clips-grid"></div>
+                </section>
+            </div>
+        </div>
+
+        <div class="os-window" id="win-links" data-window="links" style="display:none;">
+            <div class="win-titlebar">
+                <span class="win-title">🔗 <span data-i18n="sec_links">Links</span></span>
+                <div class="win-controls">
+                    <button class="win-btn win-minimize" title="Minimize" data-i18n-title="win_minimize">▬</button>
+                    <button class="win-btn win-maximize" title="Maximize" data-i18n-title="win_maximize">☐</button>
+                    <button class="win-btn win-close" title="Close" data-i18n-title="win_close">✕</button>
+                </div>
+            </div>
+            <div class="win-content">
+                <section class="page-section" id="sec-links">
+
+                    <div class="links-intro">
+                        <p class="links-desc" data-i18n="links_desc">Trovami su queste piattaforme</p>
+                    </div>
+
+                    <div class="link-cards" id="link-cards"></div>
+
+                    <div class="rune-divider"><div class="rune-line"></div><span class="rune-sym" aria-hidden="true">⊕ ◈ ⊕</span><div class="rune-line"></div></div>
+                    <h2 class="section-title" data-i18n="discord_title">Gilda Arcana</h2>
+                    <div class="discord-widget">
+                        <iframe src="https://discord.com/widget?id=86085128656285696&theme=dark"
+                                width="100%" height="400"
+                                allowtransparency="true" frameborder="0"
+                                sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts"
+                                title="Discord" loading="lazy">
+                        </iframe>
+                    </div>
+
+                </section>
+            </div>
+        </div>
+        <div class="os-window" id="win-settings" data-window="settings" style="display:none;">
+            <div class="win-titlebar">
+                <span class="win-title">⚙️ <span data-i18n="sec_settings">Settings</span></span>
+                <div class="win-controls">
+                    <button class="win-btn win-minimize" title="Minimize" data-i18n-title="win_minimize">▬</button>
+                    <button class="win-btn win-maximize" title="Maximize" data-i18n-title="win_maximize">☐</button>
+                    <button class="win-btn win-close" title="Close" data-i18n-title="win_close">✕</button>
+                </div>
+            </div>
+            <div class="win-content">
+                <div class="settings-layout">
+                    <!-- Sidebar categories -->
+                    <nav class="settings-sidebar">
+                        <button class="settings-cat active" data-cat="appearance">🌓 <span data-i18n="settings_appearance">Appearance</span></button>
+                        <button class="settings-cat" data-cat="performance">⚡ <span data-i18n="settings_performance">Performance</span></button>
+                        <button class="settings-cat" data-cat="clock">🕐 <span data-i18n="settings_clock">Clock</span></button>
+                        <button class="settings-cat" data-cat="language">🌐 <span data-i18n="settings_language">Language</span></button>
+                        <button class="settings-cat" data-cat="sound">🔊 <span data-i18n="settings_sound">Sound</span></button>
+                        <button class="settings-cat" data-cat="permissions">🔐 <span data-i18n="settings_permissions">Permissions</span></button>
+                        <button class="settings-cat" data-cat="widgets">🪄 <span data-i18n="settings_widgets">Widgets</span></button>
+                        <button class="settings-cat" data-cat="profile">💾 <span data-i18n="settings_profile">Profile</span></button>
+                        <button class="settings-cat" data-cat="reset">🔄 <span data-i18n="settings_reset">Reset</span></button>
+                        <button class="settings-cat" data-cat="about">⚜ <span data-i18n="settings_about">About</span></button>
+                    </nav>
+                    <!-- Content panels -->
+                    <div class="settings-content">
+                        <!-- Appearance -->
+                        <div class="settings-page active" data-page="appearance">
+                            <h2 class="settings-page-title" data-i18n="settings_appearance">Appearance</h2>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🌓</span><div><strong data-i18n="settings_theme">Theme</strong><br><small data-i18n="settings_theme_desc">Switch between dark and light mode</small></div></div>
+                                <button class="settings-toggle" id="settings-theme-toggle"><span class="toggle-track"><span class="toggle-thumb"></span></span></button>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🖥</span><div><strong data-i18n="settings_theme_follow">Follow system theme</strong><br><small data-i18n="settings_theme_follow_desc">Match your OS dark/light preference automatically</small></div></div>
+                                <button class="settings-toggle" id="settings-theme-follow-toggle"><span class="toggle-track"><span class="toggle-thumb"></span></span></button>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🧭</span><div><strong data-i18n="settings_autohide">Auto-hide taskbar</strong><br><small data-i18n="settings_autohide_desc">Hide the top bar; reveal it by moving the cursor to the top edge</small></div></div>
+                                <button class="settings-toggle" id="settings-taskbar-autohide"><span class="toggle-track"><span class="toggle-thumb"></span></span></button>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🔤</span><div><strong data-i18n="settings_fontsize">Font Size</strong><br><small data-i18n="settings_fontsize_desc">Adjust text size</small></div></div>
+                                <div class="settings-range-wrap"><input type="range" id="settings-font-size" class="settings-range" min="80" max="130" value="100" step="5"><span class="settings-range-value" id="font-size-label">100%</span></div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">✒️</span><div><strong data-i18n="settings_font">Font Family</strong><br><small data-i18n="settings_font_desc">Typeface used across the site</small></div></div>
+                                <select id="settings-font" class="settings-select">
+                                    <option value="default" data-i18n="font_default">Arcane (Cinzel + Inter)</option>
+                                    <option value="medieval" data-i18n="font_medieval">Medieval (IM Fell)</option>
+                                    <option value="modern" data-i18n="font_modern">Modern Sans</option>
+                                    <option value="serif" data-i18n="font_serif">Classic Serif</option>
+                                    <option value="mono" data-i18n="font_mono">Monospace</option>
+                                    <option value="nordic" data-i18n="font_nordic">Nordic (Cinzel only)</option>
+                                </select>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🖼</span><div><strong data-i18n="settings_bg">Background</strong><br><small data-i18n="settings_bg_desc">Images or video loops, rotated automatically (saved in your profile)</small></div></div>
+                                <div class="settings-actions">
+                                    <button class="settings-reset-btn" id="settings-bg-pick" data-i18n="settings_bg_pick">Add…</button>
+                                    <button class="settings-reset-btn" id="settings-bg-clear" data-i18n="settings_bg_clear">Clear</button>
+                                    <span class="settings-status" id="settings-bg-status">Default</span>
+                                    <input type="file" id="settings-bg-file" accept="image/*,video/*" multiple style="display:none;">
+                                </div>
+                            </div>
+                            <ul class="settings-bg-list" id="settings-bg-list" hidden></ul>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🔁</span><div><strong data-i18n="settings_bg_rotation">Background rotation</strong><br><small data-i18n="settings_bg_rotation_desc">Cycle every few minutes or follow the time of day</small></div></div>
+                                <div class="settings-actions">
+                                    <select id="settings-bg-mode" class="settings-select">
+                                        <option value="interval" data-i18n="settings_bg_mode_interval">Interval</option>
+                                        <option value="time" data-i18n="settings_bg_mode_time">Time of day</option>
+                                    </select>
+                                    <label class="settings-bg-interval">
+                                        <input type="number" id="settings-bg-interval" class="settings-input" min="1" max="1440" step="1" value="10">
+                                        <span data-i18n="settings_bg_minutes">min</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🧙</span><div><strong data-i18n="settings_portrait">Portrait</strong><br><small data-i18n="settings_portrait_desc">Replace the hero portrait image</small></div></div>
+                                <div class="settings-actions">
+                                    <button class="settings-reset-btn" id="settings-portrait-pick" data-i18n="settings_portrait_pick">Upload…</button>
+                                    <button class="settings-reset-btn" id="settings-portrait-clear" data-i18n="settings_portrait_clear">Reset</button>
+                                    <span class="settings-status" id="settings-portrait-status" data-i18n="settings_status_default">Default</span>
+                                    <input type="file" id="settings-portrait-file" accept="image/*" style="display:none;">
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">✦</span><div><strong data-i18n="settings_name">Display name</strong><br><small data-i18n="settings_name_desc">Shown in hero and start menu</small></div></div>
+                                <div class="settings-actions">
+                                    <input type="text" id="settings-name-input" class="settings-input" maxlength="64" placeholder="Arutosio">
+                                    <button class="settings-reset-btn" id="settings-name-clear" data-i18n="settings_name_clear">Reset</button>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🎨</span><div><strong data-i18n="settings_accent">Accent Color</strong><br><small data-i18n="settings_accent_desc">Choose your accent color</small></div></div>
+                                <div class="settings-colors" id="settings-accent">
+                                    <button class="settings-color-btn active" data-accent="gold" style="background:#ffc857;" title="Gold" data-i18n-title="accent_gold"></button>
+                                    <button class="settings-color-btn" data-accent="purple" style="background:#a78bfa;" title="Purple" data-i18n-title="accent_purple"></button>
+                                    <button class="settings-color-btn" data-accent="cyan" style="background:#22d3ee;" title="Cyan" data-i18n-title="accent_cyan"></button>
+                                    <button class="settings-color-btn" data-accent="rose" style="background:#fb7185;" title="Rose" data-i18n-title="accent_rose"></button>
+                                    <button class="settings-color-btn" data-accent="emerald" style="background:#34d399;" title="Emerald" data-i18n-title="accent_emerald"></button>
+                                    <label class="settings-color-btn settings-color-custom" data-accent="custom" title="Custom" data-i18n-title="accent_custom">
+                                        <span class="custom-swatch">🎨</span>
+                                        <input type="color" id="settings-accent-custom" value="#ffc857">
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🔮</span><div><strong data-i18n="settings_magic">Magic Color</strong><br><small data-i18n="settings_magic_desc">Runes, magic circle, rings and fog tint</small></div></div>
+                                <div class="settings-colors" id="settings-magic">
+                                    <button class="settings-color-btn active" data-magic="purple" style="background:#a78bfa;" title="Purple" data-i18n-title="accent_purple"></button>
+                                    <button class="settings-color-btn" data-magic="ice" style="background:#67e8f9;" title="Ice" data-i18n-title="magic_ice"></button>
+                                    <button class="settings-color-btn" data-magic="ember" style="background:#fb923c;" title="Ember" data-i18n-title="magic_ember"></button>
+                                    <button class="settings-color-btn" data-magic="blood" style="background:#fb7185;" title="Blood" data-i18n-title="magic_blood"></button>
+                                    <button class="settings-color-btn" data-magic="fae" style="background:#34d399;" title="Fae" data-i18n-title="magic_fae"></button>
+                                    <label class="settings-color-btn settings-color-custom" data-magic="custom" title="Custom" data-i18n-title="accent_custom">
+                                        <span class="custom-swatch">🎨</span>
+                                        <input type="color" id="settings-magic-custom" value="#a78bfa">
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🖼️</span><div><strong data-i18n="settings_border">Border Color</strong><br><small data-i18n="settings_border_desc">Window and panel borders (auto = follows accent)</small></div></div>
+                                <div class="settings-actions">
+                                    <button class="settings-reset-btn" id="settings-border-auto" data-i18n="settings_border_auto">Auto</button>
+                                    <label class="settings-color-btn settings-color-custom" data-border="custom" title="Custom" data-i18n-title="accent_custom">
+                                        <span class="custom-swatch">🎨</span>
+                                        <input type="color" id="settings-border-custom" value="#ffc857">
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">▦</span><div><strong data-i18n="settings_border_alpha">Border Intensity</strong><br><small data-i18n="settings_border_alpha_desc">How visible borders are</small></div></div>
+                                <div class="settings-range-wrap"><input type="range" id="settings-border-alpha" class="settings-range" min="40" max="160" value="100" step="10"><span class="settings-range-value" id="border-alpha-label">100%</span></div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🌫</span><div><strong data-i18n="settings_blur">Glass Blur</strong><br><small data-i18n="settings_blur_desc">Backdrop blur of glass panels</small></div></div>
+                                <div class="settings-range-wrap"><input type="range" id="settings-blur" class="settings-range" min="0" max="24" value="18" step="2"><span class="settings-range-value" id="blur-label">18px</span></div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">⬜</span><div><strong data-i18n="settings_radius">Corner Roundness</strong><br><small data-i18n="settings_radius_desc">Windows, cards and buttons corner radius</small></div></div>
+                                <div class="settings-range-wrap"><input type="range" id="settings-radius" class="settings-range" min="0" max="200" value="100" step="10"><span class="settings-range-value" id="radius-label">100%</span></div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🌌</span><div><strong data-i18n="settings_bgtint">Background Tint</strong><br><small data-i18n="settings_bgtint_desc">Recolor the desktop gradient</small></div></div>
+                                <div class="settings-actions">
+                                    <button class="settings-reset-btn" id="settings-bgtint-clear" data-i18n="settings_name_clear">Reset</button>
+                                    <label class="settings-color-btn settings-color-custom" data-bgtint="custom" title="Custom" data-i18n-title="accent_custom">
+                                        <span class="custom-swatch">🎨</span>
+                                        <input type="color" id="settings-bgtint-custom" value="#1a1035">
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Performance -->
+                        <div class="settings-page" data-page="performance">
+                            <h2 class="settings-page-title" data-i18n="settings_performance">Performance</h2>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">✨</span><div><strong data-i18n="settings_particles">Particles</strong><br><small data-i18n="settings_particles_desc">Rune particle effects</small></div></div>
+                                <button class="settings-toggle active" id="settings-particles"><span class="toggle-track"><span class="toggle-thumb"></span></span></button>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🌫️</span><div><strong data-i18n="settings_fog">Fog</strong><br><small data-i18n="settings_fog_desc">Ambient fog layers</small></div></div>
+                                <button class="settings-toggle active" id="settings-fog"><span class="toggle-track"><span class="toggle-thumb"></span></span></button>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">💫</span><div><strong data-i18n="settings_parallax">Parallax</strong><br><small data-i18n="settings_parallax_desc">Mouse parallax effect</small></div></div>
+                                <button class="settings-toggle active" id="settings-parallax"><span class="toggle-track"><span class="toggle-thumb"></span></span></button>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🖱️</span><div><strong data-i18n="settings_cursor">Magic Cursor</strong><br><small data-i18n="settings_cursor_desc">Custom cursor effect</small></div></div>
+                                <button class="settings-toggle active" id="settings-cursor"><span class="toggle-track"><span class="toggle-thumb"></span></span></button>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">✦</span><div><strong data-i18n="settings_clickspells">Click Spells</strong><br><small data-i18n="settings_clickspells_desc">Rune burst on click</small></div></div>
+                                <button class="settings-toggle active" id="settings-clickspells"><span class="toggle-track"><span class="toggle-thumb"></span></span></button>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🔮</span><div><strong data-i18n="settings_circles">Magic Circles</strong><br><small data-i18n="settings_circles_desc">Rotating ring animations</small></div></div>
+                                <button class="settings-toggle active" id="settings-circles"><span class="toggle-track"><span class="toggle-thumb"></span></span></button>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🔆</span><div><strong data-i18n="settings_glowpulse">Breathing glow</strong><br><small data-i18n="settings_glowpulse_desc">Animated pulse on portrait and magic circle (uses more GPU)</small></div></div>
+                                <button class="settings-toggle" id="settings-glowpulse"><span class="toggle-track"><span class="toggle-thumb"></span></span></button>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🔋</span><div><strong data-i18n="settings_lowpower">Low power mode</strong><br><small data-i18n="settings_lowpower_desc">Trim heavy effects to save battery and run smoother (auto on weak devices)</small></div></div>
+                                <button class="settings-toggle" id="settings-low-power"><span class="toggle-track"><span class="toggle-thumb"></span></span></button>
+                            </div>
+                        </div>
+                        <!-- Clock -->
+                        <div class="settings-page" data-page="clock">
+                            <h2 class="settings-page-title" data-i18n="settings_clock">Clock</h2>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">📅</span><div><strong data-i18n="settings_showdate">Show Date</strong><br><small data-i18n="settings_showdate_desc">Display date in taskbar</small></div></div>
+                                <button class="settings-toggle active" id="settings-show-date"><span class="toggle-track"><span class="toggle-thumb"></span></span></button>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🕐</span><div><strong data-i18n="settings_24h">24h Format</strong><br><small data-i18n="settings_24h_desc">Use 24-hour time format</small></div></div>
+                                <button class="settings-toggle active" id="settings-24h"><span class="toggle-track"><span class="toggle-thumb"></span></span></button>
+                            </div>
+                        </div>
+                        <!-- Language -->
+                        <div class="settings-page" data-page="language">
+                            <h2 class="settings-page-title" data-i18n="settings_language">Language</h2>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🌐</span><div><strong data-i18n="settings_lang">Language</strong><br><small data-i18n="settings_lang_desc">Select your language</small></div></div>
+                                <select id="settings-lang" class="settings-select">
+                                    <option value="it">Italiano</option>
+                                    <option value="en">English</option>
+                                    <option value="es">Español</option>
+                                    <option value="ja">日本語</option>
+                                    <option value="fn">ᚠᚢᚦᚨᚱᚲ</option>
+                                </select>
+                            </div>
+                        </div>
+                        <!-- Sound -->
+                        <div class="settings-page" data-page="sound">
+                            <h2 class="settings-page-title" data-i18n="settings_sound">Sound</h2>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🔊</span><div><strong data-i18n="settings_ambient">Ambient Sound</strong><br><small data-i18n="settings_ambient_desc">Mystical background drone</small></div></div>
+                                <button class="settings-toggle" id="settings-sound-toggle"><span class="toggle-track"><span class="toggle-thumb"></span></span></button>
+                            </div>
+                        </div>
+                        <!-- Permissions / Installed packages -->
+                        <div class="settings-page" data-page="permissions">
+                            <h2 class="settings-page-title" data-i18n="settings_permissions">Permissions</h2>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">📦</span><div><strong data-i18n="settings_install_pkg">Install package</strong><br><small data-i18n="settings_install_pkg_desc">Import an .zip with manifest.json + index.js</small></div></div>
+                                <button class="settings-reset-btn" id="settings-install-pkg" data-i18n="install_install">Install</button>
+                            </div>
+                            <div id="settings-perms-list"></div>
+                        </div>
+                        <!-- Widgets -->
+                        <div class="settings-page" data-page="widgets">
+                            <h2 class="settings-page-title" data-i18n="settings_widgets">Widgets</h2>
+                            <div class="settings-row">
+                                <div class="settings-label">
+                                    <span class="settings-icon">🪄</span>
+                                    <div><strong data-i18n="settings_widgets">Widgets</strong><br><small data-i18n="settings_widgets_desc">Floating mini-panels from installed packages. Enabled widgets stay pinned on the desktop.</small></div>
+                                </div>
+                            </div>
+                            <div class="widgets-empty-mobile" data-i18n="widgets_mobile_disabled" style="display:none;">Widgets are hidden on mobile screens.</div>
+                            <div id="settings-widgets-list"></div>
+                        </div>
+                        <!-- Portable Profile -->
+                        <div class="settings-page" data-page="profile">
+                            <h2 class="settings-page-title" data-i18n="settings_profile">Profile</h2>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">💾</span><div><strong data-i18n="settings_profile_status">Status</strong><br><small id="settings-profile-status" data-i18n="settings_profile_not_linked">Not linked</small></div></div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">📁</span><div><strong data-i18n="settings_profile_folder">Linked folder</strong><br><small data-i18n="settings_profile_folder_desc">Live-sync settings, apps and app data to a local folder (Chromium only).</small></div></div>
+                                <div style="display:flex;gap:.35rem;flex-wrap:wrap;">
+                                    <button class="settings-reset-btn" id="settings-profile-pick" data-i18n="settings_profile_pick">Pick folder…</button>
+                                    <button class="settings-reset-btn" id="settings-profile-reconnect" style="display:none;" data-i18n="settings_profile_reconnect">Reconnect</button>
+                                    <button class="settings-reset-btn settings-wipe-btn" id="settings-profile-unlink" style="display:none;" data-i18n="settings_profile_unlink">Unlink</button>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">⬇</span><div><strong data-i18n="settings_profile_export">Export .zip</strong><br><small data-i18n="settings_profile_export_desc">Download a snapshot of the current profile.</small></div></div>
+                                <button class="settings-reset-btn" id="settings-profile-export" data-i18n="settings_profile_export_btn">Export</button>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">⬆</span><div><strong data-i18n="settings_profile_import">Import .zip</strong><br><small data-i18n="settings_profile_import_desc">Load a previously exported profile (replaces current state).</small></div></div>
+                                <button class="settings-reset-btn" id="settings-profile-import" data-i18n="settings_profile_import_btn">Import</button>
+                                <input type="file" id="settings-profile-import-file" accept=".zip,application/zip" style="display:none;">
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">ℹ️</span><div><small data-i18n="settings_profile_help">Copy the folder or .zip between devices to transfer your settings, installed apps, and app data.</small></div></div>
+                            </div>
+                        </div>
+                        <!-- Reset -->
+                        <div class="settings-page" data-page="reset">
+                            <h2 class="settings-page-title" data-i18n="settings_reset">Reset to Defaults</h2>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🔄</span><div><strong data-i18n="settings_reset">Reset to Defaults</strong><br><small data-i18n="settings_reset_desc">Reset all settings to default values</small></div></div>
+                                <button class="settings-reset-btn" id="settings-reset" data-i18n="settings_reset_btn">Reset</button>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🧹</span><div><strong data-i18n="settings_wipe_settings">Wipe Settings Only</strong><br><small data-i18n="settings_wipe_settings_desc">Reset preferences but keep installed apps, commands and permissions</small></div></div>
+                                <button class="settings-reset-btn" id="settings-wipe-settings" data-i18n="settings_wipe_settings_btn">Wipe</button>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label"><span class="settings-icon">🗑️</span><div><strong data-i18n="settings_wipe">Wipe Local Data</strong><br><small data-i18n="settings_wipe_desc">Delete all locally stored data, apps and commands, then reload</small></div></div>
+                                <button class="settings-reset-btn settings-wipe-btn" id="settings-wipe" data-i18n="settings_wipe_all_btn">Wipe All</button>
+                            </div>
+                        </div>
+                        <!-- About -->
+                        <div class="settings-page" data-page="about">
+                            <h2 class="settings-page-title" data-i18n="settings_about">About</h2>
+                            <div class="settings-about">
+                                <span class="settings-about-logo">⚜</span>
+                                <div><strong>Arutosio</strong> v1.0<br><small>© 2025 Stefano Aruta</small></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- ── Terminal Window ── -->
+        <div class="os-window" id="win-terminal" data-window="terminal" style="display:none;">
+            <div class="win-titlebar">
+                <span class="win-title">⌨️ <span data-i18n="sec_terminal">Terminal</span></span>
+                <div class="win-controls">
+                    <button class="win-btn win-minimize" title="Minimize" data-i18n-title="win_minimize">▬</button>
+                    <button class="win-btn win-maximize" title="Maximize" data-i18n-title="win_maximize">☐</button>
+                    <button class="win-btn win-close" title="Close" data-i18n-title="win_close">✕</button>
+                </div>
+            </div>
+            <div class="win-content"></div>
+        </div>
+    </div><!-- .desktop -->
+
+</main>
+
+<script src="JavaScript/site-config.js"></script>
+<script src="JavaScript/config.js"></script>
+<script src="JavaScript/core.js"></script>
+<script src="JavaScript/util.js"></script>
+<script src="JavaScript/zip.js"></script>
+<script src="JavaScript/db.js"></script>
+<script src="JavaScript/storage.js"></script>
+<script src="JavaScript/repos.js"></script>
+<script src="JavaScript/profile.js"></script>
+<script src="JavaScript/appearance.js"></script>
+<script src="JavaScript/contextmenu.js"></script>
+<script src="JavaScript/effects.js"></script>
+<script src="JavaScript/desktop.js"></script>
+<script src="JavaScript/content.js"></script>
+<script src="JavaScript/extras.js"></script>
+<script src="JavaScript/os-windows.js"></script>
+<script src="JavaScript/taskbar-autohide.js"></script>
+<script src="JavaScript/os.js"></script>
+<script src="JavaScript/os-settings.js"></script>
+<script src="JavaScript/os-sysinfo.js"></script>
+<script src="JavaScript/permissions.js"></script>
+<script src="JavaScript/registry.js"></script>
+<script src="JavaScript/sandbox.js"></script>
+<script src="JavaScript/widgets.js"></script>
+<script src="JavaScript/installer.js"></script>
+<script src="JavaScript/defaults.js"></script>
+<script src="JavaScript/terminal.js"></script>
+<script src="JavaScript/app.js"></script>
+</body>
 </html>

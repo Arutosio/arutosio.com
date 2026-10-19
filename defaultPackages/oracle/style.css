@@ -1,0 +1,75 @@
+:root { --g: #ffc857; --p: #a78bfa; }
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; width: 100%; height: 100%; }
+body {
+    background: var(--bg, #0c0a1a);
+    background-image: radial-gradient(circle at 50% 30%, #1a0f2e 0%, #0c0a1a 70%);
+    color: var(--text, #ffe4a0);
+    font-family: 'Cinzel', 'Georgia', serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 1.2rem;
+}
+.wrap {
+    max-width: 540px; width: 100%;
+    text-align: center;
+    display: flex; flex-direction: column;
+    gap: 1.2rem; align-items: center;
+}
+.orb {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #c4b5fd, #6d28d9 60%, #1a0f2e);
+    box-shadow: 0 0 40px rgba(167, 139, 250, 0.6), inset 0 0 20px rgba(255,255,255,0.2);
+    animation: orbPulse 3s ease-in-out infinite;
+    flex-shrink: 0;
+}
+@keyframes orbPulse {
+    0%,100% { transform: scale(1); box-shadow: 0 0 40px rgba(167, 139, 250, 0.6), inset 0 0 20px rgba(255,255,255,0.2); }
+    50%     { transform: scale(1.05); box-shadow: 0 0 60px rgba(167, 139, 250, 0.8), inset 0 0 30px rgba(255,255,255,0.3); }
+}
+blockquote {
+    margin: 0;
+    font-size: 1.15rem;
+    line-height: 1.55;
+    font-style: italic;
+    color: #ffe4a0;
+    border: none;
+    min-height: 3em;
+    transition: opacity var(--dur-mellow) ease;
+}
+blockquote.loading { opacity: 0.3; }
+.author {
+    font-size: var(--text-lg);
+    color: var(--p);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+button {
+    background: linear-gradient(135deg, #2a1f4a, #1a0f2e);
+    color: var(--g);
+    border: 1px solid var(--g);
+    border-radius: var(--radius-md);
+    padding: 0.6rem 1.4rem;
+    font-family: inherit;
+    font-size: var(--text-md);
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow var(--dur-fast);
+}
+button:hover  { box-shadow: 0 0 14px var(--gold-40); }
+button:active { transform: scale(0.97); }
+.err { color: #fb7185; font-size: var(--text-base); }
+
+/* ── Light theme overrides ───────────────────────── */
+[data-theme="light"] body {
+    background-image: none;
+    background: var(--bg);
+    color: var(--text);
+}
+[data-theme="light"] blockquote { color: var(--text); }
+[data-theme="light"] .author { color: var(--purple); }
+[data-theme="light"] button {
+    background: linear-gradient(135deg, #f5e8c8, #ece0bc);
+    color: var(--gold);
+    border-color: var(--gold);
+}

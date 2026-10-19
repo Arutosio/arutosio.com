@@ -1,0 +1,13 @@
+{
+    "id": "oracle",
+    "name": "Oracle",
+    "icon": "🔮",
+    "version": "2.0.0",
+    "minSdk": 2,
+    "roles": ["app", "command"],
+    "entries": { "app": "ui.js", "command": "cli.js" },
+    "commandAlias": "fortune",
+    "author": "Aruta",
+    "category": "tools",
+    "permissions": ["fetch", "terminal"]
+}

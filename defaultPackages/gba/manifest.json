@@ -1,0 +1,16 @@
+{
+    "id": "gba",
+    "name": "Game Boy Advance",
+    "icon": "🎮",
+    "version": "1.7.0",
+    "minSdk": 2,
+    "roles": [
+        "app"
+    ],
+    "author": "Aruta",
+    "category": "games",
+    "permissions": [
+        "storage"
+    ],
+    "allowOrigin": true
+}

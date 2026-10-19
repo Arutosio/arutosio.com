@@ -1,0 +1,13 @@
+{
+    "id": "packagestore",
+    "name": "Package Manager",
+    "icon": "📦",
+    "version": "2.3.0",
+    "author": "Aruta",
+    "category": "system",
+    "minSdk": 2,
+    "roles": ["app", "command"],
+    "entries": { "app": "ui.js", "command": "cli.js" },
+    "commandAlias": "pkg",
+    "permissions": ["fetch", "storage", "notifications", "install", "terminal"]
+}

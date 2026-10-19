@@ -1,0 +1,11 @@
+{
+    "type": "app",
+    "id": "arcane-snake",
+    "name": "Arcane Snake",
+    "icon": "🐍",
+    "version": "1.0.1",
+    "author": "Aruta",
+    "entry": "index.js",
+    "category": "games",
+    "permissions": ["storage", "notifications"]
+}

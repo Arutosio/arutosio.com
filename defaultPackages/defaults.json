@@ -1,0 +1,21 @@
+{
+    "version": 1,
+    "packages": [
+        { "id": "rune",         "files": ["manifest.json", "index.js"] },
+        { "id": "weather",      "files": ["manifest.json", "index.js"] },
+        { "id": "timer",        "files": ["manifest.json", "index.js"] },
+        { "id": "qr",           "files": ["manifest.json", "index.js"] },
+        { "id": "whoami",       "files": ["manifest.json", "index.js"] },
+        { "id": "clip",         "files": ["manifest.json", "index.js"] },
+        { "id": "oracle",       "files": ["manifest.json", "ui.js", "cli.js", "style.css"] },
+        { "id": "dice-roller",  "files": ["manifest.json", "ui.js", "cli.js", "style.css"] },
+        { "id": "grimoire",     "files": ["manifest.json", "index.js", "style.css"] },
+        { "id": "snake",        "files": ["manifest.json", "index.js", "style.css"] },
+        { "id": "packagestore", "files": ["manifest.json", "ui.js", "cli.js", "style.css"] },
+        { "id": "filemanager",  "files": ["manifest.json", "index.js", "style.css"] },
+        { "id": "arcaneduel",   "files": ["manifest.json", "index.js", "style.css"] },
+        { "id": "gba",          "files": ["manifest.json", "index.js", "style.css", "bios.bin", "core/mgba.js", "core/mgba.wasm", "trystero.torrent.min.js"] },
+        { "id": "ultima-aruta", "files": ["manifest.json", "data.js", "engine.js", "player.js", "index.js", "style.css"] },
+        { "id": "tavern",       "files": ["manifest.json", "ui.js", "widget.js", "chat.js", "style.css", "trystero.torrent.min.js"] }
+    ]
+}

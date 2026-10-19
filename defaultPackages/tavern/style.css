@@ -1,0 +1,934 @@
+/* Tavern — shared styles for the full app and the widget. */
+
+:root {
+    --tavern-bg: rgba(20, 12, 8, 0.85);
+    --tavern-bg-2: rgba(36, 24, 14, 0.78);
+    --tavern-bg-3: rgba(48, 32, 18, 0.65);
+    --tavern-fg: #f0e2bf;
+    --tavern-fg-dim: #c4ad7c;
+    --tavern-gold: #ffc857;
+    --tavern-border: rgba(255, 200, 87, 0.28);
+    --tavern-input-bg: rgba(8, 4, 2, 0.55);
+    --tavern-self-bg: rgba(255, 200, 87, 0.10);
+    --tavern-row-hover: rgba(255, 200, 87, 0.10);
+    --tavern-row-active: rgba(255, 200, 87, 0.18);
+}
+
+[data-theme="light"] {
+    --tavern-bg: rgba(248, 240, 220, 0.94);
+    --tavern-bg-2: rgba(232, 220, 196, 0.85);
+    --tavern-bg-3: rgba(216, 200, 168, 0.75);
+    --tavern-fg: #2a1a08;
+    --tavern-fg-dim: #6b5030;
+    --tavern-gold: #8b6914;
+    --tavern-border: rgba(139, 105, 20, 0.35);
+    --tavern-input-bg: rgba(255, 250, 232, 0.9);
+    --tavern-self-bg: rgba(139, 105, 20, 0.10);
+    --tavern-row-hover: rgba(139, 105, 20, 0.10);
+    --tavern-row-active: rgba(139, 105, 20, 0.18);
+}
+
+html, body {
+    background: transparent;
+    color: var(--tavern-fg);
+    font-family: 'Inter', system-ui, sans-serif;
+    margin: 0;
+    height: 100%;
+}
+
+/* ── Full app shell ─────────────────────────────────────── */
+.tavern-app {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--tavern-bg);
+    color: var(--tavern-fg);
+}
+/* Header removed — the OS window titlebar already shows "🍺 Tavern".
+   Connection status was relocated into .tavern-room-banner below. */
+.tavern-status {
+    font-size: 0.72rem;
+    color: var(--tavern-fg-dim);
+    font-style: italic;
+}
+
+/* ── Setup screen ───────────────────────────────────────── */
+.tavern-setup {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 24px;
+    overflow-y: auto;
+}
+.tavern-setup-blurb {
+    color: var(--tavern-fg-dim);
+    font-size: 0.85rem;
+    line-height: 1.55;
+    font-style: italic;
+    margin: 0 0 6px;
+}
+.tavern-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.7rem;
+    color: var(--tavern-fg-dim);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.tavern-field input {
+    background: var(--tavern-input-bg);
+    color: var(--tavern-fg);
+    border: 1px solid var(--tavern-border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 0.85rem;
+    text-transform: none;
+}
+.tavern-field input:focus {
+    outline: none;
+    border-color: var(--tavern-gold);
+    box-shadow: 0 0 6px rgba(255, 200, 87, 0.25);
+}
+.tavern-field-compact {
+    flex: 1;
+    margin: 0;
+}
+.tavern-field-compact input,
+.tavern-field-compact select { padding: 4px 8px; font-size: 0.78rem; }
+.tavern-field select {
+    background: var(--tavern-input-bg);
+    color: var(--tavern-fg);
+    border: 1px solid var(--tavern-border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 0.85rem;
+    text-transform: none;
+    cursor: pointer;
+}
+.tavern-field select:focus {
+    outline: none;
+    border-color: var(--tavern-gold);
+    box-shadow: 0 0 6px rgba(255, 200, 87, 0.25);
+}
+.tavern-field-hint {
+    display: block;
+    margin-top: 4px;
+    color: var(--tavern-fg-dim);
+    font-size: 0.68rem;
+    font-style: italic;
+    text-transform: none;
+    letter-spacing: 0;
+    line-height: 1.4;
+}
+.tavern-join-btn {
+    margin-top: 8px;
+    background: rgba(255, 200, 87, 0.18);
+    color: var(--tavern-gold);
+    border: 1px solid var(--tavern-gold);
+    border-radius: 8px;
+    padding: 12px 24px;
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 0.95rem;
+    letter-spacing: 0.12em;
+    cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s;
+}
+.tavern-join-btn:hover {
+    background: rgba(255, 200, 87, 0.32);
+    box-shadow: 0 0 14px rgba(255, 200, 87, 0.25);
+}
+.tavern-setup-warning {
+    padding: 10px 12px;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: #ffb347;
+    background: rgba(255, 179, 71, 0.08);
+    border: 1px solid rgba(255, 179, 71, 0.35);
+    border-radius: 6px;
+}
+[data-theme="light"] .tavern-setup-warning {
+    color: #9c5212;
+    background: rgba(184, 106, 12, 0.08);
+    border-color: rgba(184, 106, 12, 0.4);
+}
+
+/* ── Main view (sidebar + chat pane) ────────────────────── */
+.tavern-main {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    min-height: 0;
+}
+.tavern-app[data-side="right"] .tavern-main {
+    flex-direction: row-reverse;
+}
+
+/* Sidebar */
+.tavern-sidebar {
+    width: 180px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--tavern-bg-2);
+    border-right: 1px solid var(--tavern-border);
+    border-left: none;
+}
+.tavern-app[data-side="right"] .tavern-sidebar {
+    border-right: none;
+    border-left: 1px solid var(--tavern-border);
+}
+.tavern-side-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--tavern-border);
+    flex-shrink: 0;
+}
+.tavern-side-title {
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--tavern-gold);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+.tavern-side-prefs {
+    background: transparent;
+    border: 1px solid var(--tavern-border);
+    color: var(--tavern-fg-dim);
+    border-radius: 4px;
+    width: 24px;
+    height: 22px;
+    line-height: 1;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.15s, color 0.15s;
+}
+.tavern-side-prefs:hover {
+    background: var(--tavern-row-hover);
+    color: var(--tavern-gold);
+}
+
+/* Preferences popover anchored under the gear button. */
+.tavern-prefs-popover {
+    width: 260px;
+    max-height: 440px;
+    overflow-y: auto;
+    background: var(--tavern-bg);
+    color: var(--tavern-fg);
+    border: 1px solid var(--tavern-border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    z-index: 9999;
+    font-family: 'Inter', system-ui, sans-serif;
+}
+.tavern-prefs-head {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--tavern-border);
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--tavern-gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+.tavern-prefs-section {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--tavern-border);
+}
+.tavern-prefs-section:last-child { border-bottom: none; }
+.tavern-prefs-label {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--tavern-fg-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+.tavern-prefs-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+.tavern-prefs-hint {
+    display: block;
+    margin-top: 4px;
+    color: var(--tavern-fg-dim);
+    font-size: 0.68rem;
+    font-style: italic;
+    line-height: 1.4;
+}
+.tavern-prefs-readonly {
+    font-size: 0.78rem;
+    color: var(--tavern-fg);
+    margin: 2px 0;
+    word-break: break-all;
+}
+.tavern-prefs-readonly code {
+    background: var(--tavern-input-bg);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.72rem;
+}
+.tavern-prefs-btn-group {
+    display: flex;
+    gap: 4px;
+}
+.tavern-prefs-btn-group button {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--tavern-border);
+    color: var(--tavern-fg-dim);
+    padding: 5px 10px;
+    font: inherit;
+    font-size: 0.78rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.tavern-prefs-btn-group button:hover {
+    background: var(--tavern-row-hover);
+    color: var(--tavern-fg);
+}
+.tavern-prefs-btn-group button.is-active {
+    background: var(--tavern-row-active);
+    color: var(--tavern-gold);
+    border-color: var(--tavern-gold);
+}
+.tavern-prefs-close {
+    width: 100%;
+    background: transparent;
+    color: var(--tavern-fg-dim);
+    border: 1px solid var(--tavern-border);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+}
+.tavern-prefs-close:hover {
+    background: var(--tavern-row-hover);
+    color: var(--tavern-gold);
+}
+
+.tavern-room-list {
+    flex: 1;
+    list-style: none;
+    margin: 0;
+    padding: 6px 0;
+    overflow-y: auto;
+}
+.tavern-room {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 4px 6px 4px 8px;
+    font-size: 0.82rem;
+    color: var(--tavern-fg);
+    cursor: pointer;
+    transition: background 0.12s;
+    overflow: hidden;
+}
+.tavern-room:hover { background: var(--tavern-row-hover); }
+.tavern-room.is-active {
+    background: var(--tavern-row-active);
+    color: var(--tavern-gold);
+    font-weight: 600;
+    border-left: 2px solid var(--tavern-gold);
+    padding-left: 6px;
+}
+.tavern-app[data-side="right"] .tavern-room.is-active {
+    border-left: none;
+    border-right: 2px solid var(--tavern-gold);
+    padding-left: 8px;
+    padding-right: 4px;
+}
+.tavern-room-hash {
+    color: var(--tavern-fg-dim);
+    font-size: 0.72rem;
+    flex-shrink: 0;
+    margin-right: -1px;
+}
+.tavern-room.is-active .tavern-room-hash { color: var(--tavern-gold); }
+.tavern-room-lock {
+    font-size: 0.58rem;
+    opacity: 0.8;
+    flex-shrink: 0;
+    line-height: 1;
+}
+/* Connection-status dot:
+   grey  = idle (never connected this session, or switched away without
+           an explicit disconnect)
+   green = currently the live Trystero swarm
+   red   = user explicitly clicked Disconnect on this row and is staying
+           disconnected until they click Connect again                     */
+.tavern-room-conn {
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--tavern-fg-dim);
+    cursor: pointer;
+    opacity: 0.55;
+    transition: opacity 0.12s, background 0.12s, box-shadow 0.12s;
+}
+.tavern-room:hover .tavern-room-conn { opacity: 1; }
+.tavern-room-conn:hover { box-shadow: 0 0 0 2px rgba(255, 200, 87, 0.22); }
+.tavern-room-conn.is-on {
+    background: #22c55e;
+    opacity: 1;
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.55);
+}
+.tavern-room-conn.is-on:hover { background: #16a34a; }
+.tavern-room-conn.is-off {
+    background: #fb7185;
+    opacity: 1;
+    box-shadow: 0 0 6px rgba(251, 113, 133, 0.5);
+}
+.tavern-room-conn.is-off:hover { background: #ef4458; }
+.tavern-room.is-offline {
+    opacity: 0.65;
+}
+.tavern-room.is-offline.is-active {
+    opacity: 1;
+    border-left-color: var(--tavern-fg-dim);
+}
+.tavern-app[data-side="right"] .tavern-room.is-offline.is-active {
+    border-right-color: var(--tavern-fg-dim);
+}
+.tavern-room-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tavern-room-x {
+    background: none;
+    border: none;
+    color: var(--tavern-fg-dim);
+    font-size: 0.88rem;
+    line-height: 1;
+    padding: 0 2px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.12s, color 0.12s;
+    flex-shrink: 0;
+}
+.tavern-room:hover .tavern-room-x { opacity: 0.7; }
+.tavern-room-x:hover { opacity: 1; color: #fb7185; }
+/* Active room keeps the × visible — clicking it leaves the room and either
+   switches to the next bookmarked room or returns to the setup screen. */
+.tavern-room.is-active .tavern-room-x {
+    opacity: 0.85;
+    color: #fb7185;
+}
+.tavern-room.is-active .tavern-room-x:hover { opacity: 1; }
+
+.tavern-add-room {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 12px;
+    border-top: 1px solid var(--tavern-border);
+    flex-shrink: 0;
+}
+.tavern-add-row {
+    display: flex;
+    gap: 4px;
+}
+.tavern-add-room input {
+    flex: 1;
+    min-width: 0;
+    background: var(--tavern-input-bg);
+    color: var(--tavern-fg);
+    border: 1px solid var(--tavern-border);
+    border-radius: 4px;
+    padding: 5px 8px;
+    font: inherit;
+    font-size: 0.78rem;
+    box-sizing: border-box;
+    width: 100%;
+}
+.tavern-add-pwd {
+    width: 100%;
+    box-sizing: border-box;
+}
+.tavern-add-room input:focus {
+    outline: none;
+    border-color: var(--tavern-gold);
+}
+.tavern-add-btn {
+    background: rgba(255, 200, 87, 0.18);
+    color: var(--tavern-gold);
+    border: 1px solid var(--tavern-border);
+    border-radius: 4px;
+    width: 24px;
+    line-height: 1;
+    font-size: 0.95rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.12s, border-color 0.12s;
+}
+.tavern-add-btn:hover {
+    background: rgba(255, 200, 87, 0.32);
+    border-color: var(--tavern-gold);
+}
+
+.tavern-side-foot {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    border-top: 1px solid var(--tavern-border);
+    background: var(--tavern-bg-3);
+    flex-shrink: 0;
+}
+.tavern-side-foot .tavern-field { width: 100%; }
+
+/* Chat pane */
+.tavern-chat-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+.tavern-room-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--tavern-border);
+    background: var(--tavern-bg-3);
+    flex-shrink: 0;
+}
+.tavern-room-name {
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 0.95rem;
+    color: var(--tavern-gold);
+    letter-spacing: 0.04em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+/* Mirrors the sidebar dot colors: same three states, same visual language. */
+.tavern-banner-dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--tavern-fg-dim);
+    opacity: 0.6;
+    flex-shrink: 0;
+}
+.tavern-banner-dot.is-on {
+    background: #22c55e;
+    opacity: 1;
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.55);
+}
+.tavern-banner-dot.is-off {
+    background: #fb7185;
+    opacity: 1;
+    box-shadow: 0 0 6px rgba(251, 113, 133, 0.5);
+}
+
+/* Peer count badge on the active room (sidebar). */
+.tavern-room-count {
+    background: var(--tavern-row-active);
+    color: var(--tavern-gold);
+    border: 1px solid var(--tavern-border);
+    border-radius: 999px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 0 5px;
+    min-width: 16px;
+    height: 14px;
+    line-height: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.12s;
+}
+.tavern-room-count:hover { background: rgba(255, 200, 87, 0.32); }
+
+/* Peers popover (anchored to the count badge, positioned via JS). */
+.tavern-peers-popover {
+    width: 220px;
+    max-height: 280px;
+    overflow-y: auto;
+    background: var(--tavern-bg);
+    color: var(--tavern-fg);
+    border: 1px solid var(--tavern-border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    z-index: 9999;
+    font-family: 'Inter', system-ui, sans-serif;
+}
+.tavern-peers-head {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--tavern-border);
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--tavern-gold);
+    letter-spacing: 0.08em;
+}
+.tavern-peers-list {
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+}
+.tavern-peer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+}
+.tavern-peer.is-self { background: var(--tavern-row-active); }
+.tavern-peer.is-blocked { opacity: 0.5; }
+.tavern-peer-block {
+    background: transparent;
+    border: 1px solid var(--tavern-border);
+    border-radius: 4px;
+    color: var(--tavern-fg-dim);
+    font-size: 0.82rem;
+    line-height: 1;
+    padding: 2px 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.12s, color 0.12s;
+}
+.tavern-peer-block:hover {
+    background: var(--tavern-row-hover);
+    color: var(--tavern-gold);
+}
+.tavern-peer-nick {
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+.tavern-peer-time {
+    color: var(--tavern-fg-dim);
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+}
+.tavern-log {
+    flex: 1;
+    list-style: none;
+    margin: 0;
+    padding: 12px 16px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    min-height: 0;
+}
+.tavern-msg {
+    padding: 6px 10px;
+    margin-bottom: 6px;
+    border-radius: 6px;
+    background: var(--tavern-bg-2);
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+.tavern-msg.is-self {
+    background: var(--tavern-self-bg);
+    border-left: 2px solid var(--tavern-gold);
+}
+.tavern-msg.is-spoofed {
+    background: rgba(251, 113, 133, 0.10);
+    border-left: 2px solid #fb7185;
+}
+.tavern-msg.is-spoofed .tavern-nick::after {
+    content: ' ⚠';
+    color: #fb7185;
+    font-size: 0.72rem;
+}
+.tavern-msg-check {
+    color: #53fc18;
+    margin-left: 6px;
+    font-size: 0.72rem;
+    opacity: 0.85;
+}
+[data-theme="light"] .tavern-msg-check { color: #2f8a55; }
+.tavern-msg-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.72rem;
+    margin-bottom: 2px;
+    min-width: 0;
+}
+.tavern-nick {
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+.tavern-msg-head time { color: var(--tavern-fg-dim); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.tavern-msg-text {
+    display: block;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+/* System messages: palette differs by semantic kind so the user can
+   tell join / leave / warnings / errors apart at a glance. */
+.tavern-system {
+    font-style: italic;
+    font-size: 0.76rem;
+    margin: 6px 14%;
+    padding: 4px 10px;
+    text-align: center;
+    border-radius: 4px;
+    border: 1px dashed;
+    letter-spacing: 0.02em;
+}
+.tavern-system.is-info {
+    color: #7dd3fc;
+    background: rgba(125, 211, 252, 0.06);
+    border-color: rgba(125, 211, 252, 0.28);
+}
+.tavern-system.is-success {
+    color: #6ee7b7;
+    background: rgba(110, 231, 183, 0.07);
+    border-color: rgba(110, 231, 183, 0.32);
+}
+.tavern-system.is-warning {
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.06);
+    border-color: rgba(251, 191, 36, 0.30);
+}
+.tavern-system.is-error {
+    color: #fb7185;
+    background: rgba(251, 113, 133, 0.08);
+    border-color: rgba(251, 113, 133, 0.38);
+}
+.tavern-system.is-info::before    { content: '✦ '; opacity: 0.7; margin-right: 2px; }
+.tavern-system.is-success::before { content: '→ '; opacity: 0.8; margin-right: 2px; }
+.tavern-system.is-warning::before { content: '← '; opacity: 0.8; margin-right: 2px; }
+.tavern-system.is-error::before   { content: '⚠ '; opacity: 0.9; margin-right: 2px; }
+
+[data-theme="light"] .tavern-system.is-info {
+    color: #2563a3;
+    background: rgba(37, 99, 163, 0.07);
+    border-color: rgba(37, 99, 163, 0.3);
+}
+[data-theme="light"] .tavern-system.is-success {
+    color: #2f8a55;
+    background: rgba(47, 138, 85, 0.08);
+    border-color: rgba(47, 138, 85, 0.32);
+}
+[data-theme="light"] .tavern-system.is-warning {
+    color: #9c5212;
+    background: rgba(184, 106, 12, 0.08);
+    border-color: rgba(184, 106, 12, 0.32);
+}
+[data-theme="light"] .tavern-system.is-error {
+    color: #c23a4f;
+    background: rgba(194, 58, 79, 0.08);
+    border-color: rgba(194, 58, 79, 0.36);
+}
+.tavern-compose {
+    display: flex;
+    gap: 8px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--tavern-border);
+    background: var(--tavern-bg-2);
+    flex-shrink: 0;
+}
+.tavern-compose input {
+    flex: 1;
+    background: var(--tavern-input-bg);
+    color: var(--tavern-fg);
+    border: 1px solid var(--tavern-border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font: inherit;
+}
+.tavern-compose input:focus {
+    outline: none;
+    border-color: var(--tavern-gold);
+    box-shadow: 0 0 6px rgba(255, 200, 87, 0.25);
+}
+.tavern-compose button {
+    background: rgba(255, 200, 87, 0.18);
+    color: var(--tavern-gold);
+    border: 1px solid var(--tavern-gold);
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.tavern-compose button:hover { background: rgba(255, 200, 87, 0.32); }
+
+/* Narrow window: collapse the sidebar into a horizontal tab strip on top
+   of the chat pane. Keeps everything visible without sacrificing chat
+   real estate. The flip toggle, nick footer and add input are hidden —
+   the user adjusts them on desktop or after returning to setup. */
+@media (max-width: 560px) {
+    .tavern-main, .tavern-app[data-side="right"] .tavern-main {
+        flex-direction: column;
+    }
+    .tavern-sidebar, .tavern-app[data-side="right"] .tavern-sidebar {
+        width: 100%;
+        max-height: none;
+        flex-direction: row;
+        align-items: center;
+        gap: 0;
+        border-right: none;
+        border-left: none;
+        border-bottom: 1px solid var(--tavern-border);
+        order: 0;
+        flex-shrink: 0;
+    }
+    .tavern-side-head { display: none; }
+    .tavern-side-foot { display: none; }
+    .tavern-add-room {
+        padding: 4px 6px;
+        border-top: none;
+        flex-shrink: 0;
+    }
+    .tavern-add-room input {
+        width: 110px;
+        font-size: 0.72rem;
+        padding: 4px 6px;
+    }
+    .tavern-room-list {
+        flex: 1;
+        flex-direction: row;
+        padding: 4px 6px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        gap: 2px;
+        white-space: nowrap;
+    }
+    .tavern-room-list::-webkit-scrollbar { display: none; }
+    .tavern-room {
+        flex-shrink: 0;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 0.78rem;
+    }
+    .tavern-room.is-active,
+    .tavern-app[data-side="right"] .tavern-room.is-active {
+        border-left: none;
+        border-right: none;
+        border-bottom: 2px solid var(--tavern-gold);
+        padding-left: 10px;
+        padding-right: 10px;
+        border-radius: 4px 4px 0 0;
+    }
+}
+
+/* ── Widget (compact) ───────────────────────────────────── */
+.tavern-widget {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--tavern-bg);
+    color: var(--tavern-fg);
+}
+.tavern-widget-status {
+    font-size: 0.7rem;
+    color: var(--tavern-fg-dim);
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--tavern-border);
+    text-align: center;
+    font-style: italic;
+    flex-shrink: 0;
+}
+.tavern-widget-log {
+    flex: 1;
+    list-style: none;
+    margin: 0;
+    padding: 8px 12px;
+    overflow-y: auto;
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+.tavern-widget-msg {
+    padding: 4px 0;
+    border-bottom: 1px dashed transparent;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.tavern-widget-msg + .tavern-widget-msg { border-top: 1px solid rgba(255, 200, 87, 0.06); }
+.tavern-widget-system {
+    color: #7dd3fc;
+    font-style: italic;
+    font-size: 0.68rem;
+    text-align: center;
+    padding: 3px 6px;
+    margin: 3px 6%;
+    background: rgba(125, 211, 252, 0.06);
+    border: 1px dashed rgba(125, 211, 252, 0.28);
+    border-radius: 3px;
+    letter-spacing: 0.02em;
+}
+.tavern-widget-system::before {
+    content: '✦ ';
+    opacity: 0.7;
+}
+[data-theme="light"] .tavern-widget-system {
+    color: #2563a3;
+    background: rgba(37, 99, 163, 0.07);
+    border-color: rgba(37, 99, 163, 0.3);
+}
+.tavern-widget-nick {
+    font-weight: 700;
+    font-size: 0.72rem;
+}
+.tavern-widget-text { word-break: break-word; }
+.tavern-widget-compose {
+    padding: 8px 12px;
+    border-top: 1px solid var(--tavern-border);
+    flex-shrink: 0;
+}
+.tavern-widget-compose input {
+    width: 100%;
+    background: var(--tavern-input-bg);
+    color: var(--tavern-fg);
+    border: 1px solid var(--tavern-border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 0.85rem;
+    box-sizing: border-box;
+}
+.tavern-widget-compose input:focus {
+    outline: none;
+    border-color: var(--tavern-gold);
+    box-shadow: 0 0 6px rgba(255, 200, 87, 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tavern-msg, .tavern-widget-msg, .tavern-compose button, .tavern-room { transition: none; }
+}
