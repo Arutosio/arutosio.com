@@ -108,6 +108,15 @@ const PERM_REQUIRED = {
     handoff: 'windows',
 };
 
+/** An app holding `install` may uninstall others — always ask the user first. */
+async function _confirmUninstallFor(callerId, targetId) {
+    const t = window.t();
+    const name = window.registry?.getManifest?.(targetId)?.name || targetId;
+    const msg = (t.perm_uninstall_confirm || 'Uninstall {name}?').replace('{name}', name)
+        + '\n\n' + (t.uninstall_requested_by || 'Requested by: {app}').replace('{app}', callerId);
+    return (typeof window.showConfirm === 'function') ? window.showConfirm(msg) : window.confirm(msg);
+}
+
 async function _handleCall(appId, method, args) {
     const perm = PERM_REQUIRED[method];
     if (perm) {
@@ -165,6 +174,7 @@ async function _handleCall(appId, method, args) {
             // own iframe out while we're still waiting on the reply).
             if (targetId === appId) throw new Error('self_uninstall_refused');
             if (!window.registry?.isInstalled(targetId)) return false;
+            if (!(await _confirmUninstallFor(appId, targetId))) return false;
             await window.registry.uninstall(targetId);
             try { localStorage.removeItem('aruta_perms_' + targetId); } catch {}
             return true;
@@ -561,12 +571,13 @@ function _buildHostCtx(appId, files) {
             const file = (typeof File !== 'undefined' && blob instanceof File)
                 ? blob
                 : new File([blob], (opts && opts.filename) || 'remote.zip', { type: blob.type || 'application/zip' });
-            const m = await window.installer.installFromFile(file);
+            const m = await window.installer.installFromFile(file, { sandboxOrigin: true, callerAppId: appId });
             if (!m) return null;
             return { id: m.id, name: m.name, version: m.version, type: m.type, roles: m.roles };
         },
         uninstall: async (id) => {
             if (!(await window.permissions.request(appId, 'install'))) throw new Error('permission_denied:install');
+            if (!window.registry?.isInstalled(id) || !(await _confirmUninstallFor(appId, id))) return false;
             return window.registry?.uninstall ? await window.registry.uninstall(id) : false;
         },
         listInstalled: async () => {

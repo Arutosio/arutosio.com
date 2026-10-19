@@ -65,6 +65,10 @@ function validateManifest(m) {
         }
     }
     if (!m.name || typeof m.name !== 'string') return 'name is required';
+    // name/icon end up in host-page chrome (titlebar, start menu, taskbar):
+    // reject markup outright on top of escaping at every render site.
+    if (m.name.length > 64 || /[<>]/.test(m.name)) return 'name must be ≤ 64 chars without < or >';
+    if (m.icon != null && (typeof m.icon !== 'string' || [...m.icon].length > 8 || /[<>]/.test(m.icon))) return 'icon must be a short string (≤ 8 chars) without < or >';
     if (m.entry && typeof m.entry !== 'string') return 'entry must be a string';
     if (m.entries != null) {
         if (typeof m.entries !== 'object' || Array.isArray(m.entries)) return 'entries must be an object';
@@ -141,6 +145,12 @@ async function _confirmInstall(manifest, isUpdate) {
         .replace('{version}', manifest.version || '—')
         .replace('{author}', manifest.author || '—')
         .replace('{perms}', permsList || (t.install_no_perms || '(none)'));
+    // Spell out the two ways a package escapes the iframe sandbox.
+    const roles = Array.isArray(manifest.roles) && manifest.roles.length ? manifest.roles : [manifest.type];
+    const warnings = [];
+    if (manifest.allowOrigin === true) warnings.push(t.install_warn_origin || '⚠ Requests same-origin access (allowOrigin): it can read and change all your data on this site.');
+    if (roles.includes('command')) warnings.push(t.install_warn_command || '⚠ Includes terminal commands, which run directly in the main page without sandbox.');
+    const fullBody = warnings.length ? body + '\n\n' + warnings.join('\n') : body;
 
     return new Promise(resolve => {
         const backdrop = document.createElement('div');
@@ -157,7 +167,7 @@ async function _confirmInstall(manifest, isUpdate) {
         `;
         modal.querySelector('.perm-icon').textContent = manifest.icon || '📦';
         modal.querySelector('.perm-title').textContent = title;
-        modal.querySelector('.install-body').textContent = body;
+        modal.querySelector('.install-body').textContent = fullBody;
         modal.querySelector('.confirm-cancel').textContent = t.confirm_cancel || 'Cancel';
         modal.querySelector('.confirm-ok').textContent = isUpdate ? (t.install_update || 'Update') : (t.install_install || 'Install');
         backdrop.appendChild(modal);

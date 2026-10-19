@@ -118,14 +118,14 @@ function permRenderSettings() {
                 return `<div class="perm-item">
                     <span class="perm-name">${permLabel(p)}</span>
                     <span class="perm-state perm-state-${state}">${t['perm_state_' + state] || state}</span>
-                    <button class="perm-toggle" data-app="${a.id}" data-perm="${p}" data-state="${state}">${granted ? (t.perm_revoke || 'Revoke') : (t.perm_grant || 'Grant')}</button>
+                    <button class="perm-toggle" data-app="${window.escapeHTML(a.id)}" data-perm="${window.escapeHTML(p)}" data-state="${state}">${granted ? (t.perm_revoke || 'Revoke') : (t.perm_grant || 'Grant')}</button>
                 </div>`;
             }).join('') : `<div class="perm-empty-small">${t.perm_no_perms || 'No permissions used.'}</div>`;
             return `<div class="perm-app">
                 <div class="perm-app-head">
-                    <span class="perm-app-icon">${a.icon || '📦'}</span>
-                    <strong class="perm-app-name">${a.name}</strong>
-                    <span class="perm-app-type">${a.type}</span>
+                    <span class="perm-app-icon">${window.escapeHTML(a.icon || '📦')}</span>
+                    <strong class="perm-app-name">${window.escapeHTML(a.name)}</strong>
+                    <span class="perm-app-type">${window.escapeHTML(a.type || '')}</span>
                 </div>
                 <div class="perm-app-perms">${rows}</div>
             </div>`;

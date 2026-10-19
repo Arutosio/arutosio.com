@@ -304,13 +304,13 @@ function renderSettings() {
         const enabled = !!_state[m.id]?.enabled;
         return `<div class="widget-row">
             <div class="widget-row-label">
-                <span class="widget-row-icon">${m.icon || '🪄'}</span>
+                <span class="widget-row-icon">${window.escapeHTML(m.icon || '🪄')}</span>
                 <div class="widget-row-text">
-                    <strong>${window.escapeHTML ? window.escapeHTML(m.name) : m.name}</strong>
-                    <br><small>${window.escapeHTML ? window.escapeHTML(m.id) : m.id}</small>
+                    <strong>${window.escapeHTML(m.name)}</strong>
+                    <br><small>${window.escapeHTML(m.id)}</small>
                 </div>
             </div>
-            <button class="settings-toggle${enabled ? ' active' : ''}" data-widget="${m.id}" aria-label="${enabled ? 'Disable' : 'Enable'} ${m.name} widget">
+            <button class="settings-toggle${enabled ? ' active' : ''}" data-widget="${window.escapeHTML(m.id)}" aria-label="${enabled ? 'Disable' : 'Enable'} ${window.escapeHTML(m.name)} widget">
                 <span class="toggle-track"><span class="toggle-thumb"></span></span>
             </button>
         </div>`;

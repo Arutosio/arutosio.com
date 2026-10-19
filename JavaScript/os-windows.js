@@ -36,7 +36,7 @@ function addWindowTab(id) {
     tab.className = 'taskbar-tab';
     tab.dataset.tab = id;
     const closeTitle = t.win_close || 'Close';
-    tab.innerHTML = `${meta.icon} <span class="tab-label">${label}</span> <span class="taskbar-tab-close" title="${closeTitle}" data-i18n-title="win_close">\u2715</span>`;
+    tab.innerHTML = `${window.escapeHTML(meta.icon || '')} <span class="tab-label">${window.escapeHTML(label)}</span> <span class="taskbar-tab-close" title="${closeTitle}" data-i18n-title="win_close">\u2715</span>`;
     tab.addEventListener('click', (e) => {
         if (e.target.closest('.taskbar-tab-close')) {
             closeWindow(id);

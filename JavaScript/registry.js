@@ -171,7 +171,7 @@ function renderStartMenuItems() {
             btn.className = 'start-item' + (e.custom ? ' start-custom' : '');
             btn.dataset.window = e.id;
             const label = e.builtin ? (t[e.key] || e.key) : (e.label || e.id);
-            btn.innerHTML = `${e.icon} <span${e.builtin ? ` data-i18n="${e.key}"` : ''}>${window.escapeHTML(label)}</span>`;
+            btn.innerHTML = `${window.escapeHTML(e.icon || '')} <span${e.builtin ? ` data-i18n="${e.key}"` : ''}>${window.escapeHTML(label)}</span>`;
             btn.addEventListener('click', () => {
                 if (typeof openWindow === 'function') openWindow(e.id);
                 const menu = document.getElementById('start-menu');
@@ -351,7 +351,7 @@ function ensureAppWindow(manifest) {
     win.style.display = 'none';
     win.innerHTML = `
         <div class="win-titlebar">
-            <span class="win-title">${manifest.icon || '📦'} <span>${manifest.name}</span></span>
+            <span class="win-title">${window.escapeHTML(manifest.icon || '📦')} <span>${window.escapeHTML(manifest.name)}</span></span>
             <div class="win-controls">
                 <button class="win-btn win-minimize" title="Minimize" data-i18n-title="win_minimize">▬</button>
                 <button class="win-btn win-maximize" title="Maximize" data-i18n-title="win_maximize">☐</button>

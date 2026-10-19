@@ -162,7 +162,7 @@ const BUILTINS = {
             const apps = (window.registry?.list() || []).filter(m => m.roles?.includes('app'));
             if (!apps.length) { termPrint('(no apps installed)', 'term-dim'); return; }
             for (const a of apps) {
-                termPrintHTML(`${a.icon || '📦'} <span class="term-key">${_escape(a.id.padEnd(20))}</span><span class="term-muted">${_escape(a.name)}</span>`);
+                termPrintHTML(`${_escape(a.icon || '📦')} <span class="term-key">${_escape(a.id.padEnd(20))}</span><span class="term-muted">${_escape(a.name)}</span>`);
             }
         }
     },

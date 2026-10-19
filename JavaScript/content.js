@@ -64,9 +64,9 @@ function buildClipGallery() {
         card.className = 'clip-card';
         card.innerHTML = `
             <div class="clip-embed">
-                <div class="clip-placeholder" data-clip-id="${clip.embedId}" data-platform="${clip.platform}">
+                <div class="clip-placeholder" data-clip-id="${window.escapeHTML(clip.embedId)}" data-platform="${window.escapeHTML(clip.platform)}">
                     <span class="clip-play-icon">\u25B6</span>
-                    <span class="clip-title">${clip.title}</span>
+                    <span class="clip-title">${window.escapeHTML(clip.title)}</span>
                 </div>
             </div>
         `;
@@ -75,9 +75,9 @@ function buildClipGallery() {
             const p = this.dataset.platform;
             const id = this.dataset.clipId;
             let src = '';
-            if (p === 'twitch') src = `https://clips.twitch.tv/embed?clip=${id}&parent=${location.hostname}`;
-            else if (p === 'youtube') src = `https://www.youtube.com/embed/${id}?autoplay=1`;
-            this.outerHTML = `<iframe src="${src}" allowfullscreen allow="autoplay" title="${clip.title}"></iframe>`;
+            if (p === 'twitch') src = `https://clips.twitch.tv/embed?clip=${encodeURIComponent(id)}&parent=${location.hostname}`;
+            else if (p === 'youtube') src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?autoplay=1`;
+            this.outerHTML = `<iframe src="${window.escapeHTML(src)}" allowfullscreen allow="autoplay" title="${window.escapeHTML(clip.title)}"></iframe>`;
         });
         grid.appendChild(card);
     });
@@ -163,6 +163,7 @@ function fmtDate(iso, lang) {
  */
 function renderProjectCards(repos, lang) {
     const t = i18n[lang];
+    const esc = (v) => window.escapeHTML(v);  // GitHub API data is untrusted text
     const grid = document.getElementById('projects-grid');
     if (!grid) return;
 
@@ -170,36 +171,37 @@ function renderProjectCards(repos, lang) {
         if (repo._error) {
             return `<div class="project-card project-card--error">
                 <span class="project-error-icon">\u26A0</span>
-                <span class="project-error-text">${t.proj_error}: ${repo._slug}</span>
+                <span class="project-error-text">${t.proj_error}: ${esc(repo._slug)}</span>
             </div>`;
         }
 
         const langDot = repo.language && LANG_COLORS[repo.language]
             ? `<span class="proj-lang-dot" style="background:${LANG_COLORS[repo.language]}"></span>`
             : '';
-        const langName = repo.language || '\u2014';
+        const langName = esc(repo.language || '\u2014');
         const createdStr = fmtDate(repo.created_at, lang);
         const updatedStr = fmtDate(repo.pushed_at, lang);
         const topics = (repo.topics || []).slice(0, 4);
         const topicsHtml = topics.length
-            ? `<div class="proj-topics">${topics.map(t => `<span class="proj-topic">${t}</span>`).join('')}</div>`
+            ? `<div class="proj-topics">${topics.map(t => `<span class="proj-topic">${esc(t)}</span>`).join('')}</div>`
             : '';
 
-        return `<a href="${repo.html_url}" class="project-card" target="_blank" rel="noopener" aria-label="${repo.name}">
+        const href = /^https:\/\/github\.com\//.test(repo.html_url || '') ? repo.html_url : '#';
+        return `<a href="${esc(href)}" class="project-card" target="_blank" rel="noopener" aria-label="${esc(repo.name)}">
             <div class="project-header">
                 <i class="fab fa-github project-gh-icon" aria-hidden="true"></i>
-                <span class="project-name">${repo.name}</span>
+                <span class="project-name">${esc(repo.name)}</span>
                 ${repo.archived ? '<span class="proj-badge proj-badge--archived">archived</span>' : ''}
                 ${repo.private ? '<span class="proj-badge proj-badge--private"><i class="fas fa-lock"></i></span>' : ''}
             </div>
-            <p class="project-desc">${repo.description || '\u2014'}</p>
+            <p class="project-desc">${esc(repo.description || '\u2014')}</p>
             ${topicsHtml}
             <div class="project-stats">
                 <span class="proj-stat">${langDot} ${langName}</span>
-                <span class="proj-stat"><i class="fas fa-star" aria-hidden="true"></i> ${repo.stargazers_count}</span>
-                <span class="proj-stat"><i class="fas fa-code-branch" aria-hidden="true"></i> ${repo.forks_count}</span>
-                <span class="proj-stat"><i class="fas fa-code-commit" aria-hidden="true"></i> ${repo._commits} ${t.proj_commits}</span>
-                <span class="proj-stat"><i class="fas fa-circle-exclamation" aria-hidden="true"></i> ${repo.open_issues_count} ${t.proj_issues}</span>
+                <span class="proj-stat"><i class="fas fa-star" aria-hidden="true"></i> ${Number(repo.stargazers_count) || 0}</span>
+                <span class="proj-stat"><i class="fas fa-code-branch" aria-hidden="true"></i> ${Number(repo.forks_count) || 0}</span>
+                <span class="proj-stat"><i class="fas fa-code-commit" aria-hidden="true"></i> ${esc(repo._commits ?? '')} ${t.proj_commits}</span>
+                <span class="proj-stat"><i class="fas fa-circle-exclamation" aria-hidden="true"></i> ${Number(repo.open_issues_count) || 0} ${t.proj_issues}</span>
             </div>
             <div class="project-dates">
                 <span class="proj-date"><i class="fas fa-calendar-plus" aria-hidden="true"></i> ${t.proj_created} ${createdStr}</span>
