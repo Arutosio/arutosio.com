@@ -18,6 +18,7 @@ const WIN_META = {
     links:    { icon: '🔗', label: 'Links' },
     settings: { icon: '⚙️', label: 'Settings' },
     terminal: { icon: '⌨️', label: 'Terminal' },
+    system:   { icon: '🖥️', label: 'System' },
 };
 
 /**
@@ -200,6 +201,12 @@ function openWindow(id) {
     if (id === 'terminal' && window.terminal) {
         window.terminal.init();
         setTimeout(() => document.getElementById('term-input')?.focus(), 50);
+    }
+
+    // Init the machine manager on first open
+    if (id === 'system' && !openWindow._systemInit && window.systemApp) {
+        openWindow._systemInit = true;
+        window.systemApp.init();
     }
 
     // Mount custom app via sandbox iframe (lazy)

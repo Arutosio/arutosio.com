@@ -5,7 +5,7 @@
     "version": "1.0.2",
     "minSdk": 2,
     "roles": ["app"],
-    "author": "Aruta",
+    "author": "Arutosio",
     "category": "games",
     "permissions": ["storage"]
 }

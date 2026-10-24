@@ -1,17 +1,17 @@
 /* ╔══════════════════════════════════════════════════════════╗
  * ║  APPEARANCE — User-customizable backgrounds, portrait,    ║
- * ║  and display name. Binaries live in IDB `aruta_appearance`║
- * ║  and are slurped by profile.js into snapshots (zip/disk). ║
- * ║  Backgrounds are a playlist that rotates on a user-set    ║
- * ║  interval or by time of day (dawn/noon/sunset/night).     ║
+ * ║  and display name. Binaries live in IDB                   ║
+ * ║  arutosio_appearance and are slurped by profile.js into   ║
+ * ║  snapshots. Backgrounds rotate on a user-set interval or  ║
+ * ║  by time of day (dawn/noon/sunset/night).                 ║
  * ╚══════════════════════════════════════════════════════════╝ */
 (function () {
-    const DB_NAME = 'aruta_appearance';
+    const DB_NAME = (window.Storage && window.Storage.constants.APPEARANCE_DB) || 'arutosio_appearance';
     const STORE   = 'assets';
     const DB_VER  = 1;
-    const LS_META = 'aruta_appearance_meta';
-    const LS_BG_MODE     = 'aruta_bg_mode';      // 'interval' | 'time'
-    const LS_BG_INTERVAL = 'aruta_bg_interval';  // minutes
+    const LS_META = 'arutosio_appearance_meta';
+    const LS_BG_MODE     = 'arutosio_bg_mode';      // 'interval' | 'time'
+    const LS_BG_INTERVAL = 'arutosio_bg_interval';  // minutes
     const SITE = window.SITE_CONFIG || {};
     const SITE_BG = SITE.backgrounds || {};
     const DEFAULT_NAME = SITE.name || 'Arutosio';
@@ -40,6 +40,17 @@
     let _rotTimer = null;
     let _slotTimer = null;
     let _showToken = 0;
+    const _failed = new Set();  // ids that failed to load this session (skipped by the rotator)
+    const MIN_INTERVAL = 1, MAX_INTERVAL = 1440;  // minutes; also keeps setTimeout below 2^31 ms
+
+    // Playlist mutations read meta, await IDB, then write meta back. Run them
+    // one at a time so two quick clicks can't overwrite each other's result.
+    let _opChain = Promise.resolve();
+    function _serial(fn) {
+        const run = _opChain.then(fn, fn);
+        _opChain = run.catch(() => {});
+        return run;
+    }
 
     // ── IDB helpers ────────────────────────────────────────
     function _open() {
@@ -63,6 +74,7 @@
         });
         db.close();
         window.profile?.markDirty?.('appearance', key);
+        try { document.dispatchEvent(new CustomEvent('arutosio:appearance')); } catch {}
     }
     async function _get(key) {
         const db = await _open();
@@ -85,6 +97,7 @@
         });
         db.close();
         window.profile?.markDirty?.('appearance', key);
+        try { document.dispatchEvent(new CustomEvent('arutosio:appearance')); } catch {}
     }
     async function _readAll() {
         const out = {};
@@ -103,6 +116,20 @@
             db.close();
         } catch {}
         return out;
+    }
+
+    /** Keys only — avoids pulling every (up to 50 MB) record into memory. */
+    async function _keys() {
+        try {
+            const db = await _open();
+            const keys = await new Promise((res, rej) => {
+                const r = db.transaction(STORE, 'readonly').objectStore(STORE).getAllKeys();
+                r.onsuccess = () => res(r.result.map(String));
+                r.onerror   = () => rej(r.error);
+            });
+            db.close();
+            return keys;
+        } catch { return []; }
     }
 
     // ── Metadata (name + mime + filename) ──────────────────
@@ -133,7 +160,12 @@
     /** Until the user edits the playlist, meta.backgrounds is absent and the site
      *  defaults apply. The first edit copies them in so they can be removed or re-slotted. */
     function _effectiveBackgrounds(meta) {
-        return Array.isArray(meta.backgrounds) ? meta.backgrounds : _siteDefaults();
+        if (!Array.isArray(meta.backgrounds)) return _siteDefaults();
+        // Copied defaults keep their `src` as a reference into SITE_CONFIG; drop
+        // ones this site no longer ships (config edit, or a profile imported
+        // from the other mirror) instead of showing a 404.
+        const srcs = new Set(_siteDefaults().map(d => d.src));
+        return meta.backgrounds.filter(b => !b.src || srcs.has(b.src));
     }
     function _materialize(meta) {
         if (!Array.isArray(meta.backgrounds)) meta.backgrounds = _siteDefaults();
@@ -148,6 +180,7 @@
         if (!isImg && !isVid) return { ok: false, reason: 'bad_type' };
         const cap = isVid ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
         if (file.size > cap) return { ok: false, reason: 'too_big', cap };
+        if (isVid && !document.createElement('video').canPlayType(file.type)) return { ok: false, reason: 'unsupported' };
         return { ok: true, kind: isVid ? 'video' : 'image' };
     }
 
@@ -180,6 +213,7 @@
         } catch {}
         if (mode !== 'interval' && mode !== 'time') mode = SITE_BG.mode === 'time' ? 'time' : 'interval';
         if (!(interval > 0)) interval = SITE_BG.intervalMin > 0 ? SITE_BG.intervalMin : 10;
+        interval = Math.min(MAX_INTERVAL, Math.max(MIN_INTERVAL, interval));
         return { mode, intervalMin: interval };
     }
 
@@ -211,12 +245,31 @@
         }));
     }
     function _candidates(mode, slot) {
-        const list = _playlist();
+        const list = _playlist().filter(it => !_failed.has(it.id));
         if (mode !== 'time') return list;
         const inSlot = list.filter(it => !it.slot || it.slot === slot);
         // If nothing covers the current phase, fall back to the whole list
         // rather than leaving the desktop bare.
         return inSlot.length ? inSlot : list;
+    }
+
+    /** Video backgrounds loop forever: hold them on their first frame when the
+     *  OS asks for reduced motion / data saving, or when the user explicitly
+     *  turned low-power on. Auto-detected low power (phones, ≤4 GB RAM) keeps
+     *  the video — it is the point of a video wallpaper. */
+    const _reducedMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+    function _motionAllowed() {
+        if (_reducedMotion && _reducedMotion.matches) return false;
+        if (navigator.connection && navigator.connection.saveData) return false;
+        try { if (localStorage.getItem('arutosio_low_power') === 'on' && window._lowPower) return false; } catch {}
+        return true;
+    }
+    function _syncPlayback() {
+        const play = _motionAllowed() && !document.hidden;
+        document.querySelectorAll('#user-bg-layer video.user-bg-media').forEach(v => {
+            if (play) v.play?.().catch(() => {});
+            else v.pause?.();
+        });
     }
 
     function _stopTimers() {
@@ -226,7 +279,7 @@
 
     function _scheduleNext() {
         clearTimeout(_rotTimer); _rotTimer = null;
-        if (_queue.length < 2) return;
+        if (_queue.length < 2 || document.hidden) return;  // resumed on visibilitychange
         const { intervalMin } = getRotation();
         _rotTimer = setTimeout(() => {
             _idx = (_idx + 1) % _queue.length;
@@ -240,11 +293,16 @@
     function _refresh() {
         _stopTimers();
         const { mode } = getRotation();
+        const prevSlot = _currentSlot;
         _currentSlot = currentSlot();
         _queue = _candidates(mode, _currentSlot);
         if (!_queue.length) { _show(null); return; }
         const keep = _queue.findIndex(it => it.id === _currentId);
-        _idx = keep >= 0 ? keep : 0;
+        // On a phase change, switch to an item assigned to the new phase
+        // rather than lingering on an "any time" one.
+        const phaseChanged = mode === 'time' && prevSlot && prevSlot !== _currentSlot;
+        const preferred = phaseChanged ? _queue.findIndex(it => it.slot === _currentSlot) : -1;
+        _idx = preferred >= 0 ? preferred : (keep >= 0 ? keep : 0);
         _show(_queue[_idx]);
         _scheduleNext();
         if (mode === 'time') _slotTimer = setTimeout(_refresh, _msToNextSlot());
@@ -264,7 +322,7 @@
         let el;
         if (kind === 'video') {
             el = document.createElement('video');
-            el.autoplay = true; el.loop = true; el.muted = true; el.playsInline = true;
+            el.autoplay = _motionAllowed(); el.loop = true; el.muted = true; el.playsInline = true;
             el.setAttribute('muted', ''); el.setAttribute('playsinline', '');
             el.preload = 'auto';
         } else {
@@ -285,6 +343,8 @@
             mount.querySelectorAll('.user-bg-media').forEach(_disposeMedia);
             mount.style.display = 'none';
             _currentId = null;
+            // Nothing to show: let the stock background (and its ambience) back in.
+            delete document.documentElement.dataset.wallpaper;
             return;
         }
         if (item.id === _currentId && mount.querySelector('.user-bg-media')) return;
@@ -296,35 +356,57 @@
             let rec = null;
             try { rec = await _get(BG_KEY_PREFIX + item.id); } catch {}
             if (token !== _showToken) return;
-            if (!rec) return;
+            // Bytes gone (partial restore / quota): skip it like a failed load,
+            // otherwise the wallpaper gate would stay stuck on "loading".
+            if (!rec) { _failed.add(item.id); _refresh(); return; }
             blob = _recordToURL(rec);
-            if (!blob) return;
+            if (!blob) { _failed.add(item.id); _refresh(); return; }
             src = blob;
             kind = rec.kind || kind;
         }
 
         mount.style.display = '';
         const el = _createMedia(kind, src);
+        el.dataset.bgId = item.id;
         if (blob) el.dataset.blob = blob;
         const prev = Array.from(mount.querySelectorAll('.user-bg-media'));
         mount.appendChild(el);
         _currentId = item.id;
 
-        let revealed = false;
-        const reveal = () => {
-            if (revealed) return;
-            revealed = true;
-            requestAnimationFrame(() => el.classList.add('is-visible'));
+        let settled = false;
+        // `loaded` = a real first frame is available. The 4 s safety net below
+        // reveals whatever has arrived, but must not claim the wallpaper is ready.
+        const reveal = (loaded) => {
+            if (settled) return;
+            settled = true;
+            // Only the first item is born visible: a crossfade needs a previous layer.
+            const crossfade = prev.length > 0;
+            if (!crossfade) el.style.transition = 'none';
+            // rAF doesn't run in hidden tabs; show immediately there.
+            if (document.hidden || !crossfade) el.classList.add('is-visible');
+            else requestAnimationFrame(() => el.classList.add('is-visible'));
+            if (loaded) document.documentElement.dataset.wallpaper = 'ready';
             setTimeout(() => prev.forEach(_disposeMedia), FADE_MS + 100);
         };
+        const fail = () => {
+            if (settled) return;
+            settled = true;
+            // Keep whatever was on screen; skip this item from now on.
+            _disposeMedia(el);
+            _failed.add(item.id);
+            console.warn('[appearance] background failed to load, skipping:', item.src || item.id);
+            const still = mount.querySelector('.user-bg-media');
+            _currentId = still ? still.dataset.bgId || null : null;
+            if (token === _showToken) _refresh();
+        };
         if (kind === 'video') {
-            el.addEventListener('loadeddata', reveal, { once: true });
-            el.play?.().catch(() => {});
+            el.addEventListener('loadeddata', () => reveal(true), { once: true });
+            if (_motionAllowed()) el.play?.().catch(() => {});
         } else {
-            el.addEventListener('load', reveal, { once: true });
+            el.addEventListener('load', () => reveal(true), { once: true });
         }
-        el.addEventListener('error', reveal, { once: true });
-        setTimeout(reveal, 4000);  // never leave the old media stuck on screen
+        el.addEventListener('error', fail, { once: true });
+        setTimeout(() => reveal(false), 4000);  // slow network: show whatever has loaded so far
     }
 
     function _applyPortrait(rec) {
@@ -362,72 +444,122 @@
         _writeMeta(meta);
     }
 
+    // ── Orphan cleanup ─────────────────────────────────────
+    /** Make meta and IDB agree: drop list entries whose bytes are gone (failed
+     *  write, partial restore) and bytes nothing references (wiped settings,
+     *  interrupted upload). Keeps snapshots from carrying dead weight. */
+    async function _pruneOrphans() {
+        const keys = new Set(await _keys());
+        const meta = _readMeta();
+        let dirty = false;
+        if (Array.isArray(meta.backgrounds)) {
+            const kept = meta.backgrounds.filter(b => b.src || keys.has(BG_KEY_PREFIX + b.id));
+            if (kept.length !== meta.backgrounds.length) { meta.backgrounds = kept; dirty = true; }
+        }
+        if (meta.portrait && !keys.has('portrait')) { delete meta.portrait; dirty = true; }
+        if (dirty) _writeMeta(meta);
+        const referenced = new Set(_userBackgrounds(meta).filter(b => !b.src).map(b => BG_KEY_PREFIX + b.id));
+        if (meta.portrait) referenced.add('portrait');
+        for (const key of keys) {
+            if ((key.startsWith(BG_KEY_PREFIX) || key === 'portrait') && !referenced.has(key)) await _del(key);
+        }
+    }
+
     // ── Public API ─────────────────────────────────────────
-    let _visibilityWired = false;
+    let _wired = false;
+    function _wireLifecycle() {
+        if (_wired) return;
+        _wired = true;
+        // Hidden tab: pause videos and the rotation timer (no point swapping
+        // pixels nobody sees). Back: re-check the phase and resume.
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) { clearTimeout(_rotTimer); _rotTimer = null; _syncPlayback(); return; }
+            if (getRotation().mode === 'time' && currentSlot() !== _currentSlot) _refresh();
+            else _scheduleNext();
+            _syncPlayback();
+        });
+        // Timers don't advance while the machine sleeps; a cheap minute tick
+        // catches phase changes the slot timer missed.
+        setInterval(() => {
+            if (!document.hidden && getRotation().mode === 'time' && currentSlot() !== _currentSlot) _refresh();
+        }, 60 * 1000);
+        _reducedMotion?.addEventListener?.('change', _syncPlayback);
+    }
+
     async function apply() {
         const meta = _readMeta();
         _applyName(meta.name);
-        try { await _migrateLegacy(); } catch (e) { console.warn('[appearance] legacy migration failed', e); }
+        // Wallpaper first (usually already on screen via the prewarm below), then
+        // the integrity pass — it must not delay the first frame.
         _refresh();
-        const portrait = await _get('portrait');
+        await _serial(async () => {
+            try { await _migrateLegacy(); } catch (e) { console.warn('[appearance] legacy migration failed', e); }
+            try { await _pruneOrphans(); } catch (e) { console.warn('[appearance] orphan cleanup failed', e); }
+        });
+        _refresh();
+        let portrait = null;
+        try { portrait = await _get('portrait'); } catch (e) { console.warn('[appearance] portrait load failed', e); }
         _applyPortrait(portrait);
-        if (!_visibilityWired) {
-            _visibilityWired = true;
-            // Timers are throttled in hidden tabs; re-check the phase on return.
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState !== 'visible') return;
-                if (getRotation().mode === 'time' && currentSlot() !== _currentSlot) _refresh();
-            });
-        }
+        _wireLifecycle();
     }
 
     /** Add one or more files to the playlist. Returns the first failure (if any) for toasts. */
-    async function addBackgrounds(files) {
-        const list = Array.from(files || []);
-        const meta = _readMeta();
-        const bgs = _materialize(meta);
-        let added = 0, failure = null;
-        for (const file of list) {
-            const v = _validate(file);
-            if (!v.ok) { failure = failure || v; continue; }
-            const rec = await _fileToRecord(file, v.kind);
-            const id = _newId();
-            await _put(BG_KEY_PREFIX + id, rec);
-            bgs.push({ id, kind: v.kind, mime: rec.mime, filename: rec.filename, slot: null });
-            added++;
-        }
-        meta.backgrounds = bgs;
-        _writeMeta(meta);
-        if (added) _refresh();
-        return failure ? { ...failure, added } : { ok: true, added };
+    function addBackgrounds(files) {
+        return _serial(async () => {
+            const list = Array.from(files || []);
+            let added = 0, failure = null;
+            for (const file of list) {
+                const v = _validate(file);
+                if (!v.ok) { failure = failure || v; continue; }
+                try {
+                    const rec = await _fileToRecord(file, v.kind);
+                    const id = _newId();
+                    await _put(BG_KEY_PREFIX + id, rec);
+                    // Persist after every file so a later failure (quota) keeps the earlier ones.
+                    const meta = _readMeta();
+                    _materialize(meta).push({ id, kind: v.kind, mime: rec.mime, filename: rec.filename, slot: null });
+                    _writeMeta(meta);
+                    added++;
+                } catch (e) {
+                    console.warn('[appearance] could not store background', file.name, e);
+                    failure = failure || { ok: false, reason: 'failed' };
+                }
+            }
+            if (added) { _failed.clear(); _refresh(); }
+            return failure ? { ...failure, added } : { ok: true, added };
+        });
     }
 
-    async function removeBackground(id) {
-        const meta = _readMeta();
-        const bgs = _materialize(meta);
-        const target = bgs.find(b => b.id === id);
-        if (target && !target.src) await _del(BG_KEY_PREFIX + id);
-        meta.backgrounds = bgs.filter(b => b.id !== id);
-        _writeMeta(meta);
-        _refresh();
-        return { ok: true };
+    function removeBackground(id) {
+        return _serial(async () => {
+            const meta = _readMeta();
+            const bgs = _materialize(meta);
+            const target = bgs.find(b => b.id === id);
+            if (target && !target.src) await _del(BG_KEY_PREFIX + id);
+            meta.backgrounds = bgs.filter(b => b.id !== id);
+            _writeMeta(meta);
+            _refresh();
+            return { ok: true };
+        });
     }
 
     function setBackgroundSlot(id, slot) {
-        const meta = _readMeta();
-        const b = _materialize(meta).find(x => x.id === id);
-        if (!b) return { ok: false, reason: 'not_found' };
-        b.slot = SLOT_IDS.includes(slot) ? slot : null;
-        _writeMeta(meta);
-        _refresh();
-        return { ok: true };
+        return _serial(async () => {
+            const meta = _readMeta();
+            const b = _materialize(meta).find(x => x.id === id);
+            if (!b) return { ok: false, reason: 'not_found' };
+            b.slot = SLOT_IDS.includes(slot) ? slot : null;
+            _writeMeta(meta);
+            _refresh();
+            return { ok: true };
+        });
     }
 
     function setRotation({ mode, intervalMin } = {}) {
         try {
             if (mode === 'interval' || mode === 'time') localStorage.setItem(LS_BG_MODE, mode);
             const n = parseFloat(intervalMin);
-            if (n > 0) localStorage.setItem(LS_BG_INTERVAL, String(Math.min(1440, n)));
+            if (n > 0) localStorage.setItem(LS_BG_INTERVAL, String(Math.min(MAX_INTERVAL, Math.max(MIN_INTERVAL, n))));
         } catch {}
         try { window.profile?.markDirty?.('localStorage', LS_BG_MODE); } catch {}
         _refresh();
@@ -435,32 +567,36 @@
     }
 
     async function _deleteUploads() {
-        const all = await _readAll();
-        for (const key of Object.keys(all)) {
+        for (const key of await _keys()) {
             if (key.startsWith(BG_KEY_PREFIX) || key === 'background') await _del(key);
         }
     }
 
     /** Remove every background, site defaults included (desktop falls back to the gradient). */
-    async function clearBackgrounds() {
-        await _deleteUploads();
-        const meta = _readMeta();
-        meta.backgrounds = [];
-        delete meta.background;
-        _writeMeta(meta);
-        _refresh();
-        return { ok: true };
+    function clearBackgrounds() {
+        return _serial(async () => {
+            await _deleteUploads();
+            const meta = _readMeta();
+            meta.backgrounds = [];
+            delete meta.background;
+            _writeMeta(meta);
+            _refresh();
+            return { ok: true };
+        });
     }
 
     /** Drop the user's playlist and go back to the site's default backgrounds. */
-    async function restoreDefaultBackgrounds() {
-        await _deleteUploads();
-        const meta = _readMeta();
-        delete meta.backgrounds;
-        delete meta.background;
-        _writeMeta(meta);
-        _refresh();
-        return { ok: true };
+    function restoreDefaultBackgrounds() {
+        return _serial(async () => {
+            await _deleteUploads();
+            const meta = _readMeta();
+            delete meta.backgrounds;
+            delete meta.background;
+            _writeMeta(meta);
+            _failed.clear();
+            _refresh();
+            return { ok: true };
+        });
     }
 
     /** Back-compat: replace the whole playlist with a single file (or clear it). */
@@ -498,17 +634,24 @@
         _applyName(meta.name);
     }
 
-    async function reset() {
-        const all = await _readAll();
-        for (const key of Object.keys(all)) await _del(key);
-        try {
-            localStorage.removeItem(LS_META);
-            localStorage.removeItem(LS_BG_MODE);
-            localStorage.removeItem(LS_BG_INTERVAL);
-        } catch {}
-        _refresh();
-        _applyPortrait(null);
-        _applyName(null);
+    function reset() {
+        return _serial(async () => {
+            // Settings first, so a failing IDB delete can't leave them behind.
+            try {
+                localStorage.removeItem(LS_META);
+                localStorage.removeItem(LS_BG_MODE);
+                localStorage.removeItem(LS_BG_INTERVAL);
+            } catch {}
+            try { window.profile?.markDirty?.('localStorage', LS_META); } catch {}
+            _failed.clear();
+            try {
+                for (const key of await _keys()) await _del(key);
+            } finally {
+                _refresh();
+                _applyPortrait(null);
+                _applyName(null);
+            }
+        });
     }
 
     function get() {
@@ -564,6 +707,21 @@
         db.close();
     }
 
+    // ── Prewarm ────────────────────────────────────────────
+    // This script runs at parse time with #user-bg-layer already in the DOM, so
+    // start the wallpaper request here instead of waiting for showApp() + the
+    // profile gate + the IDB integrity pass. Site defaults start downloading
+    // synchronously; uploads start as soon as their IDB read resolves.
+    // Legacy single-background profiles are skipped: _migrateLegacy() in apply()
+    // turns them into playlist entries first.
+    if (!_readMeta().background) _refresh();
+    // Stalled fetch: never leave a flat colour standing in for the wallpaper.
+    // (A late first frame still flips the gate to "ready" when it arrives.)
+    setTimeout(() => {
+        if (document.documentElement.dataset.wallpaper === 'loading')
+            delete document.documentElement.dataset.wallpaper;
+    }, 10000);
+
     window.appearance = {
         apply,
         get,
@@ -579,6 +737,7 @@
         setName,
         reset,
         currentSlot,
+        syncPlayback: _syncPlayback,
         dumpForSnapshot,
         restoreFromSnapshot,
         SLOTS: SLOT_IDS,

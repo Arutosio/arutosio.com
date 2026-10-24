@@ -123,7 +123,7 @@
     // bar is already hidden on first paint when the user enabled the option.
     // initSettings() later just syncs the toggle's .active class; enable() is
     // idempotent so the double call is harmless.
-    if (localStorage.getItem('aruta_taskbar_autohide') === 'true') {
+    if (localStorage.getItem('arutosio_taskbar_autohide') === 'true') {
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', enable);
         } else {

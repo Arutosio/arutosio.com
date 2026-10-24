@@ -12,7 +12,7 @@ EmulatorJS CDN core, because the CDN core does not expose the GBA serial port
   `Module.onSioStart(value)` when the master starts a transfer and lets JS
   complete it with `sioCompleteMulti(d0, d1)` once the peer's value arrived
   over the network.
-- **Single-threaded**: aruta.sh is served by GitHub Pages, which cannot send
+- **Single-threaded**: Arutosio is served by GitHub Pages, which cannot send
   the COOP/COEP headers required for SharedArrayBuffer. Upstream WASM builds
   of mGBA (including gbajs3's) use pthreads and therefore cannot run there.
   This build disables threading entirely (`DISABLE_THREADING` path of mGBA).

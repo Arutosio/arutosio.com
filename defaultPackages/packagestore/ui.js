@@ -107,7 +107,7 @@ export default {
                 // listInstalled payload — `_origin === 'default'` is authoritative,
                 // so we do NOT need a second ctx.defaults.list() call in the
                 // broadcast path. This avoids the permission-prompt loop that
-                // fired on every `aruta:installChanged`.
+                // fired on every `arutosio:installChanged`.
                 state.defaultIds = new Set(
                     (list || []).filter(m => m._origin === 'default').map(m => m.id)
                 );
@@ -140,7 +140,7 @@ export default {
             }
         }
         state._onInstallChanged = onInstallChanged;
-        document.addEventListener('aruta:installChanged', onInstallChanged);
+        document.addEventListener('arutosio:installChanged', onInstallChanged);
 
         // ── Network ───────────────────────────────────────────
         async function fetchRepo(repo) {
@@ -984,7 +984,7 @@ export default {
     async unmount(root /*, ctx */) {
         const state = root && root.__packagestoreState;
         if (state && state._onInstallChanged) {
-            document.removeEventListener('aruta:installChanged', state._onInstallChanged);
+            document.removeEventListener('arutosio:installChanged', state._onInstallChanged);
             state._onInstallChanged = null;
         }
     },

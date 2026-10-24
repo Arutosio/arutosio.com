@@ -1,6 +1,6 @@
 name: Deploy to GitHub Pages
 
-# Static site mirrored from aruta.sh (tools/sync-arutosio.sh) — no build step.
+# Static site for arutosio.com — no build step.
 on:
   push:
     branches: [master]
@@ -21,6 +21,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # The daemon source is not part of the static site artifact.
+      - name: Drop server sources
+        run: rm -rf server
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

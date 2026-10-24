@@ -2,11 +2,11 @@
     "id": "filemanager",
     "name": "Files",
     "icon": "📁",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "minSdk": 2,
     "roles": ["app"],
-    "author": "Aruta",
+    "author": "Arutosio",
     "category": "tools",
     "allowOrigin": true,
-    "permissions": ["storage", "notifications", "windows", "install", "profile-fs"]
+    "permissions": ["storage", "notifications", "windows", "install", "profile-fs", "fs.read", "fs.write", "fs.delete"]
 }

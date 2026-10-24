@@ -84,7 +84,7 @@ function initAmbientSound() {
  * Tracks visitor milestones and shows toast notifications.
  * Achievements: first visit, theme switch, all sections opened,
  * Konami code, night owl (past midnight), speed reader (full bio).
- * Persisted in localStorage as 'aruta_achievements'.
+ * Persisted in localStorage as 'arutosio_achievements'.
  * ──────────────────────────────── */
 
 /** Achievement definitions */
@@ -100,7 +100,7 @@ const ACHIEVEMENTS = {
 /** Get the list of unlocked achievement IDs from localStorage */
 function getUnlockedAchievements() {
     try {
-        return JSON.parse(localStorage.getItem('aruta_achievements') || '[]');
+        return JSON.parse(localStorage.getItem('arutosio_achievements') || '[]');
     } catch { return []; }
 }
 
@@ -112,7 +112,7 @@ function unlockAchievement(id) {
     const unlocked = getUnlockedAchievements();
     if (unlocked.includes(id)) return;
     unlocked.push(id);
-    try { localStorage.setItem('aruta_achievements', JSON.stringify(unlocked)); } catch {}
+    try { localStorage.setItem('arutosio_achievements', JSON.stringify(unlocked)); } catch {}
 
     const ach = ACHIEVEMENTS[id];
     if (!ach) return;

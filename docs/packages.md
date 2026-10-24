@@ -1,6 +1,6 @@
 # Packages — Apps & Commands
 
-aruta.sh can be extended at runtime by anyone. Users drop a `.zip` on the desktop, confirm the install, and a new app or command is permanently available until uninstalled. No build pipeline, no server, no dev tooling required — just an editor and a zip utility.
+arutosio.com can be extended at runtime by anyone. Users drop a `.zip` on the desktop, confirm the install, and a new app or command is permanently available until uninstalled. No build pipeline, no server, no dev tooling required — just an editor and a zip utility.
 
 This doc covers **how to build your own package**. See also:
 
@@ -145,7 +145,7 @@ export default {
 };
 ```
 
-- `args` is a string array, already tokenized (quoted strings are respected: `greet "Stefano Aruta"` → `args[0] === 'Stefano Aruta'`).
+- `args` is a string array, already tokenized (quoted strings are respected: `greet "Stefano"` → `args[0] === 'Stefano'`).
 - Commands are invoked from the Terminal as `<id> [args...]` — or as `<commandAlias> [args...]` when the manifest declares one.
 - `run()` can be async; the terminal waits for completion before showing the next prompt.
 - Built-in command names (`help`, `clear`, `install`, …) take precedence and cannot be shadowed.
@@ -176,7 +176,7 @@ Key points:
 - `roles` is the modern schema. Legacy manifests using `type: "app" | "command"` keep working forever — at boot they are normalized into `roles: [type]`, so every downstream check reads `roles.includes(...)`.
 - `entries.<role>` lets each role point at its own source file. Useful because app code runs inside a sandboxed iframe while command code runs on the host thread — mixing both into one file works but is fragile.
 - `commandAlias` separates the **package id** (technical, unique across the registry) from the **terminal verb** the user types. `packagestore` is the id; `pkg` is what you type.
-- Storage is shared: both roles open the same `aruta_app_<id>` IndexedDB, so settings persisted by the app show up in the CLI and vice versa.
+- Storage is shared: both roles open the same `arutosio_app_<id>` IndexedDB, so settings persisted by the app show up in the CLI and vice versa.
 - Permissions are the union of everything either role needs. A hybrid package that calls `ctx.print` from its CLI must still declare `"terminal"` in `permissions`.
 - Hybrid packages require `minSdk: 2`. Older hosts reject install up-front instead of running half the package.
 
@@ -246,7 +246,7 @@ Install, update and uninstall all flow through the **📦 Package Store** (Syste
 
 - Errors during `mount()` are caught and shown in the app window as a red stack trace. The host also logs them to the browser console.
 - `console.log` / `console.error` inside an app go to the main DevTools console (iframe shares the console).
-- `ctx.storage` persists in a dedicated IndexedDB named `aruta_app_<id>` — you can inspect it in DevTools → Application → IndexedDB.
+- `ctx.storage` persists in a dedicated IndexedDB named `arutosio_app_<id>` — you can inspect it in DevTools → Application → IndexedDB.
 
 ---
 
@@ -326,14 +326,14 @@ If you want to *read* the current theme programmatically or *change* it, use `ct
 
 ## Repository format (Package Store)
 
-The bundled **Package Store** app (System category) and the **`pkg`** CLI command both install packages from user-added *repositories*. A repository is just a JSON file at a stable URL that lists packages and where to download each `.zip`. The repository **list itself** is a system concern: it lives in `localStorage.aruta_repos` and is exposed via `window.repos` (host) / `ctx.repos.*` (apps + commands, gated by the `install` permission). Package Store no longer owns the list privately — any package with `install` can read or mutate it.
+The bundled **Package Store** app (System category) and the **`pkg`** CLI command both install packages from user-added *repositories*. A repository is just a JSON file at a stable URL that lists packages and where to download each `.zip`. The repository **list itself** is a system concern: it lives in `localStorage.arutosio_repos` and is exposed via `window.repos` (host) / `ctx.repos.*` (apps + commands, gated by the `install` permission). Package Store no longer owns the list privately — any package with `install` can read or mutate it.
 
 ### Schema
 
 ```json
 {
-    "name": "Official Aruta Packages",
-    "description": "Curated bundle by Aruta",
+    "name": "Official Arutosio Packages",
+    "description": "Curated bundle by Arutosio",
     "packages": [
         {
             "id": "neat-app",
@@ -369,7 +369,7 @@ The bundled **Package Store** app (System category) and the **`pkg`** CLI comman
 
 ### Hosting
 
-- **GitHub raw** — put `index.json` and the `.zip` files at the root of a repo (or any subfolder), then point users at `https://raw.githubusercontent.com/<user>/<repo>/<branch>/<path>/index.json`. Relative `url`s resolve automatically. The bundled example repo lives in this source tree at `packages/index.json` and is served via `https://raw.githubusercontent.com/Arutosio/aruta.sh/master/packages/index.json`.
+- **GitHub raw** — put `index.json` and the `.zip` files at the root of a repo (or any subfolder), then point users at `https://raw.githubusercontent.com/<user>/<repo>/<branch>/<path>/index.json`. Relative `url`s resolve automatically. The bundled example repo lives in this source tree at `packages/index.json` and is served via `https://arutosio.com/packages/index.json`.
 - **Any static host** (S3, Netlify, a plain `www` folder) works — just serve the JSON with `Content-Type: application/json` and the zips with whatever type (the installer reads bytes, not headers).
 - Respect `ETag` / `Last-Modified` if you can: the Package Store sends `If-None-Match` on refresh for lightweight update checks.
 

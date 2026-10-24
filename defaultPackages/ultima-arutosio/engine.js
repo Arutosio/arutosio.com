@@ -1,4 +1,4 @@
-/* Ultima Aruta — engine.js: noise, World, dungeon, rendering, SFX */
+/* Ultima Arutosio — engine.js: noise, World, dungeon, rendering, SFX */
 function generateDungeon(dungeonId) {
     const rnd = mulberry32(dungeonId);
     const N = DUNGEON_SIZE;
@@ -853,7 +853,7 @@ function drawEmoji(ctx, sx, sy, emoji, size = 28) {
     ctx.drawImage(cached, cx, cy);
 }
 /* ╔══════════════════════════════════════════════════════════╗
- * ║  ULTIMA ARUTA — index.js (entry point)                     ║
+ * ║  ULTIMA ARUTOSIO — index.js (entry point)                     ║
  * ║  Imports data.js (constants) and wires Player, combat,     ║
  * ║  UI panels, world/dungeon layer, and the game loop.        ║
  * ╚══════════════════════════════════════════════════════════╝ */

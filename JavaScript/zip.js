@@ -1,6 +1,6 @@
 /* ╔══════════════════════════════════════════════════════════╗
  * ║  ZIP — Minimal STORE-only encoder/decoder (shared)        ║
- * ║  Exposed as window.arutaZip = { encode, decode, crc32 }.  ║
+ * ║  Exposed as window.arutosioZip = { encode, decode, crc32 }.  ║
  * ║  Host-side only: grimoire iframe keeps its own copy       ║
  * ║  because iframe scope is isolated from window globals.    ║
  * ╚══════════════════════════════════════════════════════════╝ */
@@ -140,5 +140,5 @@
         return { entries, skippedCompressed };
     }
 
-    window.arutaZip = { encode, decode, crc32 };
+    window.arutosioZip = { encode, decode, crc32 };
 })();

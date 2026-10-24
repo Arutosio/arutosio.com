@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Arutosio — Tome of the Wandering Mage</title>
-    <meta name="description" content="Stefano Aruta — Streamer, Programmer, Adventurer.">
+    <meta name="description" content="Arutosio — Streamer, Programmer, Adventurer.">
     <link rel="icon" href="Brand/ArutosioIcon.ico">
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -16,13 +16,32 @@
         // from app.js at DOMContentLoaded leaves a visible flash on mobile
         // when the default (dark) theme renders before the override applies.
         (function() {
+            // One-time namespace move from before the rebrand. Done here,
+            // synchronously, so the first paint already reads the new keys.
             try {
-                var t = localStorage.getItem('aruta_theme');
+                var NEW = 'arutosio_';
+                var OLD = NEW.replace('osio', 'a');
+                for (var i = localStorage.length - 1; i >= 0; i--) {
+                    var k = localStorage.key(i);
+                    if (!k || k.indexOf(OLD) !== 0) continue;
+                    var nk = NEW + k.slice(OLD.length);
+                    if (localStorage.getItem(nk) == null) localStorage.setItem(nk, localStorage.getItem(k));
+                    localStorage.removeItem(k);
+                }
+                var oldSummoned = OLD + 'summoned';
+                var newSummoned = NEW + 'summoned';
+                if (sessionStorage.getItem(newSummoned) == null && sessionStorage.getItem(oldSummoned) != null) {
+                    sessionStorage.setItem(newSummoned, sessionStorage.getItem(oldSummoned));
+                }
+                sessionStorage.removeItem(oldSummoned);
+            } catch (e) {}
+            try {
+                var t = localStorage.getItem('arutosio_theme');
                 if (!t) t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
                 document.documentElement.setAttribute('data-theme', t);
-                var fs = localStorage.getItem('aruta_fontsize');
+                var fs = localStorage.getItem('arutosio_fontsize');
                 if (fs) document.documentElement.style.fontSize = fs + '%';
-                var f = localStorage.getItem('aruta_font');
+                var f = localStorage.getItem('arutosio_font');
                 var FONTS = {
                     medieval: ["'IM Fell English', Georgia, serif", "'IM Fell English', Georgia, serif"],
                     modern:   ["-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif", "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"],
@@ -46,19 +65,32 @@
     <meta property="og:image:height" content="1558">
     <meta property="og:image:type"   content="image/png">
     <link rel="canonical"           href="https://arutosio.com">
-    <meta name="keywords"           content="Aruta, streamer, programmer, Twitch, Kick, YouTube, gaming, anime, Ultima Online, Minecraft">
+    <meta name="keywords"           content="Arutosio, streamer, programmer, Twitch, Kick, YouTube, gaming, anime, Ultima Online, Minecraft">
     <meta name="twitter:card"       content="summary_large_image">
-    <meta name="twitter:site"       content="@arutash">
+    <meta name="twitter:site"       content="@arutosio">
     <meta name="twitter:title"      content="Arutosio — The Wandering Mage">
     <meta name="twitter:image"      content="https://arutosio.com/Images/aru2_meta.png">
     <meta name="twitter:description" content="Streamer · Programmer · Adventurer. Watch live on Twitch, Kick & YouTube.">
     <meta name="robots" content="index, follow">
-    <meta name="author" content="Stefano Aruta">
+    <meta name="author" content="Arutosio">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Inter:wght@400;600;700;900&family=Cinzel:wght@500;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link rel="preload" as="image" href="./Images/aru_portrait.webp" fetchpriority="high">
+    <!-- Wallpaper gate, before first paint: the stock gradient is the fallback,
+         not a loading screen. appearance.js flips this to "ready" on the first
+         frame, or drops it when nothing can be shown (so the fallback returns).
+         shortcut: LS key duplicated from appearance.js LS_META; keep in sync. -->
+    <script>
+        (function () {
+            try {
+                var meta = JSON.parse(localStorage.getItem('arutosio_appearance_meta') || '{}');
+                if (!Array.isArray(meta.backgrounds) || meta.backgrounds.length)
+                    document.documentElement.dataset.wallpaper = 'loading';
+            } catch (_) {}
+        })();
+    </script>
     <!-- Stylesheets loaded explicitly so the preload scanner can fetch all 6 in
          parallel. A single main.css with @import would serialize discovery and
          cause a visible FOUC on slower (mobile) connections. -->
@@ -68,6 +100,7 @@
     <link rel="stylesheet" href="Style/sections.css">
     <link rel="stylesheet" href="Style/responsive.css">
     <link rel="stylesheet" href="Style/terminal.css">
+    <link rel="stylesheet" href="Style/system.css">
     <link rel="stylesheet" href="Style/widgets.css">
     <!-- VanillaTilt removed — replaced with pure CSS/JS tilt -->
 </head>
@@ -175,16 +208,21 @@
                     <span class="start-subtitle" data-i18n="start_subtitle">Tome of the Wandering Mage</span>
                 </div>
             </div>
+            <div class="start-search-wrap">
+                <input class="start-search" id="start-search" type="search" autocomplete="off" spellcheck="false"
+                       placeholder="Search apps…" data-i18n-placeholder="start_search" data-i18n-aria="start_search" aria-label="Search apps">
+            </div>
             <!-- Items rendered dynamically by registry.js:renderStartMenuItems
                  so that built-ins + installed packages can be grouped by
                  category (info/games/tools/creativity/other/system). -->
             <div class="start-items" id="start-items"></div>
+            <div class="start-empty" id="start-empty" hidden data-i18n="start_no_results">No results</div>
             <div class="start-divider"></div>
             <div class="start-actions">
                 <button class="start-action" id="start-share">📤 <span data-i18n="start_share">Share</span></button>
             </div>
             <div class="start-footer">
-                <span>© 2025 Stefano Aruta</span>
+                <span>© 2025 Arutosio</span>
             </div>
         </div>
     </header>
@@ -470,32 +508,32 @@
                                     <button class="settings-reset-btn" id="settings-bg-pick" data-i18n="settings_bg_pick">Add…</button>
                                     <button class="settings-reset-btn" id="settings-bg-clear" data-i18n="settings_bg_clear">Clear</button>
                                     <button class="settings-reset-btn" id="settings-bg-defaults" data-i18n="settings_bg_defaults" hidden>Defaults</button>
-                                    <span class="settings-status" id="settings-bg-status">Default</span>
+                                    <span class="settings-status" id="settings-bg-status" aria-live="polite">Default</span>
                                     <input type="file" id="settings-bg-file" accept="image/*,video/*" multiple style="display:none;">
                                 </div>
                             </div>
                             <ul class="settings-bg-list" id="settings-bg-list" hidden></ul>
                             <div class="settings-row">
-                                <div class="settings-label"><span class="settings-icon">🔁</span><div><strong data-i18n="settings_bg_rotation">Background rotation</strong><br><small data-i18n="settings_bg_rotation_desc">Cycle every few minutes or follow the time of day</small></div></div>
+                                <div class="settings-label"><span class="settings-icon">🔁</span><div><strong id="settings-bg-rotation-label" data-i18n="settings_bg_rotation">Background rotation</strong><br><small data-i18n="settings_bg_rotation_desc">Cycle every few minutes or follow the time of day</small></div></div>
                                 <div class="settings-actions">
-                                    <select id="settings-bg-mode" class="settings-select">
+                                    <select id="settings-bg-mode" class="settings-select" aria-labelledby="settings-bg-rotation-label">
                                         <option value="interval" data-i18n="settings_bg_mode_interval">Interval</option>
                                         <option value="time" data-i18n="settings_bg_mode_time">Time of day</option>
                                     </select>
                                     <label class="settings-bg-interval">
-                                        <input type="number" id="settings-bg-interval" class="settings-input" min="1" max="1440" step="1" value="10">
-                                        <span data-i18n="settings_bg_minutes">min</span>
+                                        <input type="number" id="settings-bg-interval" class="settings-input" min="1" max="1440" step="1" value="10" aria-labelledby="settings-bg-rotation-label settings-bg-minutes-label">
+                                        <span id="settings-bg-minutes-label" data-i18n="settings_bg_minutes">min</span>
                                     </label>
                                 </div>
                             </div>
                             <div class="settings-row">
-                                <div class="settings-label"><span class="settings-icon">🌗</span><div><strong data-i18n="settings_bgdim">Wallpaper overlay</strong><br><small data-i18n="settings_bgdim_desc">Veil over bright images or videos (color follows the accent by default)</small></div></div>
+                                <div class="settings-label"><span class="settings-icon">🌗</span><div><strong id="settings-bgdim-title" data-i18n="settings_bgdim">Wallpaper overlay</strong><br><small data-i18n="settings_bgdim_desc">Veil over bright images or videos (color follows the accent by default)</small></div></div>
                                 <div class="settings-actions">
-                                    <div class="settings-range-wrap"><input type="range" id="settings-bgdim" class="settings-range" min="0" max="90" value="0" step="5"><span class="settings-range-value" id="bgdim-label">0%</span></div>
-                                    <button class="settings-reset-btn" id="settings-bgdim-color-clear" data-i18n="settings_name_clear">Reset</button>
+                                    <div class="settings-range-wrap"><input type="range" id="settings-bgdim" class="settings-range" min="0" max="90" value="0" step="5" aria-labelledby="settings-bgdim-title"><span class="settings-range-value" id="bgdim-label">0%</span></div>
+                                    <button class="settings-reset-btn" id="settings-bgdim-color-clear" data-i18n="settings_name_clear" aria-describedby="settings-bgdim-title">Reset</button>
                                     <label class="settings-color-btn settings-color-custom" data-bgdim="custom" title="Custom" data-i18n-title="accent_custom">
                                         <span class="custom-swatch">🎨</span>
-                                        <input type="color" id="settings-bgdim-color" value="#ffc857">
+                                        <input type="color" id="settings-bgdim-color" value="#ffc857" aria-label="Overlay color" data-i18n-aria="settings_bgdim_color">
                                     </label>
                                 </div>
                             </div>
@@ -504,7 +542,7 @@
                                 <div class="settings-actions">
                                     <button class="settings-reset-btn" id="settings-portrait-pick" data-i18n="settings_portrait_pick">Upload…</button>
                                     <button class="settings-reset-btn" id="settings-portrait-clear" data-i18n="settings_portrait_clear">Reset</button>
-                                    <span class="settings-status" id="settings-portrait-status" data-i18n="settings_status_default">Default</span>
+                                    <span class="settings-status" id="settings-portrait-status" aria-live="polite">Default</span>
                                     <input type="file" id="settings-portrait-file" accept="image/*" style="display:none;">
                                 </div>
                             </div>
@@ -727,12 +765,24 @@
                             <h2 class="settings-page-title" data-i18n="settings_about">About</h2>
                             <div class="settings-about">
                                 <span class="settings-about-logo">⚜</span>
-                                <div><strong>Arutosio</strong> v1.0<br><small>© 2025 Stefano Aruta</small></div>
+                                <div><strong>Arutosio</strong> v1.0<br><small>© 2025 Arutosio</small></div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
+        <!-- ── System Window ── -->
+        <div class="os-window" id="win-system" data-window="system" style="display:none;">
+            <div class="win-titlebar">
+                <span class="win-title">🖥️ <span data-i18n="sec_system">System</span></span>
+                <div class="win-controls">
+                    <button class="win-btn win-minimize" title="Minimize" data-i18n-title="win_minimize">▬</button>
+                    <button class="win-btn win-maximize" title="Maximize" data-i18n-title="win_maximize">☐</button>
+                    <button class="win-btn win-close" title="Close" data-i18n-title="win_close">✕</button>
+                </div>
+            </div>
+            <div class="win-content system-content"></div>
         </div>
         <!-- ── Terminal Window ── -->
         <div class="os-window" id="win-terminal" data-window="terminal" style="display:none;">
@@ -757,6 +807,8 @@
 <script src="JavaScript/zip.js"></script>
 <script src="JavaScript/db.js"></script>
 <script src="JavaScript/storage.js"></script>
+<script src="JavaScript/migration.js"></script>
+<script src="JavaScript/local.js"></script>
 <script src="JavaScript/repos.js"></script>
 <script src="JavaScript/profile.js"></script>
 <script src="JavaScript/appearance.js"></script>
@@ -777,6 +829,8 @@
 <script src="JavaScript/installer.js"></script>
 <script src="JavaScript/defaults.js"></script>
 <script src="JavaScript/terminal.js"></script>
+<script src="JavaScript/system.js"></script>
+<script src="JavaScript/session.js"></script>
 <script src="JavaScript/app.js"></script>
 </body>
 </html>

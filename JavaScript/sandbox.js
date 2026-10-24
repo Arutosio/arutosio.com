@@ -38,6 +38,7 @@ function normalizeManifest(m) {
 
 const _mounted = new Map(); // appId -> { iframe, channel }
 const _mountedWidgets = new Map(); // widgetId -> { iframe, frame, onMsg }
+const _pendingHandoffs = new Map(); // appId -> payload, local mode only
 
 /**
  * Push a theme change to every mounted app iframe. The in-iframe bootstrap
@@ -46,30 +47,30 @@ const _mountedWidgets = new Map(); // widgetId -> { iframe, frame, onMsg }
  */
 function broadcastTheme(v) {
     for (const m of _mounted.values()) {
-        try { m.iframe.contentWindow?.postMessage({ __aruta_sdk: true, type: 'theme', value: v }, '*'); } catch (_) {}
+        try { m.iframe.contentWindow?.postMessage({ __arutosio_sdk: true, type: 'theme', value: v }, '*'); } catch (_) {}
     }
     for (const m of _mountedWidgets.values()) {
-        try { m.iframe.contentWindow?.postMessage({ __aruta_sdk: true, type: 'theme', value: v }, '*'); } catch (_) {}
+        try { m.iframe.contentWindow?.postMessage({ __arutosio_sdk: true, type: 'theme', value: v }, '*'); } catch (_) {}
     }
 }
 
 /**
  * Notify every mounted iframe that the set of installed packages changed
  * (install / uninstall / update). Iframes receive it as a DOM event
- * `aruta:installChanged` on document — apps can `addEventListener` to refresh.
+ * `arutosio:installChanged` on document — apps can `addEventListener` to refresh.
  */
 function broadcastInstallChange() {
     for (const m of _mounted.values()) {
-        try { m.iframe.contentWindow?.postMessage({ __aruta_sdk: true, type: 'install-change' }, '*'); } catch (_) {}
+        try { m.iframe.contentWindow?.postMessage({ __arutosio_sdk: true, type: 'install-change' }, '*'); } catch (_) {}
     }
     for (const m of _mountedWidgets.values()) {
-        try { m.iframe.contentWindow?.postMessage({ __aruta_sdk: true, type: 'install-change' }, '*'); } catch (_) {}
+        try { m.iframe.contentWindow?.postMessage({ __arutosio_sdk: true, type: 'install-change' }, '*'); } catch (_) {}
     }
 }
 
 // Per-app KV is implemented in storage.js (window.Storage.appKV). These thin
 // wrappers route the host-side `ctx.storage.*` calls through the facade so
-// the DB name (`aruta_app_<id>`) lives in exactly one place.
+// the DB name (`arutosio_app_<id>`) lives in exactly one place.
 async function _appStorageGet(appId, key)         { return window.Storage.appKV.get(appId, key); }
 async function _appStorageSet(appId, key, value)  { return window.Storage.appKV.set(appId, key, value); }
 async function _appStorageRemove(appId, key)      { return window.Storage.appKV.remove(appId, key); }
@@ -103,6 +104,15 @@ const PERM_REQUIRED = {
     'profile.read':     'profile-fs',
     'profile.write':    'profile-fs',
     'profile.remove':   'profile-fs',
+    'fs.list':      'fs.read',
+    'fs.stat':      'fs.read',
+    'fs.read':      'fs.read',
+    'fs.download':  'fs.read',
+    'fs.write':     'fs.write',
+    'fs.upload':    'fs.write',
+    'fs.mkdir':     'fs.write',
+    'fs.rename':    'fs.write',
+    'fs.delete':    'fs.delete',
     'install.listPackageFiles': 'install',
     'install.readPackageFile':  'install',
     handoff: 'windows',
@@ -118,6 +128,9 @@ async function _confirmUninstallFor(callerId, targetId) {
 }
 
 async function _handleCall(appId, method, args) {
+    if (method.startsWith('fs.') && !window.arutosioLocal?.isLocal) {
+        throw new Error('not_local');
+    }
     const perm = PERM_REQUIRED[method];
     if (perm) {
         const ok = await window.permissions.request(appId, perm);
@@ -176,7 +189,7 @@ async function _handleCall(appId, method, args) {
             if (!window.registry?.isInstalled(targetId)) return false;
             if (!(await _confirmUninstallFor(appId, targetId))) return false;
             await window.registry.uninstall(targetId);
-            try { localStorage.removeItem('aruta_perms_' + targetId); } catch {}
+            try { localStorage.removeItem('arutosio_perms_' + targetId); } catch {}
             return true;
         }
         case 'listInstalled': {
@@ -215,6 +228,15 @@ async function _handleCall(appId, method, args) {
         case 'profile.read':  return await window.profile.readFolderFile(String(args[0] || ''));
         case 'profile.write': return await window.profile.writeFolderFile(String(args[0] || ''), args[1], args[2]);
         case 'profile.remove': return await window.profile.removeFolderFile(String(args[0] || ''));
+        case 'fs.list':     return await window.arutosioLocal.fs.list(String(args[0] || ''));
+        case 'fs.stat':     return await window.arutosioLocal.fs.stat(String(args[0] || ''));
+        case 'fs.read':     return await window.arutosioLocal.fs.read(String(args[0] || ''), Number(args[1]) || 0);
+        case 'fs.download': await window.arutosioLocal.fs.download(String(args[0] || '')); return true;
+        case 'fs.write':    return await window.arutosioLocal.fs.write(String(args[0] || ''), args[1], String(args[2] || ''));
+        case 'fs.upload':   return await window.arutosioLocal.fs.upload(String(args[0] || ''), args[1], !!args[2]);
+        case 'fs.mkdir':    return await window.arutosioLocal.fs.mkdir(String(args[0] || ''));
+        case 'fs.rename':   return await window.arutosioLocal.fs.rename(String(args[0] || ''), String(args[1] || ''));
+        case 'fs.delete':   return await window.arutosioLocal.fs.remove(String(args[0] || ''), args[1] || {});
         case 'install.listPackageFiles': {
             const targetId = String(args[0] || '');
             if (!targetId || !window.registry?.isInstalled(targetId)) return [];
@@ -244,8 +266,21 @@ async function _handleCall(appId, method, args) {
             let serialized;
             try { serialized = JSON.stringify(payload); } catch { throw new Error('payload_not_serializable'); }
             if (serialized.length > 2 * 1024 * 1024) throw new Error('payload_too_large');
-            try { localStorage.setItem('aruta_handoff_' + targetId, serialized); }
-            catch { throw new Error('handoff_storage_failed'); }
+            const localMode = !!window.arutosioLocal?.isLocal;
+            if (!localMode) {
+                try { localStorage.setItem('arutosio_handoff_' + targetId, serialized); }
+                catch { throw new Error('handoff_storage_failed'); }
+            }
+            // Local-mode iframes are opaque and cannot read localStorage, so
+            // the host holds the payload until the target reports mounted.
+            const mounted = _mounted.get(targetId);
+            if (mounted) {
+                try {
+                    mounted.iframe.contentWindow?.postMessage({ __arutosio_sdk: true, type: 'handoff', payload }, '*');
+                } catch (_) {}
+            } else if (localMode) {
+                _pendingHandoffs.set(targetId, payload);
+            }
             window.openWindow?.(targetId);
             return true;
         }
@@ -272,12 +307,12 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:transparent;color
         return new Promise((resolve, reject) => {
             const id = nextId++;
             pending.set(id, { resolve, reject });
-            parent.postMessage({ __aruta_sdk: true, type: 'call', id, method, args }, '*');
+            parent.postMessage({ __arutosio_sdk: true, type: 'call', id, method, args }, '*');
         });
     }
     window.addEventListener('message', async (e) => {
         const d = e.data;
-        if (!d || !d.__aruta_sdk) return;
+        if (!d || !d.__arutosio_sdk) return;
         if (d.type === 'reply') {
             const p = pending.get(d.id);
             if (!p) return;
@@ -287,20 +322,22 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:transparent;color
         } else if (d.type === 'theme') {
             if (d.value) document.documentElement.dataset.theme = d.value;
         } else if (d.type === 'install-change') {
-            try { document.dispatchEvent(new Event('aruta:installChanged')); } catch (_) {}
+            try { document.dispatchEvent(new Event('arutosio:installChanged')); } catch (_) {}
+        } else if (d.type === 'handoff') {
+            try { document.dispatchEvent(new CustomEvent('arutosio:handoff', { detail: d.payload })); } catch (_) {}
         } else if (d.type === 'teardown') {
             // Host is about to remove the iframe. Give the app module a
             // chance to detach listeners. Best-effort; swallow errors so
             // unmount can't block iframe removal host-side.
             try {
-                const app = window.__arutaApp;
+                const app = window.__arutosioApp;
                 if (app && app.exp && typeof app.exp.unmount === 'function') {
                     await app.exp.unmount(app.root, app.ctx);
                 }
             } catch (err) {
                 console.warn('[sandbox iframe] unmount threw', err);
             }
-            try { parent.postMessage({ __aruta_sdk: true, type: 'teardown-ack' }, '*'); } catch (_) {}
+            try { parent.postMessage({ __arutosio_sdk: true, type: 'teardown-ack' }, '*'); } catch (_) {}
         } else if (d.type === 'init') {
             try {
                 const fileURLs = {};
@@ -310,6 +347,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:transparent;color
                 const ctx = {
                     appId: d.manifest.id,
                     sdkVersion: d.sdkVersion || 1,
+                    local: !!d.local,
                     asset: (p) => fileURLs[p] || fileURLs['assets/' + p] || null,
                     print: (s) => call('print', s),
                     clear: () => call('clear'),
@@ -357,6 +395,17 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:transparent;color
                         read:  (path) => call('profile.read',  path || ''),
                         write: (path, bytes, mime) => call('profile.write', path || '', bytes, mime || ''),
                         remove:(path) => call('profile.remove', path || ''),
+                    },
+                    fs: {
+                        list: (path) => call('fs.list', path || ''),
+                        stat: (path) => call('fs.stat', path || ''),
+                        read: (path, max) => call('fs.read', path || '', max || 0),
+                        write: (path, bytes, etag) => call('fs.write', path || '', bytes, etag || ''),
+                        upload: (path, file, overwrite) => call('fs.upload', path || '', file, !!overwrite),
+                        mkdir: (path) => call('fs.mkdir', path || ''),
+                        rename: (from, to) => call('fs.rename', from || '', to || ''),
+                        delete: (path, opts) => call('fs.delete', path || '', opts || {}),
+                        download: (path) => call('fs.download', path || ''),
                     },
                     install: {
                         listFiles: (appId) => call('install.listPackageFiles', appId),
@@ -425,15 +474,15 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:transparent;color
                 // Stash the module and ctx so a later teardown message can
                 // invoke exp.unmount(root, ctx) before the host removes the
                 // iframe — lets apps detach document-level listeners.
-                window.__arutaApp = { exp, root, ctx };
-                parent.postMessage({ __aruta_sdk: true, type: 'mounted' }, '*');
+                window.__arutosioApp = { exp, root, ctx };
+                parent.postMessage({ __arutosio_sdk: true, type: 'mounted' }, '*');
             } catch (err) {
                 root.innerHTML = '<pre style="color:#fb7185;padding:1rem;white-space:pre-wrap;">' + (err.stack || err.message || err) + '</pre>';
-                parent.postMessage({ __aruta_sdk: true, type: 'error', error: String(err) }, '*');
+                parent.postMessage({ __arutosio_sdk: true, type: 'error', error: String(err) }, '*');
             }
         }
     });
-    parent.postMessage({ __aruta_sdk: true, type: 'ready' }, '*');
+    parent.postMessage({ __arutosio_sdk: true, type: 'ready' }, '*');
 })();
 <\/script></body></html>`;
 
@@ -468,11 +517,15 @@ async function mountApp(appId) {
     // origin frame. Trust is on the user: the install modal shows the flag.
     // allow-modals lets apps use prompt()/alert()/confirm(). Without it these
     // silently return null in sandboxed iframes (Firefox/Chrome both block).
-    const sandboxAttr = manifest.allowOrigin
+    // Local mode is a credential boundary: every app runs in an opaque
+    // origin, even if its manifest opted into same-origin for the hosted
+    // site. Machine access goes through ctx.fs and the host permission gate.
+    const localMode = !!window.arutosioLocal?.isLocal;
+    const sandboxAttr = (manifest.allowOrigin && !localMode)
         ? 'allow-scripts allow-same-origin allow-modals allow-downloads'
         : 'allow-scripts allow-modals allow-downloads';
     iframe.setAttribute('sandbox', sandboxAttr);
-    console.debug('[sandbox] mounted', appId, 'with sandbox=', sandboxAttr);
+    console.debug('[sandbox] mounted', appId, 'with sandbox=', sandboxAttr, localMode ? '(local)' : '');
     iframe.style.cssText = 'width:100%;height:100%;border:0;background:transparent;';
     iframe.srcdoc = IFRAME_BOOT;
     content.appendChild(iframe);
@@ -480,16 +533,24 @@ async function mountApp(appId) {
     const onMsg = async (e) => {
         if (e.source !== iframe.contentWindow) return;
         const d = e.data;
-        if (!d || !d.__aruta_sdk) return;
+        if (!d || !d.__arutosio_sdk) return;
         if (d.type === 'ready') {
             const theme = window.currentTheme || document.documentElement.dataset.theme || 'dark';
-            iframe.contentWindow.postMessage({ __aruta_sdk: true, type: 'init', manifest, files, theme, sdkVersion: SDK_VERSION }, '*');
+            iframe.contentWindow.postMessage({ __arutosio_sdk: true, type: 'init', manifest, files, theme, sdkVersion: SDK_VERSION, local: localMode }, '*');
+        } else if (d.type === 'mounted') {
+            const pending = _pendingHandoffs.get(appId);
+            if (pending) {
+                _pendingHandoffs.delete(appId);
+                try {
+                    iframe.contentWindow.postMessage({ __arutosio_sdk: true, type: 'handoff', payload: pending }, '*');
+                } catch (_) {}
+            }
         } else if (d.type === 'call') {
             try {
                 const value = await _handleCall(appId, d.method, d.args || []);
-                iframe.contentWindow.postMessage({ __aruta_sdk: true, type: 'reply', id: d.id, value }, '*');
+                iframe.contentWindow.postMessage({ __arutosio_sdk: true, type: 'reply', id: d.id, value }, '*');
             } catch (err) {
-                iframe.contentWindow.postMessage({ __aruta_sdk: true, type: 'reply', id: d.id, error: String(err.message || err) }, '*');
+                iframe.contentWindow.postMessage({ __arutosio_sdk: true, type: 'reply', id: d.id, error: String(err.message || err) }, '*');
             }
         } else if (d.type === 'error') {
             console.warn('[sandbox]', appId, d.error);
@@ -508,7 +569,7 @@ function unmountApp(appId) {
     // handler). Fire-and-forget: we don't wait for ack because iframe removal
     // must stay synchronous for existing callers.
     try {
-        m.iframe.contentWindow?.postMessage({ __aruta_sdk: true, type: 'teardown' }, '*');
+        m.iframe.contentWindow?.postMessage({ __arutosio_sdk: true, type: 'teardown' }, '*');
     } catch (_) {}
     window.removeEventListener('message', m.onMsg);
     m.iframe.remove();
@@ -601,7 +662,7 @@ function _buildHostCtx(appId, files) {
 }
 
 async function closeAppStorage(appId) {
-    await window.db.closeDB((window.Storage?.constants.APP_DB_PREFIX || 'aruta_app_') + appId);
+    await window.db.closeDB((window.Storage?.constants.APP_DB_PREFIX || 'arutosio_app_') + appId);
 }
 
 /**
@@ -627,7 +688,8 @@ async function mountWidget(widgetId, opts) {
 
     const iframe = document.createElement('iframe');
     iframe.className = 'widget-iframe';
-    const sandboxAttr = manifest.allowOrigin
+    const localMode = !!window.arutosioLocal?.isLocal;
+    const sandboxAttr = (manifest.allowOrigin && !localMode)
         ? 'allow-scripts allow-same-origin allow-modals allow-downloads'
         : 'allow-scripts allow-modals allow-downloads';
     iframe.setAttribute('sandbox', sandboxAttr);
@@ -638,16 +700,16 @@ async function mountWidget(widgetId, opts) {
     const onMsg = async (e) => {
         if (e.source !== iframe.contentWindow) return;
         const d = e.data;
-        if (!d || !d.__aruta_sdk) return;
+        if (!d || !d.__arutosio_sdk) return;
         if (d.type === 'ready') {
             const theme = window.currentTheme || document.documentElement.dataset.theme || 'dark';
-            iframe.contentWindow.postMessage({ __aruta_sdk: true, type: 'init', manifest, files, theme, sdkVersion: SDK_VERSION, role: 'widget' }, '*');
+            iframe.contentWindow.postMessage({ __arutosio_sdk: true, type: 'init', manifest, files, theme, sdkVersion: SDK_VERSION, role: 'widget', local: localMode }, '*');
         } else if (d.type === 'call') {
             try {
                 const value = await _handleCall(widgetId, d.method, d.args || []);
-                iframe.contentWindow.postMessage({ __aruta_sdk: true, type: 'reply', id: d.id, value }, '*');
+                iframe.contentWindow.postMessage({ __arutosio_sdk: true, type: 'reply', id: d.id, value }, '*');
             } catch (err) {
-                iframe.contentWindow.postMessage({ __aruta_sdk: true, type: 'reply', id: d.id, error: String(err.message || err) }, '*');
+                iframe.contentWindow.postMessage({ __arutosio_sdk: true, type: 'reply', id: d.id, error: String(err.message || err) }, '*');
             }
         } else if (d.type === 'error') {
             console.warn('[sandbox:widget]', widgetId, d.error);
@@ -663,7 +725,7 @@ async function mountWidget(widgetId, opts) {
 function unmountWidget(widgetId) {
     const m = _mountedWidgets.get(widgetId);
     if (!m) return;
-    try { m.iframe.contentWindow?.postMessage({ __aruta_sdk: true, type: 'teardown' }, '*'); } catch (_) {}
+    try { m.iframe.contentWindow?.postMessage({ __arutosio_sdk: true, type: 'teardown' }, '*'); } catch (_) {}
     window.removeEventListener('message', m.onMsg);
     m.iframe.remove();
     _mountedWidgets.delete(widgetId);

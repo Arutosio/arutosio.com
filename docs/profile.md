@@ -1,6 +1,6 @@
 # Portable Profile
 
-aruta.sh keeps everything you've configured — preferences, installed packages, per-app data — in browser storage. The **Portable Profile** feature lets you take that whole state with you: sync it to a real folder on disk, or move it between browsers and machines as a `.zip`.
+arutosio.com keeps everything you've configured — preferences, installed packages, per-app data — in browser storage. The **Portable Profile** feature lets you take that whole state with you: sync it to a real folder on disk, or move it between browsers and machines as a `.zip`.
 
 > Implementation: [`JavaScript/profile.js`](../JavaScript/profile.js), wired into Settings by [`JavaScript/os.js`](../JavaScript/os.js) (`initProfileSettings`). Zip codec: [`JavaScript/zip.js`](../JavaScript/zip.js) (STORE-only, no compression).
 
@@ -8,11 +8,11 @@ aruta.sh keeps everything you've configured — preferences, installed packages,
 
 ## What it is
 
-A snapshot of your aruta.sh state, persisted as a small directory tree (or a `.zip` of the same tree):
+A snapshot of your arutosio.com state, persisted as a small directory tree (or a `.zip` of the same tree):
 
 ```
 profile.json                     ← version + timestamps + origin tag
-localStorage.json                ← every aruta_* key (except aruta_summoned)
+localStorage.json                ← every arutosio_* key (except arutosio_summoned)
 registry/
   manifests.json                 ← installed packages (manifest objects)
   files.meta.json                ← MIME map for the file blobs
@@ -35,7 +35,7 @@ Both backends produce and consume the exact same layout, so a `.zip` you export 
 
 ## Who is it for
 
-- You use aruta.sh in more than one browser or on more than one machine.
+- You use arutosio.com in more than one browser or on more than one machine.
 - You want a backup before wiping the OS or trying a destructive package.
 - You're a package author and want to round-trip state for testing.
 - You'd rather your installed apps survive a `Clear site data`.
@@ -50,7 +50,7 @@ Open **Settings → Profile**.
 
 ### Folder mode (Chromium: Chrome, Edge, Brave, Arc, Opera)
 
-1. Click **Pick folder…** and choose an empty folder (or one that already holds an aruta profile).
+1. Click **Pick folder…** and choose an empty folder (or one that already holds an arutosio profile).
 2. The browser asks for read/write permission — Allow.
 3. If the folder is empty, your current browser state is dumped into it.
 4. If the folder already contains a `profile.json`, you're asked whether to **Load from folder** (folder wins, browser state is replaced) or **Overwrite folder** (browser wins, folder is rewritten).
@@ -59,16 +59,16 @@ From that point on, every change you make in the OS — installing a package, sw
 
 ### Zip mode (any browser)
 
-- **Export** — Settings → Profile → **Export `.zip`**. Download lands as `aruta-profile-<timestamp>.zip`.
+- **Export** — Settings → Profile → **Export `.zip`**. Download lands as `arutosio-profile-<timestamp>.zip`.
 - **Import** — Settings → Profile → **Import `.zip`** → pick the file. After confirmation, your current state is **replaced** with the snapshot and the page reloads.
 
 Zip mode is one-shot. There's no continuous sync — you re-export when you want a new snapshot.
 
 ### Boot-time auto-restore
 
-If a folder handle is persisted from a previous session, on every page load aruta.sh:
+If a folder handle is persisted from a previous session, on every page load arutosio.com:
 
-1. Reads the saved handle from its private IDB (`aruta_profile`).
+1. Reads the saved handle from its private IDB (`arutosio_profile`).
 2. Calls `queryPermission()` (no prompt — boot must be silent).
 3. If permission is still `granted`: reads the folder, restores into the browser, and reloads.
 4. If permission is dormant: keeps the handle but flags the profile as **Disconnected**. Settings shows a **Reconnect** button that re-prompts.
@@ -82,23 +82,23 @@ The reload-after-restore is intentional. It keeps the boot path simple — every
 
 | Source | What gets captured |
 |---|---|
-| `localStorage` | Every key starting with `aruta_` (theme, language, font, achievements, perms, terminal history, registry cache, …) |
-| `aruta_packages` IDB | All installed package manifests + every file blob |
-| `aruta_app_<id>` IDB | Each app's private `ctx.storage` kv store |
-| `aruta_appearance` IDB | Custom background and portrait binaries set from Settings → Appearance |
+| `localStorage` | Every key starting with `arutosio_` (theme, language, font, achievements, perms, terminal history, registry cache, …) |
+| `arutosio_packages` IDB | All installed package manifests + every file blob |
+| `arutosio_app_<id>` IDB | Each app's private `ctx.storage` kv store |
+| `arutosio_appearance` IDB | Custom background and portrait binaries set from Settings → Appearance |
 
 ## What's NOT stored
 
-- `aruta_summoned` (sessionStorage flag) — intentionally excluded so the summoning intro replays after a restore on a new device.
-- The `aruta_profile` IDB itself (where the folder handle lives) — handles are origin-bound and meaningless on another machine.
-- Browser cookies, service-worker caches, anything outside the `aruta_` namespace.
+- `arutosio_summoned` (sessionStorage flag) — intentionally excluded so the summoning intro replays after a restore on a new device.
+- The `arutosio_profile` IDB itself (where the folder handle lives) — handles are origin-bound and meaningless on another machine.
+- Browser cookies, service-worker caches, anything outside the `arutosio_` namespace.
 - Any third-party app data that bypasses `ctx.storage` (e.g. apps that write directly to their own custom IndexedDB — don't do this).
 
 ---
 
 ## Conflict resolution
 
-When you link to a folder that already has a profile, aruta compares the folder's `profile.json.updatedAt` against the browser snapshot's `updatedAt` and picks the dialog accordingly:
+When you link to a folder that already has a profile, arutosio compares the folder's `profile.json.updatedAt` against the browser snapshot's `updatedAt` and picks the dialog accordingly:
 
 - **Folder is newer (or timestamps match/missing)** — the classic 2-choice modal:
     - **Load from folder** → `restore(snapshotFromBinary(folder))` then `location.reload()`.
@@ -144,7 +144,7 @@ Browsers can drop the persisted permission silently after long idle periods, pro
 
 ### "profile_newer_version"
 
-Thrown by `restore()` if the snapshot's `version` field is greater than the runtime's `PROFILE_VERSION`. Means: the profile was created by a newer aruta.sh than the one currently running. Update the site (or the local checkout) and retry.
+Thrown by `restore()` if the snapshot's `version` field is greater than the runtime's `PROFILE_VERSION`. Means: the profile was created by a newer version of Arutosio than the one currently running. Update the site (or the local checkout) and retry.
 
 Profiles are forward-compatible within the same major version. The current version is `1` — if it ever bumps, this doc will document the migration.
 
@@ -165,16 +165,16 @@ Raised when a debounced write-through fails (folder removed mid-session, disk fu
 Open DevTools → Console:
 
 ```js
-await arutaProfileDebug.dump()  // returns the live snapshot object
+await arutosioProfileDebug.dump()  // returns the live snapshot object
 ```
 
 To force-restore a snapshot you've stashed in JS:
 
 ```js
-await arutaProfileDebug.rewind(snap)  // restore + reload
+await arutosioProfileDebug.rewind(snap)  // restore + reload
 ```
 
-Both helpers are intentionally exposed only as `arutaProfileDebug.*` — they bypass the UI's confirmations, so use them deliberately.
+Both helpers are intentionally exposed only as `arutosioProfileDebug.*` — they bypass the UI's confirmations, so use them deliberately.
 
 ---
 
@@ -187,7 +187,7 @@ Both helpers are intentionally exposed only as `arutaProfileDebug.*` — they by
 | `snapshot()` | Capture current state into a JS object |
 | `snapshotBinary(snap?)` | Convert a snapshot into a `Map<path, bytes\|string>` (the on-disk layout) |
 | `snapshotFromBinary(map)` | Inverse — reconstruct a snapshot object from a path map |
-| `restore(snap)` | Wipe and rewrite localStorage + every aruta IDB from a snapshot |
+| `restore(snap)` | Wipe and rewrite localStorage + every arutosio IDB from a snapshot |
 | `exportZip()` | Trigger a `.zip` download of the current state |
 | `importZip(file)` | Import a `.zip` `File` and reload |
 | `link(handle, {overwriteFolder})` | Adopt a directory handle as the active sync target |
@@ -209,7 +209,7 @@ All writes are coalesced through a single 400 ms debounce timer; for simplicity 
 
 ## Security notes
 
-- The folder permission is **per-origin**. A profile linked from `https://aruta.sh` cannot be touched by any other site.
+- The folder permission is **per-origin**. A profile linked from `https://arutosio.com` cannot be touched by any other site.
 - Snapshots include a free-form `origin` tag (`location.origin` at capture time) for debugging, but it's not used to gate restores — you can deliberately move a profile between origins.
 - The folder is only as private as the directory you picked. Don't link to a synced cloud drive you share with other people.
 - Importing a `.zip` is equivalent to installing every package inside it. The same trust caveats from [packages.md](./packages.md) apply — only import zips from sources you trust.

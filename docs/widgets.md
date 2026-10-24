@@ -104,13 +104,13 @@ gate — behaves identically to the `app` role.
 |---|---|---|
 | Package install | `"widget"` role registers in `widgets.list()`, state = disabled | `registry.saveManifest` |
 | Boot | `widgets.bootstrap()` runs after `defaults.bootstrap()` and remounts every previously-enabled widget | `app.js` |
-| User toggles ON (Settings → Widgets) | `widgets.enable(id)` → creates `.widget-frame`, `sandbox.mountWidget(id)` spins up the iframe, announces in `localStorage.aruta_widgets` | `widgets.js` |
+| User toggles ON (Settings → Widgets) | `widgets.enable(id)` → creates `.widget-frame`, `sandbox.mountWidget(id)` spins up the iframe, announces in `localStorage.arutosio_widgets` | `widgets.js` |
 | User toggles OFF | `widgets.disable(id)` → unmounts iframe, keeps state `enabled:false` | `widgets.js` |
 | User drags | `savePosition(id, x, y)` debounced; edge anchor recomputed | `widgets.js` |
 | Viewport resize | Position is re-derived from the saved anchor (keeps the same gap from the nearest edge) | `widgets.js` resize handler, rAF-throttled |
 | Mobile (<640px) | Frames hidden via CSS; bootstrap skips mounting | `widgets.css` + `widgets.bootstrap` |
 | Package uninstall | `registry.uninstall(id)` disables the widget, removes its state entry, and then wipes the IDB | `registry.js:uninstall` hook |
-| Reset settings | `aruta_widgets` key cleared, all widgets disabled | `os-settings.js` reset handler |
+| Reset settings | `arutosio_widgets` key cleared, all widgets disabled | `os-settings.js` reset handler |
 
 The host provides **no chrome** around the widget body — no titlebar,
 no close button — by design. The only way to turn a widget off is
@@ -122,7 +122,7 @@ for interactions.
 
 ## Persistence
 
-Widget state lives in `localStorage` under `aruta_widgets`:
+Widget state lives in `localStorage` under `arutosio_widgets`:
 
 ```json
 {
@@ -137,7 +137,7 @@ Widget state lives in `localStorage` under `aruta_widgets`:
 }
 ```
 
-- Prefix `aruta_*` → auto-synced by the portable-profile folder mirror
+- Prefix `arutosio_*` → auto-synced by the portable-profile folder mirror
   and `.zip` export (see [profile.md](./profile.md)). No extra wiring.
 - `anchor` is recomputed on every drag end. It drives the resize
   handler that keeps the widget at the same distance from its chosen

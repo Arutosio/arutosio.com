@@ -1,4 +1,4 @@
-/* Ultima Aruta — player.js: Player class */
+/* Ultima Arutosio — player.js: Player class */
 
 class Player {
     constructor(wx, wy) {

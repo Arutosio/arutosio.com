@@ -3,7 +3,7 @@
 // Trystero exposes joinRoom/selfId via globalThis.__trystero (added at the
 // end of trystero.min.js after we strip the ESM exports).
 
-const TAVERN_APP_ID = 'aruta-tavern';
+const TAVERN_APP_ID = 'arutosio-tavern';
 const TAVERN_DEFAULT_ROOM = 'public';
 const TAVERN_NICK_KEY = 'nickname';
 const TAVERN_NICK_COLOR_KEY = 'nickColor';

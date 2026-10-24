@@ -52,7 +52,7 @@ function showApp() {
     // `reloading === true` and we skip further boot to avoid double work.
     (async () => {
         let reloading = false;
-        try { reloading = await (window.__arutaProfileReady || Promise.resolve(false)); } catch {}
+        try { reloading = await (window.__arutosioProfileReady || Promise.resolve(false)); } catch {}
         if (reloading) return;
         // Apply user-customizable appearance (background/portrait/name) after the
         // profile gate so folder-linked binaries are already in IDB.
@@ -61,6 +61,11 @@ function showApp() {
         if (window.defaults) await window.defaults.bootstrap();
         if (window.widgets) await window.widgets.bootstrap();
         applyTranslations(currentLang);
+        try {
+            const appIds = (window.registry?.list() || []).map(m => m.id);
+            await window.arutosioLocal?.pullApps?.(appIds);
+        } catch (e) { console.warn('[local] app data pull failed', e); }
+        try { await window.session?.restore(); } catch (e) { console.warn('[session] restore failed', e); }
     })();
     if (window.installer) window.installer.initDragDrop();
 
@@ -107,7 +112,7 @@ function animateSectionEntrance(sectionId) {
  * ──────────────────────────────── */
 // Restore theme/font ASAP (DOMContentLoaded) to prevent flash
 document.addEventListener('DOMContentLoaded', () => {
-    const savedFontSize = localStorage.getItem('aruta_fontsize');
+    const savedFontSize = localStorage.getItem('arutosio_fontsize');
     if (savedFontSize) document.documentElement.style.fontSize = savedFontSize + '%';
 
     // Restore font family preset ASAP to avoid a flash of default fonts
@@ -118,7 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mono:     { body: "'Courier New', Consolas, monospace", display: "'Courier New', Consolas, monospace" },
         nordic:   { body: "'Cinzel', Georgia, serif", display: "'Cinzel', Georgia, serif" },
     };
-    const savedFont = localStorage.getItem('aruta_font');
+    const savedFont = localStorage.getItem('arutosio_font');
     if (savedFont && FONT_PRESETS[savedFont]) {
         document.documentElement.style.setProperty('--font-body', FONT_PRESETS[savedFont].body);
         document.documentElement.style.setProperty('--font-display', FONT_PRESETS[savedFont].display);
@@ -127,8 +132,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Follow-OS is the default. The user can disable it from Settings, in
     // which case we honour the saved manual choice. With follow-OS active,
     // any saved value is ignored and the system preference wins.
-    const followOS = localStorage.getItem('aruta_theme_follow_os') !== 'false';
-    const savedTheme = localStorage.getItem('aruta_theme');
+    const followOS = localStorage.getItem('arutosio_theme_follow_os') !== 'false';
+    const savedTheme = localStorage.getItem('arutosio_theme');
     const osPref = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
     currentTheme = followOS ? osPref : (savedTheme || osPref);
     window.currentTheme = currentTheme;
@@ -141,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
         const mq = window.matchMedia('(prefers-color-scheme: light)');
         const onMqChange = (e) => {
-            if (localStorage.getItem('aruta_theme_follow_os') === 'false') return;
+            if (localStorage.getItem('arutosio_theme_follow_os') === 'false') return;
             const next = e.matches ? 'light' : 'dark';
             if (next === window.currentTheme) return;
             if (typeof toggleTheme === 'function') toggleTheme({ keepFollowOS: true });
@@ -163,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
  * Trims the heaviest ambient effects (fog blur, particle density, parallax,
  * glass blur) on weak/battery-constrained devices. Auto-detected from device
  * hints; user can force on/off from Settings → Performance.
- *   localStorage 'aruta_low_power': absent = auto, 'on'/'off' = explicit override.
+ *   localStorage 'arutosio_low_power': absent = auto, 'on'/'off' = explicit override.
  * ──────────────────────────────── */
 function detectLowPower() {
     try {
@@ -174,12 +179,13 @@ function detectLowPower() {
     } catch (_) { return false; }
 }
 function resolveLowPower() {
-    const stored = localStorage.getItem('aruta_low_power');
+    const stored = localStorage.getItem('arutosio_low_power');
     return stored == null ? detectLowPower() : stored === 'on';
 }
 function applyLowPower(on) {
     window._lowPower = on;
     document.body.classList.toggle('low-power', on);
+    window.appearance?.syncPlayback?.();  // video wallpaper holds its first frame in low power
 }
 window.detectLowPower = detectLowPower;
 window.resolveLowPower = resolveLowPower;
@@ -190,7 +196,7 @@ window.applyLowPower = applyLowPower;
 // portrait is a tiny webp that loads independently. Waiting on window.load
 // (all images/fonts) needlessly delayed first interaction on mobile.
 function bootApp() {
-    const savedLang  = localStorage.getItem('aruta_lang');
+    const savedLang  = localStorage.getItem('arutosio_lang');
 
     currentLang  = (savedLang && i18n[savedLang]) ? savedLang : detectLanguage();
     document.documentElement.setAttribute('lang', currentLang === 'fn' ? 'en' : currentLang);
@@ -229,7 +235,7 @@ function bootApp() {
         }
     }
 
-    if (sessionStorage.getItem('aruta_summoned') || window._introEnabled === false) {
+    if (sessionStorage.getItem('arutosio_summoned') || window._introEnabled === false) {
         // Repeat visit (or intro disabled) — everything loaded, reveal immediately
         const overlay = document.getElementById('summon-overlay');
         if (overlay) overlay.remove();
@@ -240,7 +246,7 @@ function bootApp() {
         initSummonCanvas();
 
         runSummoning(() => {
-            sessionStorage.setItem('aruta_summoned', '1');
+            sessionStorage.setItem('arutosio_summoned', '1');
             fadeOverlayAndReveal();
         });
     }

@@ -336,12 +336,12 @@ const LIVE_PLATFORMS = {
     twitch: {
         player: (channel) => `https://player.twitch.tv/?channel=${channel}&parent=${location.hostname}&muted=true`,
         chat: (channel) => `https://www.twitch.tv/embed/${channel}/chat?parent=${location.hostname}&darkpopout`,
-        channel: 'aruta.sh'
+        channel: 'arutosio'
     },
     kick: {
         player: (channel) => `https://player.kick.com/${channel}`,
         chat: (channel) => `https://kick.com/${channel}/chatroom`,
-        channel: 'aruta_sh'
+        channel: 'arutosio'
     },
     youtube: {
         player: (channel) => `https://www.youtube.com/embed/live_stream?channel=${channel}&autoplay=1&mute=1`,

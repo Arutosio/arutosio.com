@@ -59,7 +59,7 @@ Close a window.
 
 ## Storage — requires `storage`
 
-Per-app key-value store backed by IndexedDB `aruta_app_<your_id>`. Values go through structured clone — objects, arrays, `Blob`s, `ArrayBuffer`s all work.
+Per-app key-value store backed by IndexedDB `arutosio_app_<your_id>`. Values go through structured clone — objects, arrays, `Blob`s, `ArrayBuffer`s all work.
 
 ### `ctx.storage.get(key: string): Promise<any | null>`
 ### `ctx.storage.set(key: string, value: any): Promise<boolean>`
@@ -140,7 +140,7 @@ Add a repo. URL must be `http(s)://`. Throws on duplicates.
 ### `ctx.repos.update(url: string, patch: Partial<Repo>): Promise<Repo | null>`
 Whitelisted fields: `name`, `description`, `enabled`, `lastFetched`, `etag`, `cachedIndex`, `lastError`, `displayName`.
 
-> The repo list lives at the host level (`localStorage.aruta_repos`) and is shared between Package Store, the `pkg` CLI, and any future package that holds the `install` permission.
+> The repo list lives at the host level (`localStorage.arutosio_repos`) and is shared between Package Store, the `pkg` CLI, and any future package that holds the `install` permission.
 
 ### `ctx.defaults.list(): Promise<Array<{id, name, icon, version, installed, blacklisted}>>`
 Snapshot every package shipped in `defaultPackages/defaults.json` with its current state — `installed` (present in the registry) and `blacklisted` (the user has uninstalled it, so the boot path will skip it on next reload).
@@ -177,7 +177,7 @@ Browse and mutate the FS Access folder the user linked via **Settings → Profil
 ## Handoff — requires `windows`
 
 ### `ctx.handoff(appId: string, payload: any): Promise<boolean>`
-Pass a small JSON-serializable payload to another installed app and open its window. The host writes the payload to `localStorage.aruta_handoff_<appId>` and calls `openWindow(appId)`. The target app is expected to consume and clear the key on mount.
+Pass a small JSON-serializable payload to another installed app and open its window. The host writes the payload to `localStorage.arutosio_handoff_<appId>` and calls `openWindow(appId)`. The target app is expected to consume and clear the key on mount.
 
 Payload cap: ~2 MB (throws `payload_too_large`). Target must be installed (throws `target_not_installed`).
 
@@ -209,6 +209,35 @@ el.addEventListener('contextmenu', async (ev) => {
     });
     if (choice === 'delete') { /* ... */ }
 });
+```
+
+---
+
+## `ctx.fs` — machine files (local mode)
+
+Only available when the site is served by `arutosiod`; `ctx.local` is `true`.
+Each method is permission-gated and operates inside the daemon's `-root`.
+
+| Method | Permission | Notes |
+|---|---|---|
+| `ctx.fs.list(path)` | `fs.read` | returns `{ entries: [{name, kind, size, mtime, mode, link}] }` |
+| `ctx.fs.stat(path)` | `fs.read` | `{path, kind, size, mode, mtime, etag}` |
+| `ctx.fs.read(path, max)` | `fs.read` | `{bytes, mime, etag, mtime, size}`; `max` defaults to 8 MB |
+| `ctx.fs.download(path)` | `fs.read` | host opens the browser download |
+| `ctx.fs.write(path, bytes, etag)` | `fs.write` | atomic write; `etag` enables conflict detection |
+| `ctx.fs.upload(path, file, overwrite)` | `fs.write` | streams a `File`/`Blob` |
+| `ctx.fs.mkdir(path)` | `fs.write` | one level; parent must exist |
+| `ctx.fs.rename(from, to)` | `fs.write` | refuses to overwrite |
+| `ctx.fs.delete(path, { trash })` | `fs.delete` | moves to the daemon trash by default |
+
+`path` is relative to the machine root (no leading slash). `..` and symlinks
+that escape the root are rejected. A stale `etag` returns an error containing
+`file changed`; reread before saving.
+
+```js
+const { bytes, etag } = await ctx.fs.read('notes/todo.md');
+// ... edit ...
+await ctx.fs.write('notes/todo.md', new TextEncoder().encode(text), etag);
 ```
 
 ---

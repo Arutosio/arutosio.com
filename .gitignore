@@ -203,7 +203,7 @@ PublishScripts/
 **/[Pp]ackages/*
 # except build/, which is used as an MSBuild target.
 !**/[Pp]ackages/build/
-# Our top-level /packages folder is the Aruta.sh Package Store repo content, not NuGet.
+# Our top-level /packages folder is the Arutosio Package Store repo content, not NuGet.
 !/packages/
 !/packages/**
 # Uncomment if necessary however generally it will be regenerated when needed

@@ -273,7 +273,7 @@ export default {
         // it onto <html data-theme>, so we just need to redraw.
         const themeHandler = (e) => {
             const d = e.data;
-            if (d && d.__aruta_sdk && d.type === 'theme') draw();
+            if (d && d.__arutosio_sdk && d.type === 'theme') draw();
         };
         window.addEventListener('message', themeHandler);
 

@@ -4,7 +4,7 @@
     "name": "Arcane Snake",
     "icon": "🐍",
     "version": "1.0.1",
-    "author": "Aruta",
+    "author": "Arutosio",
     "entry": "index.js",
     "category": "games",
     "permissions": ["storage", "notifications"]

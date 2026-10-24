@@ -35,12 +35,62 @@ function initStartMenu() {
             menu.style.animation = 'startMenuOpen 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards';
             btn.classList.add('start-open');
             isOpen = true;
+            const search = document.getElementById('start-search');
+            if (search) { search.value = ''; filterStartMenu(); }
+            setTimeout(() => search?.focus(), 30);
         }
     }
 
     function closeMenu() {
         if (!isOpen) return;
         toggleMenu();
+    }
+
+    function filterStartMenu() {
+        const input = document.getElementById('start-search');
+        if (!input) return;
+        const q = input.value.trim().toLowerCase();
+        const groups = menu.querySelectorAll('#start-items .start-cat-group');
+        let any = false;
+        groups.forEach(group => {
+            let has = false;
+            group.querySelectorAll('.start-item').forEach(item => {
+                const match = !q || item.textContent.toLowerCase().includes(q);
+                item.hidden = !match;
+                if (match) has = true;
+            });
+            group.hidden = !!q && !has;
+            if (q) group.classList.remove('is-collapsed');
+            any = any || has;
+        });
+        menu.querySelectorAll('#start-items .start-cat-sep').forEach(sep => {
+            sep.hidden = !!q;
+        });
+        const empty = document.getElementById('start-empty');
+        if (empty) empty.hidden = !q || any;
+        if (!q) {
+            const openCat = window.storage?.get?.('arutosio_start_open_cat', '') || '';
+            groups.forEach(group => {
+                group.classList.toggle('is-collapsed', group.dataset.cat !== openCat);
+            });
+        }
+    }
+    window.filterStartMenu = filterStartMenu;
+
+    const startSearch = document.getElementById('start-search');
+    if (startSearch) {
+        startSearch.addEventListener('input', filterStartMenu);
+        startSearch.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const first = menu.querySelector('.start-item:not([hidden])');
+                if (first) {
+                    openWindow(first.dataset.window);
+                    closeMenu();
+                }
+            } else if (e.key === 'Escape') {
+                closeMenu();
+            }
+        });
     }
 
     btn.addEventListener('click', toggleMenu);
@@ -115,7 +165,7 @@ function initStartMenu() {
  * ──────────────────────────────── */
 function initDesktopContextMenu() {
     // Site-wide: suppress the browser's native right-click menu so only
-    // aruta.sh's own menus show. Keep the native menu on editable fields
+    // Arutosio's own menus show. Keep the native menu on editable fields
     // (input, textarea, contenteditable) so copy / paste / undo still work.
     document.addEventListener('contextmenu', (e) => {
         const t = e.target;

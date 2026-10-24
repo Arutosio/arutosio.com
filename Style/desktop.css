@@ -30,6 +30,14 @@
     opacity: var(--bg-dim, 0);
     pointer-events: none;
 }
+/* Wallpaper gate (set on <html> by the head script + appearance.js).
+   "loading": a wallpaper is configured but not on screen yet — drop the stock
+   gradient and its ambient layers instead of showing them for the whole fetch.
+   "ready": media is visible; the gradient stays off (the video covers it) and
+   the ambience comes back on top, as usual. */
+:root[data-wallpaper] body { background-image: none; }
+:root[data-wallpaper="loading"] .magic-bg,
+:root[data-wallpaper="loading"] .ambient-fog { display: none; }
 
 /* § MAGIC BACKGROUND (GPU-only, no canvas)
  * Two radial gradient pseudo-elements that drift slowly

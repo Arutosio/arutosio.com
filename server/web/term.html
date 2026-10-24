@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arutosio Terminal</title>
+    <link rel="stylesheet" href="/term/xterm.css">
+    <style>
+        html, body { height: 100%; margin: 0; background: #0c0a1a; }
+        #terminal { height: 100%; padding: 10px 12px; box-sizing: border-box; }
+        .xterm { height: 100%; }
+    </style>
+</head>
+<body>
+<div id="terminal"></div>
+<script src="/term/xterm.js"></script>
+<script src="/term/addon-fit.js"></script>
+<script>
+(function () {
+    const token = new URLSearchParams(location.search).get('token') || '';
+    const term = new Terminal({
+        cursorBlink: true,
+        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+        fontSize: 14,
+        scrollback: 5000,
+        theme: {
+            background: '#0c0a1a',
+            foreground: '#e8e6f0',
+            cursor: '#ffc857',
+            selectionBackground: '#3a2a0f'
+        }
+    });
+    const fit = new FitAddon.FitAddon();
+    term.loadAddon(fit);
+    term.open(document.getElementById('terminal'));
+    fit.fit();
+
+    if (!token) {
+        term.write('\r\n\x1b[31mMissing token.\x1b[0m Open the URL printed by arutosiod.\r\n');
+        return;
+    }
+
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const url = proto + '//' + location.host + '/ws/term?token=' +
+        encodeURIComponent(token) + '&cols=' + term.cols + '&rows=' + term.rows;
+    const ws = new WebSocket(url);
+    ws.binaryType = 'arraybuffer';
+
+    let queue = [];
+    function send(data) {
+        if (ws.readyState === WebSocket.OPEN) ws.send(data);
+        else queue.push(data);
+    }
+
+    ws.onopen = function () {
+        term.write('\r\n\x1b[32m[connected]\x1b[0m\r\n');
+        for (const item of queue) ws.send(item);
+        queue = [];
+        term.focus();
+    };
+    ws.onmessage = function (event) {
+        if (typeof event.data === 'string') {
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'exit') {
+                    term.write('\r\n\x1b[33m[exit ' + msg.code + ']\x1b[0m\r\n');
+                    return;
+                }
+            } catch (_) {}
+            term.write(event.data);
+            return;
+        }
+        term.write(new Uint8Array(event.data));
+    };
+    ws.onclose = function () {
+        term.write('\r\n\x1b[31m[disconnected]\x1b[0m\r\n');
+    };
+    ws.onerror = function () {
+        term.write('\r\n\x1b[31m[connection error]\x1b[0m\r\n');
+    };
+
+    term.onData(function (data) {
+        send(new TextEncoder().encode(data));
+    });
+    term.onResize(function (size) {
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'resize', cols: size.cols, rows: size.rows }));
+        }
+    });
+
+    window.addEventListener('resize', function () { fit.fit(); });
+    setTimeout(function () { fit.fit(); term.focus(); }, 0);
+})();
+</script>
+</body>
+</html>

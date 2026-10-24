@@ -3,9 +3,9 @@
  * ║  Keeps in-memory cache, syncs to IndexedDB and localStorage ║
  * ╚══════════════════════════════════════════════════════════╝ */
 
-const DB_NAME = (window.Storage && window.Storage.constants.PACKAGES_DB) || 'aruta_packages';
+const DB_NAME = (window.Storage && window.Storage.constants.PACKAGES_DB) || 'arutosio_packages';
 const DB_VERSION = 1;
-const INDEX_KEY = 'aruta_installed_apps';
+const INDEX_KEY = 'arutosio_installed_apps';
 
 function openDB() {
     return window.db.openDB(DB_NAME, DB_VERSION, (db) => {
@@ -96,6 +96,7 @@ const BUILTIN_ITEMS = [
     { id: 'live',     icon: '🔮',  key: 'sec_live',     cat: 'info'   },
     { id: 'links',    icon: '🔗',  key: 'sec_links',    cat: 'info'   },
     { id: 'terminal', icon: '⌨️',  key: 'sec_terminal', cat: 'system' },
+    { id: 'system',   icon: '🖥️', key: 'sec_system',   cat: 'system' },
     { id: 'settings', icon: '⚙️', key: 'sec_settings', cat: 'system' },
 ];
 
@@ -105,7 +106,7 @@ const CATEGORY_ICON = {
     info: '✦', games: '⚔', tools: '🔧', creativity: '🎨', other: '📦', system: '⚙',
 };
 
-const OPEN_CAT_KEY = 'aruta_start_open_cat';
+const OPEN_CAT_KEY = 'arutosio_start_open_cat';
 
 function renderStartMenuItems() {
     const items = document.getElementById('start-items');
@@ -183,6 +184,7 @@ function renderStartMenuItems() {
         group.appendChild(body);
         items.appendChild(group);
     }
+    try { window.filterStartMenu?.(); } catch {}
 }
 
 async function saveManifest(manifest, files) {
@@ -325,11 +327,11 @@ async function uninstall(id) {
     // Storage promise while falling through to deleteDatabase, racing them.
     try {
         if (window.Storage?.deleteAppKV) await window.Storage.deleteAppKV(id);
-        else indexedDB.deleteDatabase('aruta_app_' + id);
+        else indexedDB.deleteDatabase('arutosio_app_' + id);
     } catch (_) {}
     // Drop any stored permission grants for this app — keeping them around
     // would pre-grant a reinstalled package with the same id.
-    try { localStorage.removeItem('aruta_perms_' + id); } catch {}
+    try { localStorage.removeItem('arutosio_perms_' + id); } catch {}
     // If this was a default package, remember so we don't auto-reinstall it.
     window.defaults?.markUninstalled(id);
     saveIndex();

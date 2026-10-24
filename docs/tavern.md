@@ -240,7 +240,7 @@ avoids:
    connected. Avoid sharing sensitive info."*
 2. **Tracker metadata.** The public BitTorrent trackers (`tracker.
    openwebtorrent.com`, `tracker.webtorrent.dev`, etc.) see that the
-   user is signalling for `appId: "aruta-tavern"` + `room: "X"`. They
+   user is signalling for `appId: "arutosio-tavern"` + `room: "X"`. They
    do not see message content (that goes direct over WebRTC DTLS, end-
    to-end encrypted by the browser) but they do see who's joining what.
 3. **Sybil in public rooms.** A single attacker can generate N keypairs
@@ -249,7 +249,7 @@ avoids:
    only people with the password even find the swarm — but public
    rooms have no such gate.
 4. **Keystore compromise.** The private key sits in IndexedDB under
-   `aruta_app_tavern`. Anyone with physical access to the browser
+   `arutosio_app_tavern`. Anyone with physical access to the browser
    profile can read it. The key is marked extractable on purpose
    (so the portable profile `.zip` export can carry it and restore
    the same identity on another device); non-extractable would break

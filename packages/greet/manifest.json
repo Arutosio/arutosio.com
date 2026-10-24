@@ -4,7 +4,7 @@
     "name": "Greet",
     "icon": "✨",
     "version": "1.0.0",
-    "author": "Aruta",
+    "author": "Arutosio",
     "entry": "index.js",
     "permissions": ["terminal", "notifications"]
 }

@@ -42,6 +42,7 @@ window.storage = {
             const v = typeof value === 'string' ? value : JSON.stringify(value);
             localStorage.setItem(key, v);
             try { window.profile?.markDirty?.('localStorage', key); } catch {}
+            try { document.dispatchEvent(new CustomEvent('arutosio:storage', { detail: { key } })); } catch {}
             return true;
         } catch { return false; }
     },
@@ -49,6 +50,7 @@ window.storage = {
         try {
             localStorage.removeItem(key);
             try { window.profile?.markDirty?.('localStorage', key); } catch {}
+            try { document.dispatchEvent(new CustomEvent('arutosio:storage', { detail: { key } })); } catch {}
             return true;
         }
         catch { return false; }

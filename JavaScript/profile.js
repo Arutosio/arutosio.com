@@ -1,7 +1,7 @@
 /* ╔══════════════════════════════════════════════════════════╗
  * ║  PROFILE — Portable profile snapshot / restore / mirror   ║
- * ║  Captures localStorage aruta_* keys, aruta_packages DB,   ║
- * ║  and every aruta_app_<id> DB into a portable snapshot.    ║
+ * ║  Captures arutosio_* keys, arutosio_packages DB, and      ║
+ * ║  every arutosio_app_<id> DB into a portable snapshot.     ║
  * ║  DiskBackend (Chromium): live-sync to a folder handle.    ║
  * ║  ZipBackend: manual export/import for Firefox/Safari.     ║
  * ╚══════════════════════════════════════════════════════════╝ */
@@ -10,19 +10,95 @@
     // source of truth. Fall back to inline literals only if storage.js
     // didn't load for some reason (defensive, not expected at runtime).
     const SC = (window.Storage && window.Storage.constants) || {
-        PACKAGES_DB: 'aruta_packages',
-        APP_DB_PREFIX: 'aruta_app_',
-        LS_PREFIX: 'aruta_',
+        PACKAGES_DB: 'arutosio_packages',
+        APP_DB_PREFIX: 'arutosio_app_',
+        APPEARANCE_DB: 'arutosio_appearance',
+        PROFILE_DB: 'arutosio_profile',
+        LS_PREFIX: 'arutosio_',
     };
     const LS_PREFIX        = SC.LS_PREFIX;
-    const LS_EXCLUDE       = new Set(['aruta_summoned']);
+    const LS_EXCLUDE       = new Set(['arutosio_summoned']);
     const PACKAGES_DB      = SC.PACKAGES_DB;
     const APP_DB_PREFIX    = SC.APP_DB_PREFIX;
-    const PROFILE_DB       = 'aruta_profile';
+    const PROFILE_DB       = SC.PROFILE_DB;
     const PROFILE_DB_VER   = 1;
     const HANDLE_STORE     = 'handles';
     const HANDLE_KEY       = 'current';
     const PROFILE_VERSION  = 1;
+    // Pre-rebrand namespace, derived so the retired name is not repeated.
+    const LEGACY_PREFIX    = LS_PREFIX.replace('osio', 'a');
+    const LEGACY_BRAND     = LEGACY_PREFIX.slice(0, -1);
+    const LEGACY_AUTHOR    = LEGACY_BRAND.charAt(0).toUpperCase() + LEGACY_BRAND.slice(1);
+    const LEGACY_GAME_ID   = 'ultima-' + LEGACY_BRAND;
+    const GAME_ID          = 'ultima-' + LS_PREFIX.slice(0, -1);
+
+    /** Translate a snapshot written before the rebrand: key namespace and
+     *  the one package whose id changed. Mutates and returns the snapshot. */
+    function _migrateSnapshot(snap) {
+        if (!snap || typeof snap !== 'object') return snap;
+        const ls = {};
+        for (const [k, v] of Object.entries(snap.localStorage || {})) {
+            let nk = k.startsWith(LEGACY_PREFIX) ? LS_PREFIX + k.slice(LEGACY_PREFIX.length) : k;
+            // App-scoped keys carry the package id in the suffix.
+            if (nk.endsWith(LEGACY_GAME_ID)) nk = nk.slice(0, -LEGACY_GAME_ID.length) + GAME_ID;
+            ls[nk] = v;
+        }
+        snap.localStorage = ls;
+
+        // Keep the user's defaults choices when the game package id changed.
+        for (const name of ['defaults_seen', 'defaults_uninstalled']) {
+            const key = LS_PREFIX + name;
+            try {
+                const arr = JSON.parse(ls[key] || 'null');
+                if (!Array.isArray(arr)) continue;
+                ls[key] = JSON.stringify(arr.map(id => (id === LEGACY_GAME_ID ? GAME_ID : id)));
+            } catch {}
+        }
+
+        // The old default package repository pointed at the retired GitHub repo.
+        try {
+            const repoKey = LS_PREFIX + 'repos';
+            const raw = ls[repoKey];
+            if (raw) {
+                const oldRepo = 'https://raw.githubusercontent.com/Arutosio/' + LEGACY_BRAND + '.sh/master/packages/index.json';
+                const origin = (location.origin && location.origin !== 'null') ? location.origin : 'https://arutosio.com';
+                const newRepo = origin + '/packages/index.json';
+                const list = JSON.parse(raw);
+                let touched = false;
+                if (Array.isArray(list)) {
+                    for (const r of list) {
+                        if (r && r.url === oldRepo) {
+                            r.url = newRepo;
+                            r.description = 'Curated bundle by Arutosio';
+                            touched = true;
+                        }
+                    }
+                }
+                if (touched) ls[repoKey] = JSON.stringify(list);
+            }
+        } catch {}
+
+        const mapId = (id) => (id === LEGACY_GAME_ID ? GAME_ID : id);
+        if (snap.registry) {
+            snap.registry.manifests = (snap.registry.manifests || []).map(m => {
+                if (!m) return m;
+                let out = m;
+                if (m.id === LEGACY_GAME_ID) out = { ...out, id: GAME_ID, name: 'Ultima Arutosio' };
+                if (out.author === LEGACY_AUTHOR) out = { ...out, author: 'Arutosio' };
+                return out;
+            });
+            snap.registry.files = (snap.registry.files || []).map(f => {
+                if (!f || f.appId !== LEGACY_GAME_ID) return f;
+                return { ...f, appId: GAME_ID };
+            });
+        }
+        if (snap.apps) {
+            const apps = {};
+            for (const [id, kv] of Object.entries(snap.apps)) apps[mapId(id)] = kv;
+            snap.apps = apps;
+        }
+        return snap;
+    }
 
     // ── helpers ────────────────────────────────────────────
     function nowISO() { return new Date().toISOString(); }
@@ -103,7 +179,7 @@
         return out;
     }
     function _writeLocalStorage(obj) {
-        // Clear existing aruta_* keys (except excluded) then apply snapshot.
+        // Clear existing arutosio_* keys (except excluded) then apply snapshot.
         const toDel = [];
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
@@ -239,17 +315,17 @@
             out.set('apps/' + appId + '.json', JSON.stringify(kv, null, 2));
         }
         // Appearance assets: binary per key + meta.json describing kind/mime/filename.
+        // meta.json is written even when empty: a stale one left in a linked
+        // folder would resurrect deleted backgrounds/portrait on the next restore.
         const appearance = snap.appearance || [];
-        if (appearance.length) {
-            const appMeta = [];
-            for (const a of appearance) {
-                const ext = _extFromMime(a.mime) || 'bin';
-                const path = 'appearance/' + a.key + '.' + ext;
-                out.set(path, a.bytes instanceof Uint8Array ? a.bytes : new Uint8Array(a.bytes || []));
-                appMeta.push({ key: a.key, kind: a.kind || '', mime: a.mime || '', filename: a.filename || '', path });
-            }
-            out.set('appearance/meta.json', JSON.stringify(appMeta, null, 2));
+        const appMeta = [];
+        for (const a of appearance) {
+            const ext = _extFromMime(a.mime) || 'bin';
+            const path = 'appearance/' + a.key + '.' + ext;
+            out.set(path, a.bytes instanceof Uint8Array ? a.bytes : new Uint8Array(a.bytes || []));
+            appMeta.push({ key: a.key, kind: a.kind || '', mime: a.mime || '', filename: a.filename || '', path });
         }
+        out.set('appearance/meta.json', JSON.stringify(appMeta, null, 2));
         return out;
     }
 
@@ -313,7 +389,7 @@
             appearance.push({ key: m.key, kind: m.kind || '', mime: m.mime || 'application/octet-stream', filename: m.filename || '', bytes });
         }
 
-        return {
+        return _migrateSnapshot({
             version: meta.version || 1,
             createdAt: meta.createdAt || nowISO(),
             updatedAt: meta.updatedAt || nowISO(),
@@ -322,7 +398,7 @@
             registry: { manifests, files },
             apps,
             appearance,
-        };
+        });
     }
 
     // ── RESTORE ────────────────────────────────────────────
@@ -331,6 +407,7 @@
         if (snap.version && snap.version > PROFILE_VERSION) {
             throw new Error('profile_newer_version');
         }
+        snap = _migrateSnapshot(snap);
 
         // Close every app DB we might be holding open.
         try {
@@ -342,7 +419,7 @@
         // Replace localStorage
         _writeLocalStorage(snap.localStorage || {});
 
-        // Wipe + rebuild aruta_packages
+        // Wipe + rebuild arutosio_packages
         await _deleteDB(PACKAGES_DB);
         await new Promise((resolve, reject) => {
             const req = indexedDB.open(PACKAGES_DB, 1);
@@ -370,14 +447,14 @@
             req.onerror = () => reject(req.error);
         });
 
-        // Rebuild aruta_appearance (background/portrait binaries).
+        // Rebuild arutosio_appearance (background/portrait binaries).
         try {
             if (window.appearance?.restoreFromSnapshot) {
                 await window.appearance.restoreFromSnapshot(snap.appearance || []);
             }
         } catch (e) { console.warn('[profile] appearance restore failed', e); }
 
-        // Rebuild each aruta_app_<id>
+        // Rebuild each arutosio_app_<id>
         for (const [appId, kv] of Object.entries(snap.apps || {})) {
             const name = APP_DB_PREFIX + appId;
             await _deleteDB(name);
@@ -406,13 +483,13 @@
         const map  = await snapshotBinary(snap);
         const entries = [];
         for (const [path, value] of map) entries.push({ path, content: value });
-        const bytes = window.arutaZip.encode(entries);
+        const bytes = window.arutosioZip.encode(entries);
         const blob  = new Blob([bytes], { type: 'application/zip' });
         const url   = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        a.download = 'aruta-profile-' + stamp + '.zip';
+        a.download = 'arutosio-profile-' + stamp + '.zip';
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -422,7 +499,7 @@
     async function importZip(file) {
         const buf   = await file.arrayBuffer();
         const bytes = new Uint8Array(buf);
-        const { entries } = window.arutaZip.decode(bytes);
+        const { entries } = window.arutosioZip.decode(bytes);
         const map = new Map();
         for (const e of entries) map.set(e.path, e.bytes);
         const snap = snapshotFromBinary(map);
@@ -531,6 +608,11 @@
         async writeAll(map) {
             for (const [path, data] of map) {
                 await this._writeFile(path, data);
+            }
+            // Drop appearance binaries that are no longer in the snapshot
+            // (removed backgrounds can be tens of MB each).
+            for (const p of await this._listAll('appearance')) {
+                if (!map.has(p)) { try { await this._deleteFile(p); } catch {} }
             }
         }
 
@@ -718,7 +800,7 @@
     }
 
     // ── Debug helper ───────────────────────────────────────
-    window.arutaProfileDebug = {
+    window.arutosioProfileDebug = {
         dump: () => snapshot(),
         rewind: async (snap) => { await restore(snap); location.reload(); },
     };
@@ -773,11 +855,15 @@
     // ── Boot gate ──────────────────────────────────────────
     // app.js awaits this before bootstrapping registry / defaults. The promise
     // resolves to `true` if we kicked off a reload (caller should stop).
-    window.__arutaProfileReady = (async () => {
+    window.__arutosioProfileReady = (async () => {
+        try { await window.__arutosioMigrationReady; } catch {}
+        try { await window.__arutosioLocalReady; } catch {}
+        // Local mode uses the daemon profile; the folder backend is hosted-only.
+        if (window.arutosioLocal?.isLocal) return false;
         try {
             return await tryRestoreFromHandle();
         } catch (e) {
-            console.warn('[profile] boot gate failed', e);
+            console.warn('[profile] profile boot gate failed', e);
             return false;
         }
     })();

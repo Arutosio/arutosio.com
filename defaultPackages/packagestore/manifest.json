@@ -3,7 +3,7 @@
     "name": "Package Manager",
     "icon": "📦",
     "version": "2.3.0",
-    "author": "Aruta",
+    "author": "Arutosio",
     "category": "system",
     "minSdk": 2,
     "roles": ["app", "command"],

@@ -296,7 +296,7 @@ export default {
             root.querySelector('#gba-back').addEventListener('click', async () => {
                 await flushSram();
                 // EmulatorJS has no reliable teardown — reload the iframe to
-                // get a clean library (same pattern as ultima-aruta's menu).
+                // get a clean library (same pattern as ultima-arutosio's menu).
                 location.reload();
             });
 
@@ -742,7 +742,7 @@ export default {
              * games' own frame-based link timeouts never fire spuriously.
              */
             const room = globalThis.__trystero.torrent.joinRoom(
-                { appId: 'aruta-gba-link', relayUrls: LINK_RELAYS },
+                { appId: 'arutosio-gba-link', relayUrls: LINK_RELAYS },
                 'gba-' + code
             );
             llog('selfId', globalThis.__trystero.torrent.selfId || '(n/a)');

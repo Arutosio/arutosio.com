@@ -1,5 +1,5 @@
 /* ╔══════════════════════════════════════════════════════════╗
- * ║  ULTIMA ARUTA — isometric emoji RPG                       ║
+ * ║  ULTIMA ARUTOSIO — isometric emoji RPG                       ║
  * ║                                                            ║
  * ║  Structure (single file for blob-URL compatibility):       ║
  * ║    §1 DATA      — constants, biomes, items, creatures      ║
@@ -10,7 +10,7 @@
  * ╚══════════════════════════════════════════════════════════╝ */
 
 /* ╔══════════════════════════════════════════════════════════╗
- * ║  ULTIMA ARUTA — data.js                                    ║
+ * ║  ULTIMA ARUTOSIO — data.js                                    ║
  * ║  All game constants, item/creature/biome definitions.      ║
  * ║  Pure data — no logic, no side effects.                    ║
  * ╚══════════════════════════════════════════════════════════╝ */
@@ -73,7 +73,7 @@ function showWorldSelect(root, worlds, onChange) {
         function render() {
             root.innerHTML = `
                 <div class="ua-select-shell">
-                    <h1 class="ua-select-title">⚔ Ultima Aruta</h1>
+                    <h1 class="ua-select-title">⚔ Ultima Arutosio</h1>
                     <p class="ua-select-sub">Choose a realm to wander…</p>
                     <div class="ua-select-list" id="ua-select-list">
                         ${worlds.slice().sort((a,b) => (b.lastPlayed||0) - (a.lastPlayed||0)).map(w => `
@@ -157,7 +157,7 @@ export default {
 
         const pickedWorldId = await showWorldSelect(root, worlds, async (newWorlds) => {
             worlds = newWorlds;
-            await sdk.storage.set('worlds', worlds).catch(e => console.warn('[ultima-aruta] save worlds failed', e));
+            await sdk.storage.set('worlds', worlds).catch(e => console.warn('[ultima-arutosio] save worlds failed', e));
         });
         if (!pickedWorldId) return; // user closed the window while selecting
 
@@ -363,7 +363,7 @@ export default {
         // ── Ancient Runes (endgame) ──────────────────────
         // One rune shard per boss family. Killing a boss of a family attunes
         // its shard (guaranteed, once); all four together forge the Seal of
-        // Aruta — a one-shot permanent boon + victory screen. Free play after.
+        // Arutosio — a one-shot permanent boon + victory screen. Free play after.
         const RUNE_SHARDS = [
             { id: 'dragon', rune: 'ᚠ', name: 'Fehu',     keys: ['🐉', '🐲'] },
             { id: 'brute',  rune: 'ᚢ', name: 'Uruz',     keys: ['👹', '🧌'] },
@@ -460,9 +460,9 @@ export default {
             return ch;
         };
 
-        function saveInventory()    { sdk.storage.set(INV_KEY,   inventory).catch(e => console.warn('[ultima-aruta] save inventory failed', e)); }
-        function saveWorldDeltas()  { sdk.storage.set(DELTA_KEY, worldDeltas).catch(e => console.warn('[ultima-aruta] save world deltas failed', e)); }
-        function saveEquipment()    { sdk.storage.set(EQUIP_KEY, equipment).catch(e => console.warn('[ultima-aruta] save equipment failed', e)); }
+        function saveInventory()    { sdk.storage.set(INV_KEY,   inventory).catch(e => console.warn('[ultima-arutosio] save inventory failed', e)); }
+        function saveWorldDeltas()  { sdk.storage.set(DELTA_KEY, worldDeltas).catch(e => console.warn('[ultima-arutosio] save world deltas failed', e)); }
+        function saveEquipment()    { sdk.storage.set(EQUIP_KEY, equipment).catch(e => console.warn('[ultima-arutosio] save equipment failed', e)); }
 
         function removeWorldItem(wx, wy) {
             const cx = Math.floor(wx / CHUNK_SIZE), cy = Math.floor(wy / CHUNK_SIZE);
@@ -1166,7 +1166,7 @@ export default {
                     undead (🧟), ᚨ demons (👿). Slaying a boss of a family<br>
                     attunes its shard (guaranteed, once). Bosses lurk in the<br>
                     deepest dungeon rooms and on high mountains. Gather all<br>
-                    four to forge the <b>Seal of Aruta</b> — a permanent boon<br>
+                    four to forge the <b>Seal of Arutosio</b> — a permanent boon<br>
                     (+20 HP/MP/SP, +2 DMG) and the realm's gratitude. Track<br>
                     progress in the Stats panel.<br><br>
                     <b>Treasure Maps</b><br>
@@ -1318,7 +1318,7 @@ export default {
                     const glyphs = RUNE_SHARDS.map(s =>
                         `<span title="${s.name}" style="color:#c0a0ff;opacity:${runeShards[s.id] ? 1 : 0.22};">${s.rune}</span>`
                     ).join(' ');
-                    return `<div style="margin-top:6px"><b>Ancient Runes</b> ${sealForged ? '· ⚝ Seal of Aruta forged' : `(${have}/4)`}</div>
+                    return `<div style="margin-top:6px"><b>Ancient Runes</b> ${sealForged ? '· ⚝ Seal of Arutosio forged' : `(${have}/4)`}</div>
                         <div style="font-size:16px;letter-spacing:8px;">${glyphs}</div>`;
                 })()}
                 ${activeQuest ? `<div style="margin-top:6px;padding:6px;background:rgba(200,170,80,0.12);border-left:3px solid #ffc857;border-radius:2px;">
@@ -1342,7 +1342,7 @@ export default {
                     slayDemon: player._slayDemon || false,
                     slayBrute: player._slayBrute || false,
                     runeShards, sealForged,
-                }).catch(e => console.warn('[ultima-aruta] save state failed', e));
+                }).catch(e => console.warn('[ultima-arutosio] save state failed', e));
                 root.__uaCleanup?.();
                 // Reload by re-invoking mount — simplest way.
                 location.reload();
@@ -2725,7 +2725,7 @@ export default {
             if (have === RUNE_SHARDS.length) forgeSeal();
         }
 
-        // All four rune shards collected — forge the Seal of Aruta. One-shot:
+        // All four rune shards collected — forge the Seal of Arutosio. One-shot:
         // permanent boon, victory overlay, then the world stays playable.
         function forgeSeal() {
             if (sealForged) return;
@@ -2740,7 +2740,7 @@ export default {
             ov.innerHTML = `
                 <div class="ua-victory-card">
                     <div class="ua-victory-runes">ᚠ ᚢ ᚦ ᚨ</div>
-                    <h2>⚝ The Seal of Aruta is forged!</h2>
+                    <h2>⚝ The Seal of Arutosio is forged!</h2>
                     <p>All four ancient runes answer to you.<br>The realm of <b class="ua-victory-realm"></b> knows peace — for now.</p>
                     <p class="ua-victory-stats">${cd.icon} Level <b>${player.level}</b> · 💀 <b>${player.kills}</b> kills · 🔨 <b>${player.crafted || 0}</b> crafted · Day <b>${player.days + 1}</b></p>
                     <p class="ua-victory-boon">Boon of the Seal: +20 HP · +20 MP · +20 SP · +2 DMG — forever.</p>
@@ -3452,7 +3452,7 @@ export default {
                 break;
             }
             // Ancient Rune shards — first kill of each boss family attunes
-            // its shard. All four forge the Seal of Aruta (endgame).
+            // its shard. All four forge the Seal of Arutosio (endgame).
             attuneRuneShard(emoji, chCx * CHUNK_SIZE + cr.c, chCy * CHUNK_SIZE + cr.r);
             // Quest progress (kill-type): match by emoji regardless of dungeon/overworld.
             if (activeQuest && activeQuest.kind === 'kill' && activeQuest.target === cr.emoji && activeQuest.current < activeQuest.needed) {
@@ -4075,12 +4075,12 @@ export default {
                     slayDemon: player._slayDemon || false,
                     slayBrute: player._slayBrute || false,
                     runeShards, sealForged,
-                }).catch(e => console.warn('[ultima-aruta] save state failed', e));
+                }).catch(e => console.warn('[ultima-arutosio] save state failed', e));
                 worldRow.lastPlayed = Date.now();
                 worldRow.playerClass = playerClass;
                 worldRow.level = player.level;
                 worldRow.kills = player.kills;
-                sdk.storage.set('worlds', worlds).catch(e => console.warn('[ultima-aruta] save worlds failed', e));
+                sdk.storage.set('worlds', worlds).catch(e => console.warn('[ultima-arutosio] save worlds failed', e));
             }
 
             rafId = requestAnimationFrame(loop);

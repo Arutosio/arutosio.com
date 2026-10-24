@@ -1,7 +1,7 @@
 /* ╔══════════════════════════════════════════════════════════╗
  * ║  DB — Promise-based IndexedDB helpers (shared)            ║
- * ║  Used by registry.js (aruta_packages) and sandbox.js      ║
- * ║  (aruta_app_<id>). Handles are cached per DB name.        ║
+ * ║  Used by registry.js (arutosio_packages) and sandbox.js   ║
+ * ║  (arutosio_app_<id>). Handles are cached per DB name.     ║
  * ╚══════════════════════════════════════════════════════════╝ */
 
 const _cache = new Map();

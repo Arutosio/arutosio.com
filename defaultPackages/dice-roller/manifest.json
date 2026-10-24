@@ -7,7 +7,7 @@
     "roles": ["app", "command"],
     "entries": { "app": "ui.js", "command": "cli.js" },
     "commandAlias": "roll",
-    "author": "Aruta",
+    "author": "Arutosio",
     "category": "games",
     "permissions": ["storage", "terminal"]
 }

@@ -5,10 +5,10 @@ The [`packages/`](../packages) folder at the repo root contains working packages
 To install them from inside the OS, open the Package Store → add / enable the repo:
 
 ```
-https://raw.githubusercontent.com/Arutosio/aruta.sh/master/packages/index.json
+https://arutosio.com/packages/index.json
 ```
 
-(The `Aruta.sh Examples` repo is also seeded in the Package Store but disabled by default — flip it on.)
+(The `Arutosio Examples` repo is also seeded in the Package Store but disabled by default — flip it on.)
 
 ---
 
@@ -27,7 +27,7 @@ A tiny command that prints a decorated greeting and fires a success toast. Good 
     "name": "Greet",
     "icon": "✨",
     "version": "1.0.0",
-    "author": "Aruta",
+    "author": "Arutosio",
     "entry": "index.js",
     "permissions": ["terminal", "notifications"]
 }
@@ -35,8 +35,8 @@ A tiny command that prints a decorated greeting and fires a success toast. Good 
 
 **Usage**: after installing, open the Terminal and run:
 ```
-greet Aruta
-greet "Stefano Aruta"
+greet Arutosio
+greet "Stefano"
 ```
 
 ---
@@ -63,7 +63,7 @@ The id is `arcane-snake` (not `snake`) so it doesn't collide with the bundled de
     "name": "Arcane Snake",
     "icon": "🐍",
     "version": "1.0.1",
-    "author": "Aruta",
+    "author": "Arutosio",
     "entry": "index.js",
     "category": "games",
     "permissions": ["storage", "notifications"]
@@ -86,7 +86,7 @@ A **hybrid** package declares multiple `roles` and ships a separate entry file p
     "name": "Greet",
     "icon": "👋",
     "version": "1.0.0",
-    "author": "Aruta",
+    "author": "Arutosio",
     "minSdk": 2,
     "entries": { "app": "ui.js", "command": "cli.js" },
     "commandAlias": "greet",
@@ -111,7 +111,7 @@ export default {
 };
 ```
 
-After install, 👋 Greet appears in the Start menu **and** `greet Aruta` works in the Terminal. The bundled `packagestore` / `pkg`, `dice-roller` / `roll`, and `oracle` / `fortune` packages all follow this pattern.
+After install, 👋 Greet appears in the Start menu **and** `greet Arutosio` works in the Terminal. The bundled `packagestore` / `pkg`, `dice-roller` / `roll`, and `oracle` / `fortune` packages all follow this pattern.
 
 ---
 

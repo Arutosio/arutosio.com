@@ -7,7 +7,7 @@ index 5f7a39f..a721f86 100644
  	set(BUILD_STATIC ON)
  	set(BUILD_SHARED OFF)
 -	set(USE_PTHREADS ON)
-+	# aruta.sh single-thread build: no SharedArrayBuffer on GitHub Pages
++	# Arutosio single-thread build: no SharedArrayBuffer on GitHub Pages
 +	# (no COOP/COEP headers), so pthreads are unavailable. threading.h
 +	# auto-defines DISABLE_THREADING when USE_PTHREADS is off.
 +	set(USE_PTHREADS OFF)

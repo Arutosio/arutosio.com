@@ -9,13 +9,37 @@ either git commit SHAs or the `version` field inside a package's
 
 ## Site
 
+### 2026-10 — Local mode (`arutosiod` 0.3.0) + rebrand
+
+- **Local mode** — the site is served by the machine itself
+  (`http://localhost:7777` over an SSH tunnel, no relay). `server/` adds a Go
+  single-binary daemon (linux amd64/arm64/armv7) that serves the static site,
+  a token→cookie auth flow, CSRF checks, a confined filesystem API with ETag
+  and trash, per-machine profile/app-data/appearance storage, per-device
+  window sessions and a PTY WebSocket. `server/install.sh` installs it as a
+  systemd user unit or with `--no-service`.
+- **Files / Grimoire** — in local mode the “This machine” source browses real
+  directories; Grimoire opens, saves and restores real files with
+  conflict detection.
+- **Terminal** — xterm.js connects to a real shell. The daemon keeps the PTY
+  after the browser disconnects, so a reload reattaches to the same session
+  and replays recent output (512 KB buffer, `-term-idle` 24h).
+- **System app** — overview (host, CPU, load, memory, disk, profile/trash
+  size), top processes with kill, user systemd units with
+  start/stop/restart, terminal sessions with kill, and trash list/restore/
+  empty.
+- **Start menu search** — filter apps by name, Enter opens the first match.
+- **Rebrand** — every user-visible name, storage key, database name, package
+  id and P2P namespace is now Arutosio; `migration.js` moves the previous
+  namespace and renamed game data one time.
+
 ### 2026-04 — Widget system + Tavern
 
 - **Widget role** added as a third manifest role alongside `app` +
   `command`. New `widget` manifest block (`defaultWidth/Height`,
   `minWidth/Height`, `defaultAnchor`), new `entries.widget` entry
   path, new Settings → Widgets tab to enable/disable per package.
-  Positions persist via `localStorage.aruta_widgets` and sync through
+  Positions persist via `localStorage.arutosio_widgets` and sync through
   the portable-profile folder mirror. See [docs/widgets.md](./docs/widgets.md).
 - **`unmountOnClose` manifest flag** — opt-in teardown on × close so
   apps holding live network state (Tavern) never linger in background.
@@ -30,7 +54,7 @@ either git commit SHAs or the `version` field inside a package's
   global guard, light-theme contrast bump (WCAG AA), touch targets
   ≥ 44 px on coarse pointers, portrait `width/height` to kill CLS,
   `og:image` dimensions, rAF cancel on `desktop.js` ring animation,
-  unmount cleanup in snake / grimoire / ultima-aruta.
+  unmount cleanup in snake / grimoire / ultima-arutosio.
 
 ## Packages
 
@@ -90,7 +114,7 @@ around the same period:
 - `snake` — theme-aware canvas palette (dark/light), unmount
   cleanup, storage await fix.
 - `grimoire` — unmount cleanup (timers, observers).
-- `ultima-aruta` — storage error logging (previously swallowed),
+- `ultima-arutosio` — storage error logging (previously swallowed),
   misc movement system fixes.
 - `packagestore` — responsive sidebar breakpoints for mobile.
 

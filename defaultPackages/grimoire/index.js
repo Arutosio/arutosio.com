@@ -526,6 +526,68 @@ function _rewritePaths(node, newPath) {
     }
 }
 
+// MachineBackend — edits a single file opened from Files on this machine.
+// The full tree browser is Files; Grimoire only needs the selected path.
+class MachineBackend {
+    constructor(ctx, ref) {
+        this.ctx = ctx;
+        this._path = String(ref.path || '');
+        this._name = String(ref.name || this._path.split('/').pop() || 'file');
+        this._etag = String(ref.etag || '');
+        this._tree = this._buildTree(this._path);
+    }
+    static kind = 'machine';
+    get kind() { return 'machine'; }
+    isWritable() { return true; }
+    rootName() { return 'This machine'; }
+
+    _buildTree(path) {
+        const root = { name: 'This machine', path: '', isDir: true, children: [] };
+        const parts = String(path || '').split('/').filter(Boolean);
+        let cur = root;
+        let curPath = '';
+        for (let i = 0; i < parts.length; i++) {
+            curPath = curPath ? curPath + '/' + parts[i] : parts[i];
+            const last = i === parts.length - 1;
+            const node = last
+                ? { name: parts[i], path: curPath, isDir: false }
+                : { name: parts[i], path: curPath, isDir: true, children: [] };
+            cur.children.push(node);
+            cur = node;
+        }
+        return root;
+    }
+
+    async list() { return this._tree; }
+
+    async readFile(path) {
+        const r = await this.ctx.fs.read(path, 8 * 1024 * 1024);
+        this._etag = r.etag || '';
+        return new TextDecoder().decode(r.bytes);
+    }
+
+    async writeFile(path, content) {
+        try {
+            const r = await this.ctx.fs.write(path, new TextEncoder().encode(content || ''), this._etag);
+            this._etag = r.etag || this._etag;
+        } catch (e) {
+            const msg = String(e.message || e);
+            if (msg.includes('file changed') || msg.includes('409')) {
+                const err = new Error('File changed on disk — reopen it before saving.');
+                err.code = 'conflict';
+                throw err;
+            }
+            throw e;
+        }
+    }
+
+    async createFile() { throw new Error('Use Files to create files on this machine.'); }
+    async createDir() { throw new Error('Use Files to create folders on this machine.'); }
+    async deleteNode() { throw new Error('Use Files to delete files on this machine.'); }
+    async renameNode() { throw new Error('Use Files to rename files on this machine.'); }
+    async moveNode() { throw new Error('Use Files to move files on this machine.'); }
+}
+
 // ╔══════════════════════════════════════════════════════════╗
 // ║  Mount                                                    ║
 // ╚══════════════════════════════════════════════════════════╝
@@ -827,6 +889,7 @@ export default {
             if (!d || !backend) return;
             // Only autosave writable backends.
             if (!backend.isWritable()) return;
+            if (d._conflict) return;
             $saveInd.textContent = 'saving…';
             if (fileSaveTimer) clearTimeout(fileSaveTimer);
             fileSaveTimer = setTimeout(async () => {
@@ -837,7 +900,13 @@ export default {
                     setTimeout(() => { $saveInd.textContent = ''; }, 1400);
                 } catch (e) {
                     console.warn('[grimoire] autosave failed', e);
-                    $saveInd.textContent = 'save failed';
+                    if (e.code === 'conflict') {
+                        d._conflict = true;
+                        $saveInd.textContent = 'conflict — reopen';
+                        Promise.resolve(ctx.toast?.(e.message, 'warning')).catch(() => {});
+                    } else {
+                        $saveInd.textContent = 'save failed';
+                    }
                 }
             }, 450);
         }
@@ -970,18 +1039,21 @@ export default {
 
         // ── Launcher (shown when no backend is active) ───────
         function showLauncher() {
-            const canPicker = 'showDirectoryPicker' in window;
+            const canPicker = !ctx.local && 'showDirectoryPicker' in window;
             const parts = [];
             if (canPicker) parts.push('<button class="launcher-btn" data-launch="disk">📁 Open real folder</button>');
             parts.push('<button class="launcher-btn" data-launch="virtual">📝 New virtual workspace</button>');
-            if (!canPicker) parts.push('<button class="launcher-btn" data-launch="webkit">📁 Open folder (read-only)</button>');
+            if (!ctx.local && !canPicker) parts.push('<button class="launcher-btn" data-launch="webkit">📁 Open folder (read-only)</button>');
+            const hint = ctx.local
+                ? 'Open a file from Files → This machine, or use a virtual workspace in your browser.'
+                : (canPicker
+                    ? 'Real folders sync to disk. Virtual workspaces live in your browser.'
+                    : 'This browser lacks the File System Access API. Virtual workspaces are fully editable and can be exported as a .zip.');
             $folderTree.innerHTML = `
                 <div class="launcher">
                     <div class="launcher-title">Open a workspace</div>
                     ${parts.join('')}
-                    <div class="launcher-hint">${canPicker
-                        ? 'Real folders sync to disk. Virtual workspaces live in your browser.'
-                        : 'This browser lacks the File System Access API. Virtual workspaces are fully editable and can be exported as a .zip.'}</div>
+                    <div class="launcher-hint">${hint}</div>
                 </div>
             `;
             $folderTree.querySelectorAll('[data-launch]').forEach(btn => {
@@ -995,11 +1067,11 @@ export default {
         }
 
         function updateHeaderControls() {
-            const writable = !!backend && backend.isWritable();
+            const writable = !!backend && backend.isWritable() && backend.kind !== 'machine';
             $folderNewFile.style.display = writable ? '' : 'none';
             $folderNewDir.style.display  = writable ? '' : 'none';
             if (backend) {
-                const prefix = backend.kind === 'virtual' ? '📝 ' : '📂 ';
+                const prefix = backend.kind === 'virtual' ? '📝 ' : (backend.kind === 'machine' ? '🖥 ' : '📂 ');
                 const suffix = backend.isWritable() ? '' : ' (read-only)';
                 $folderLabel.textContent = prefix + backend.rootName() + suffix;
             } else {
@@ -1027,6 +1099,7 @@ export default {
             expanded.clear();
             _fileDocs.clear();
             activeId = null;
+            try { await ctx.storage.remove('machineFile'); } catch {}
             updateHeaderControls();
             showLauncher();
             await renderBody();
@@ -1039,6 +1112,7 @@ export default {
                 const b = new DiskBackend({ rootHandle: handle });
                 showTreeMessage('Reading folder…');
                 await setBackend(b);
+                try { await ctx.storage.remove('machineFile'); } catch {}
             } catch (e) {
                 if (e?.name === 'AbortError') return;
                 console.error('[grimoire] picker blocked', e);
@@ -1057,6 +1131,7 @@ export default {
                 const rootName = files[0].webkitRelativePath.split('/')[0] || 'folder';
                 const b = new DiskBackend({ fallbackFiles: files, rootNameFallback: rootName });
                 await setBackend(b);
+                try { await ctx.storage.remove('machineFile'); } catch {}
             });
             input.click();
         }
@@ -1064,6 +1139,7 @@ export default {
         async function openVirtualWorkspace(initial) {
             const b = new VirtualBackend(ctx, initial);
             await setBackend(b);
+            try { await ctx.storage.remove('machineFile'); } catch {}
             // Ensure an initial persist so reloads pick it up.
             b._persist();
         }
@@ -1243,51 +1319,96 @@ export default {
 
         // ── Boot ────────────────────────────────
         updateHeaderControls();
-        // Auto-restore a saved virtual workspace if present.
-        const savedVirtual = await ctx.storage.get('virtualFS');
-        if (savedVirtual && savedVirtual.tree) {
-            await openVirtualWorkspace(savedVirtual);
-        } else {
-            activeId = null;
-            await persistActive();
-            showLauncher();
-            await renderBody();
+        // Restore the last machine file on this machine, else the last
+        // virtual workspace, else the launcher.
+        let restored = false;
+        const savedMachine = ctx.local ? await ctx.storage.get('machineFile') : null;
+        if (savedMachine && savedMachine.path) {
+            try {
+                const b = new MachineBackend(ctx, savedMachine);
+                await setBackend(b);
+                await openFileFromTree(savedMachine.path);
+                restored = true;
+            } catch (e) {
+                console.warn('[grimoire] machine restore failed', e);
+                try { await ctx.storage.remove('machineFile'); } catch {}
+            }
+        }
+        if (!restored) {
+            const savedVirtual = await ctx.storage.get('virtualFS');
+            if (savedVirtual && savedVirtual.tree) {
+                await openVirtualWorkspace(savedVirtual);
+            } else {
+                activeId = null;
+                await persistActive();
+                showLauncher();
+                await renderBody();
+            }
         }
 
-        // ── Handoff consumption (e.g. "Open in Grimoire" from File Explorer) ──
-        // Host writes { type:'file', name, content, mime } to localStorage
-        // under `aruta_handoff_grimoire` before opening our window. We consume
-        // it exactly once: route into the current virtual workspace (creating
-        // one if needed) and clear the key.
-        try {
-            const raw = localStorage.getItem('aruta_handoff_grimoire');
-            if (raw) {
-                localStorage.removeItem('aruta_handoff_grimoire');
-                const payload = JSON.parse(raw);
-                if (payload && payload.type === 'file' && typeof payload.name === 'string') {
-                    const content = typeof payload.content === 'string' ? payload.content : '';
-                    if (!(backend instanceof VirtualBackend)) {
-                        const existing = await ctx.storage.get('virtualFS');
-                        await openVirtualWorkspace(existing || { name: 'inbox', tree: { name: 'inbox', path: '', isDir: true, children: [] } });
-                    }
-                    // Unique filename if collision.
-                    let name = payload.name;
-                    const root = backend._tree;
-                    if (root.children.some(c => c.name === name)) {
-                        const dot = name.lastIndexOf('.');
-                        const base = dot > 0 ? name.slice(0, dot) : name;
-                        const ext  = dot > 0 ? name.slice(dot) : '';
-                        let n = 1;
-                        while (root.children.some(c => c.name === base + '-' + n + ext)) n++;
-                        name = base + '-' + n + ext;
-                    }
-                    const newPath = await backend.createFile('', name);
-                    await backend.writeFile(newPath, content);
-                    tree = await backend.list();
-                    renderFolderTree();
-                    ctx.toast?.('Opened ' + name + ' from File Explorer', 'info');
+        // ── Handoff consumption (e.g. "Open in Grimoire" from Files) ──
+        // Host writes the payload under `arutosio_handoff_grimoire` before
+        // opening the window and also posts a live event when we are already
+        // mounted. Both routes land here; the key is cleared on first use.
+        async function handleHandoff(payload) {
+            if (!payload) return;
+            try { localStorage.removeItem('arutosio_handoff_grimoire'); } catch {}
+            if (payload.type === 'machineFile') {
+                if (!ctx.local) {
+                    Promise.resolve(ctx.toast?.('This machine is not connected.', 'warning')).catch(() => {});
+                    return;
                 }
+                const b = new MachineBackend(ctx, payload);
+                await setBackend(b);
+                await openFileFromTree(payload.path);
+                try {
+                    await ctx.storage.set('machineFile', {
+                        path: payload.path,
+                        name: payload.name || payload.path.split('/').pop(),
+                        mime: payload.mime || '',
+                    });
+                } catch {}
+                Promise.resolve(ctx.toast?.('Opened ' + (payload.name || payload.path) + ' from Files', 'info')).catch(() => {});
+                return;
             }
-        } catch (e) { console.warn('[grimoire] handoff failed', e); }
+            if (payload.type === 'file' && typeof payload.name === 'string') {
+                const content = typeof payload.content === 'string' ? payload.content : '';
+                if (!(backend instanceof VirtualBackend)) {
+                    const existing = await ctx.storage.get('virtualFS');
+                    await openVirtualWorkspace(existing || { name: 'inbox', tree: { name: 'inbox', path: '', isDir: true, children: [] } });
+                }
+                // Unique filename if collision.
+                let name = payload.name;
+                const root = backend._tree;
+                if (root.children.some(c => c.name === name)) {
+                    const dot = name.lastIndexOf('.');
+                    const base = dot > 0 ? name.slice(0, dot) : name;
+                    const ext  = dot > 0 ? name.slice(dot) : '';
+                    let n = 1;
+                    while (root.children.some(c => c.name === base + '-' + n + ext)) n++;
+                    name = base + '-' + n + ext;
+                }
+                const newPath = await backend.createFile('', name);
+                await backend.writeFile(newPath, content);
+                tree = await backend.list();
+                renderFolderTree();
+                await openFileFromTree(newPath);
+                Promise.resolve(ctx.toast?.('Opened ' + name + ' from Files', 'info')).catch(() => {});
+            }
+        }
+
+        if (!ctx.local) {
+            try {
+                const raw = localStorage.getItem('arutosio_handoff_grimoire');
+                if (raw) {
+                    localStorage.removeItem('arutosio_handoff_grimoire');
+                    await handleHandoff(JSON.parse(raw));
+                }
+            } catch (e) { console.warn('[grimoire] handoff failed', e); }
+        }
+
+        document.addEventListener('arutosio:handoff', (e) => {
+            handleHandoff(e.detail).catch((err) => console.warn('[grimoire] handoff failed', err));
+        });
     }
 };

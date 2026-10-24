@@ -1,6 +1,6 @@
 # Permissions
 
-aruta.sh uses an **iOS-style runtime permission model**: no capability is granted just because a package declares it. Every protected `ctx.*` method prompts the user the first time it's called. The user can Allow once, Allow always, or Deny, and can revoke at any time from **Settings → 🔐 Permissions**.
+arutosio.com uses an **iOS-style runtime permission model**: no capability is granted just because a package declares it. Every protected `ctx.*` method prompts the user the first time it's called. The user can Allow once, Allow always, or Deny, and can revoke at any time from **Settings → 🔐 Permissions**.
 
 ---
 
@@ -31,7 +31,7 @@ Anything not in this table has no permission gate (e.g. `ctx.asset`, `ctx.i18n`,
     - **Always allow** → persisted as `granted`, never prompts again
 3. **Revocable** — Settings → 🔐 Permissions shows every installed package and every permission it has ever used or declared, with a toggle. Revoking flips the state back to *ask* (next call will prompt). The Permissions page is permissions-only: install / update / uninstall moved to the **📦 Package Store** (and the `pkg` CLI).
 
-Grants are stored per-app in `localStorage.aruta_perms_<appId>` as JSON: `{ "storage": "granted", "fetch": "denied" }`.
+Grants are stored per-app in `localStorage.arutosio_perms_<appId>` as JSON: `{ "storage": "granted", "fetch": "denied" }`.
 
 ---
 
@@ -83,7 +83,7 @@ This is consistent with the Web Clipboard API and `fetch` — errors rather than
 Apps run in an iframe with `sandbox="allow-scripts allow-modals"` (plus `allow-same-origin` if the package opts in via `allowOrigin: true`). `allow-modals` is added so `prompt`/`alert`/`confirm` work; browsers block them by default inside sandboxed iframes. That means:
 
 - They cannot read the host's `localStorage`, `cookies`, or `document`.
-- They cannot make same-origin `fetch` calls to aruta.sh APIs.
+- They cannot make same-origin `fetch` calls to arutosio.com APIs.
 - They can only talk to the host via `postMessage`, which goes through the `ctx` bridge and its permission gate.
 
 Commands run in the main thread (no UI → the iframe overhead isn't justified). They *can* touch global JS, so only install commands you trust. Their `ctx` capabilities still go through the same permission gate.

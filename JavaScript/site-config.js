@@ -1,8 +1,7 @@
 /* ╔══════════════════════════════════════════════════════════╗
  * ║  SITE CONFIG — Per-site branding and default backgrounds. ║
- * ║  This is arutosio.com's own copy; aruta.sh's              ║
- * ║  tools/sync-arutosio.sh never touches it. Loaded before   ║
- * ║  appearance.js.                                            ║
+ * ║  This is arutosio.com's own copy; the upstream sync never  ║
+ * ║  touches it. Loaded before appearance.js.                  ║
  * ╚══════════════════════════════════════════════════════════╝ */
 window.SITE_CONFIG = {
     name: 'Arutosio',

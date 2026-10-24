@@ -2,11 +2,11 @@
  * ║  WIDGETS — Floating draggable mini-panels                 ║
  * ║  Third role alongside 'app' and 'command'. Hosted as      ║
  * ║  sandboxed iframes inside .widget-frame containers that   ║
- * ║  float above OS windows. Positions persist via `aruta_    ║
+ * ║  float above OS windows. Positions persist via `arutosio_    ║
  * ║  widgets` in localStorage (auto-synced by profile).       ║
  * ╚══════════════════════════════════════════════════════════╝ */
 
-const WIDGETS_LS_KEY = 'aruta_widgets';
+const WIDGETS_LS_KEY = 'arutosio_widgets';
 const WIDGET_TASKBAR_MARGIN = 68;  // keep below taskbar (taskbar is ~44px + 12+12 margin)
 const WIDGET_MIN_VISIBLE = 40;      // clamp so at least this much stays on screen
 const WIDGET_MOBILE_MAX = 640;       // hide widgets below this viewport width

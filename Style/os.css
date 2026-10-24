@@ -292,6 +292,28 @@ body.taskbar-autohide #taskbar-reveal-zone { display: block; }
     font-size: var(--text-xs); color: var(--text-faint);
     letter-spacing: 0.08em;
 }
+.start-search-wrap {
+    padding: 10px 16px 4px;
+}
+.start-search {
+    width: 100%; box-sizing: border-box;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--card-border);
+    background: var(--ink-30);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+    outline: none;
+}
+.start-search:focus { border-color: var(--gold-40, rgba(255, 200, 87, 0.45)); }
+.start-empty {
+    padding: 12px 20px;
+    text-align: center;
+    font-size: var(--text-sm);
+    color: var(--text-faint);
+}
+#start-items [hidden], .start-cat-sep[hidden] { display: none !important; }
 .start-items, .start-actions {
     display: flex; flex-direction: column;
     padding: 6px 0;

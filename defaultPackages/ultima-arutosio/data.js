@@ -1,4 +1,4 @@
-/* Ultima Aruta — data.js: all game constants */
+/* Ultima Arutosio — data.js: all game constants */
 // Top-down square tiles (Pokémon-style). 24px gives ~23×16 visible tiles in
 // the 560×380 viewport — similar density to a GBA-era RPG. TILE_W and TILE_H
 // remain identical and equal to TILE_SIZE so legacy width/height call sites
@@ -335,7 +335,7 @@ const SPRITE_SIZES = {
     '🔥': 22, '🧱': 22,
 };
 /* ╔══════════════════════════════════════════════════════════╗
- * ║  ULTIMA ARUTA — engine.js                                  ║
+ * ║  ULTIMA ARUTOSIO — engine.js                                  ║
  * ║  Noise, World class, dungeon gen, rendering, iso math,     ║
  * ║  day/night, fog-of-war, SFX, floaters, stars.              ║
  * ║  Call setup(dataModule) before using — sets constant refs.  ║

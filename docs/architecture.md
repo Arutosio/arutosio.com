@@ -24,19 +24,19 @@ flowchart TD
     D --> A
     E --> E1{follow-OS theme?}:::gate
     E1 -- yes --> E2[matchMedia<br/>prefers-color-scheme]:::boot
-    E1 -- no --> E3[saved aruta_theme]:::boot
+    E1 -- no --> E3[saved arutosio_theme]:::boot
     E2 --> F([app.js · showApp]):::entry
     E3 --> F
     F --> F1[taskbar · start menu · windows<br/>initWindowManager + initResize]:::boot
-    F --> F2[await __arutaProfileReady]:::boot
-    F2 --> G[(registry.bootstrap<br/>aruta_packages IDB)]:::reg
+    F --> F2[await __arutosioProfileReady]:::boot
+    F2 --> G[(registry.bootstrap<br/>arutosio_packages IDB)]:::reg
     G --> H[(defaults.bootstrap<br/>install bundled defaultPackages/*)]:::reg
     H --> I[installer.initDragDrop]:::reg
     I --> U((User opens<br/>an app window)):::user
     U --> V[sandbox.mountApp<br/>iframe srcdoc = IFRAME_BOOT]:::app
     V --> W["iframe ready → host posts init<br/>(manifest, files, theme)"]:::app
     W --> X[iframe imports entry<br/>mount root, ctx]:::app
-    X <-->|postMessage __aruta_sdk| Y[host _handleCall<br/>permission gate]:::bridge
+    X <-->|postMessage __arutosio_sdk| Y[host _handleCall<br/>permission gate]:::bridge
     X -. theme change .-> BT[sandbox.broadcastTheme]:::bridge
     BT --> X
     Y -.write.-> P[profile.markDirty]:::profile
@@ -93,10 +93,10 @@ sequenceDiagram
     participant App as App code
     participant Boot as IFRAME_BOOT proxy
     end
-    box rgba(58,42,15,0.55) 🏛 Host · aruta.sh
+    box rgba(58,42,15,0.55) 🏛 Host · arutosio.com
     participant Host as sandbox._handleCall
     participant Perm as permissions.request
-    participant IDB as aruta_app_ID · IndexedDB
+    participant IDB as arutosio_app_ID · IndexedDB
     end
 
     App->>+Boot: ctx.storage.set('k', v)
@@ -130,31 +130,33 @@ sequenceDiagram
 |---|---|
 | [`JavaScript/util.js`](../JavaScript/util.js) | Shared helpers: `window.t()` i18n accessor, `window.escapeHTML`, `window.storage.{get,set,del}` (JSON-aware, SecurityError-safe), `window.mq` with synced `is-mobile`/`is-touch`/`is-reduced-motion` classes on `<html>`, toast/confirm fallbacks |
 | [`JavaScript/db.js`](../JavaScript/db.js) | Shared IndexedDB helpers: cached `openDB(name, version, upgrade)`, `closeDB`, `txRun`, `rangeCollect`, `rangeDelete`. Used by both `registry.js` and `sandbox.js` |
-| [`JavaScript/storage.js`](../JavaScript/storage.js) | Tiny facade centralising the storage key/DB strings: `Storage.constants` (`PACKAGES_DB`, `APP_DB_PREFIX`, `LS_PREFIX`), `Storage.ls` passthrough to `window.storage`, `Storage.registry.openDB()`, `Storage.appKV.{get,set,remove,dumpAll}`, `Storage.deleteAppKV`. Additive — does not replace `util.js` `window.storage` |
+| [`JavaScript/storage.js`](../JavaScript/storage.js) | Tiny facade centralising the storage key/DB strings: `Storage.constants` (`PACKAGES_DB`, `APP_DB_PREFIX`, `APPEARANCE_DB`, `PROFILE_DB`, `LS_PREFIX`), `Storage.ls` passthrough to `window.storage`, `Storage.registry.openDB()`, `Storage.appKV.{get,set,remove,dumpAll}`, `Storage.deleteAppKV`. Additive — does not replace `util.js` `window.storage` |
+| [`JavaScript/migration.js`](../JavaScript/migration.js) | One-time bridge from the pre-rebrand `localStorage`/`IndexedDB` namespace to `arutosio_*`. Moves keys, packages, per-app KV stores, appearance binaries, the linked profile handle and old profile snapshots; remaps the renamed game package. Runs before `profile.js`/`registry.js` and is safe to leave in place (fast no-op after the old DBs are gone) |
 | [`JavaScript/installer.js`](../JavaScript/installer.js) | Reads `.zip` (JSZip lazy-loaded from CDN), validates the manifest, shows install confirmation, sets correct MIME types on extracted Blobs, wires drag-drop overlay |
-| [`JavaScript/registry.js`](../JavaScript/registry.js) | IndexedDB `aruta_packages` (manifests + files) via `db.js`, `localStorage.aruta_installed_apps` cache for fast boot, registers custom apps in `WIN_META` + dynamically creates their window DOM + Start menu items |
+| [`JavaScript/registry.js`](../JavaScript/registry.js) | IndexedDB `arutosio_packages` (manifests + files) via `db.js`, `localStorage.arutosio_installed_apps` cache for fast boot, registers custom apps in `WIN_META` + dynamically creates their window DOM + Start menu items |
 | [`JavaScript/sandbox.js`](../JavaScript/sandbox.js) | Apps → `<iframe sandbox="allow-scripts allow-modals">` with `srcdoc` bootstrap, commands → blob-URL dynamic `import()`. Implements the `ctx` bridge (postMessage for apps, direct for commands) and the permission-gated method dispatcher. Per-app storage DB handles cached via `db.js` |
 | [`JavaScript/permissions.js`](../JavaScript/permissions.js) | Per-app grant store (backed by `window.storage`), runtime prompt modal (serialized so only one shows at a time), Settings → Permissions renderer |
 | [`JavaScript/os-windows.js`](../JavaScript/os-windows.js) | Window manager split out of `os.js`: `WIN_META`, taskbar tabs (`addWindowTab`/`removeWindowTab`/`updateActiveTab`), `openWindow`/`closeWindow`/`minimizeWindow`/`focusWindow`/`toggleMaximize`, `initWindowManager`, `initDrag`, `initResize`. Must load before the other `os-*.js` files — `registry.js` and the rest reach into these globals |
 | [`JavaScript/os.js`](../JavaScript/os.js) | OS shell: start menu, mobile swipe section switching, clock, tab title, bio typewriter. Coordinator that binds the `os-*.js` siblings together |
 | [`JavaScript/os-settings.js`](../JavaScript/os-settings.js) | Settings panel (`initSettings`) — theme/font/accent/clock/language/performance toggles, reset/wipe — and portable-profile UI (`initProfileSettings` — pick folder, reconnect, export/import zip) |
 | [`JavaScript/os-sysinfo.js`](../JavaScript/os-sysinfo.js) | System-info popover (`initSysInfo`): IP/location/battery/CPU/browser/engine/FPS/uptime rows auto-refreshed every second while open |
-| [`JavaScript/terminal.js`](../JavaScript/terminal.js) | Shell UI, parser (quoted strings), history, built-in commands. Unknown names fall through to `registry.listCommands()` → `sandbox.runCommand()` |
+| [`JavaScript/terminal.js`](../JavaScript/terminal.js) | Virtual shell UI, parser, history and built-in commands, plus the local-mode xterm.js panel connected to the daemon PTY. Unknown virtual commands fall through to `registry.listCommands()` → `sandbox.runCommand()` |
+| [`JavaScript/system.js`](../JavaScript/system.js) | Local-mode **System** window: host/CPU/memory/disk overview, process list with kill, user services with start/stop/restart, terminal sessions and trash. Host-side, no iframe; calls `/api/system/*` through `local.js` |
 | [`JavaScript/defaults.js`](../JavaScript/defaults.js) | Auto-installs bundled `defaultPackages/*` on first boot. Packages fetched and installed in parallel (one burst, not a serial chain). Respects a blacklist so uninstalls persist. Re-runs when a default's `version` changes |
-| [`JavaScript/profile.js`](../JavaScript/profile.js) | Portable profile snapshot/restore. `DiskBackend` mirrors state to a folder via FS Access API (Chromium); `exportZip`/`importZip` work in any browser. Boot-gates registry/defaults via `window.__arutaProfileReady`. See [profile.md](./profile.md) |
+| [`JavaScript/profile.js`](../JavaScript/profile.js) | Portable profile snapshot/restore. `DiskBackend` mirrors state to a folder via FS Access API (Chromium); `exportZip`/`importZip` work in any browser. Boot-gates registry/defaults via `window.__arutosioProfileReady`. See [profile.md](./profile.md) |
 | [`JavaScript/contextmenu.js`](../JavaScript/contextmenu.js) | Shared right-click / popup menu. `window.contextMenu.show({x,y,items})` renders a single floating menu at `document.body`, with viewport clamping, keyboard nav (↑↓ Enter Esc), ARIA roles, and auto-dismiss on outside-click / scroll / blur. Used by host code and by apps via `ctx.contextMenu.show` (host translates iframe-local coords to the viewport). |
-| [`JavaScript/appearance.js`](../JavaScript/appearance.js) | User-customizable look: background (image or looping video), hero portrait, and display name. Binaries live in IDB `aruta_appearance` (+ metadata in `localStorage.aruta_appearance_meta`); `profile.js` slurps both into the `appearance/` namespace of every snapshot so folder sync and .zip export carry them automatically. Applied to the DOM after the profile gate in `app.js` |
+| [`JavaScript/appearance.js`](../JavaScript/appearance.js) | User-customizable look: background (image or looping video), hero portrait, and display name. Binaries live in IDB `arutosio_appearance` (+ metadata in `localStorage.arutosio_appearance_meta`); `profile.js` slurps both into the `appearance/` namespace of every snapshot so folder sync and .zip export carry them automatically. Applied to the DOM after the profile gate in `app.js` |
 | [`JavaScript/zip.js`](../JavaScript/zip.js) | STORE-only zip codec (`encode`/`decode`). Used by `profile.js` and Grimoire's workspace export. No compression — keeps the file purely a transport container |
 
 Script load order in `index.html`:
 ```
-config.js  core.js  util.js  zip.js  db.js  storage.js  profile.js  appearance.js  contextmenu.js
+config.js  core.js  util.js  zip.js  db.js  storage.js  migration.js  local.js  repos.js  profile.js  appearance.js  contextmenu.js
 effects.js  desktop.js  content.js  extras.js
 os-windows.js  os.js  os-settings.js  os-sysinfo.js
-permissions.js  registry.js  sandbox.js  installer.js  defaults.js  terminal.js  app.js
+permissions.js  registry.js  sandbox.js  installer.js  defaults.js  terminal.js  system.js  session.js  app.js
 ```
 
-`profile.js` runs an IIFE on load that sets `window.__arutaProfileReady` — a Promise that may resolve to `true` if a linked folder triggered a state restore + reload (in which case `app.js` aborts further bootstrap). See [profile.md](./profile.md).
+`migration.js` runs first and exposes `window.__arutosioMigrationReady`; `profile.js` awaits it before opening the linked-profile handle. `profile.js` then runs an IIFE that sets `window.__arutosioProfileReady` — a Promise that may resolve to `true` if a linked folder triggered a state restore + reload (in which case `app.js` aborts further bootstrap). See [profile.md](./profile.md).
 
 `app.js:showApp()` calls `registry.bootstrap()` (hydrate from IndexedDB) and `installer.initDragDrop()`.
 
@@ -162,9 +164,9 @@ permissions.js  registry.js  sandbox.js  installer.js  defaults.js  terminal.js 
 
 ## Repos system module
 
-`JavaScript/repos.js` owns the list of package-store sources. It loads on boot from `localStorage.aruta_repos` (single JSON array, seeded with the disabled Official repo on first run), keeps an in-memory cache, and exposes a tiny CRUD API on `window.repos` (`list`, `add`, `remove`, `setEnabled`, `update`, `onChange`/`offChange`). All mutations write through to localStorage synchronously and notify subscribers.
+`JavaScript/repos.js` owns the list of package-store sources. It loads on boot from `localStorage.arutosio_repos` (single JSON array, seeded with the disabled Official repo on first run), keeps an in-memory cache, and exposes a tiny CRUD API on `window.repos` (`list`, `add`, `remove`, `setEnabled`, `update`, `onChange`/`offChange`). All mutations write through to localStorage synchronously and notify subscribers.
 
-Any package with the `install` permission can read or mutate the same list via `ctx.repos.*` — bridged through `sandbox.js:_handleCall` for iframes and through `_buildHostCtx` for commands. Package Store and the `pkg` CLI both consume the module instead of caching their own copy. Because the data lives in `localStorage` under the `aruta_` prefix, it rides the existing `profile.js` mirror automatically — no additional sync wiring needed.
+Any package with the `install` permission can read or mutate the same list via `ctx.repos.*` — bridged through `sandbox.js:_handleCall` for iframes and through `_buildHostCtx` for commands. Package Store and the `pkg` CLI both consume the module instead of caching their own copy. Because the data lives in `localStorage` under the `arutosio_` prefix, it rides the existing `profile.js` mirror automatically — no additional sync wiring needed.
 
 ---
 
@@ -174,22 +176,22 @@ All the DB and key-prefix string literals live in `storage.js:Storage.constants`
 
 | Where | Key / name | Purpose |
 |---|---|---|
-| IndexedDB | `aruta_packages` / `manifests` store | Full manifest + `_installedAt` (keyPath `id`) |
-| IndexedDB | `aruta_packages` / `files` store | Blobs keyed by `[appId, path]` |
-| IndexedDB | `aruta_app_<id>` / `kv` store | Per-app private storage exposed via `ctx.storage` |
-| localStorage | `aruta_installed_apps` | Fast index cache (id/name/icon/type/permissions) |
-| localStorage | `aruta_perms_<id>` | `{ permName: 'granted'\|'denied' }` |
-| localStorage | `aruta_term_history` | Terminal history (max 100) |
-| localStorage | `aruta_theme_follow_os` | `'false'` only when user has manually overridden follow-OS theme |
-| localStorage | `aruta_repos` | System repo list managed by `repos.js` (Package Store + `pkg` CLI consume it) |
-| IndexedDB | `aruta_profile` / `handles` store | Persisted FS Access API directory handle for the linked profile folder |
-| IndexedDB | `aruta_appearance` / `assets` store | Custom background + hero portrait binaries (keyed by `'background'` / `'portrait'`); managed by `appearance.js` |
-| localStorage | `aruta_appearance_meta` | JSON blob with `{ name, background:{kind,mime,filename}, portrait:{mime,filename} }` — lightweight metadata to pair with the IDB binaries |
+| IndexedDB | `arutosio_packages` / `manifests` store | Full manifest + `_installedAt` (keyPath `id`) |
+| IndexedDB | `arutosio_packages` / `files` store | Blobs keyed by `[appId, path]` |
+| IndexedDB | `arutosio_app_<id>` / `kv` store | Per-app private storage exposed via `ctx.storage` |
+| localStorage | `arutosio_installed_apps` | Fast index cache (id/name/icon/type/permissions) |
+| localStorage | `arutosio_perms_<id>` | `{ permName: 'granted'\|'denied' }` |
+| localStorage | `arutosio_term_history` | Terminal history (max 100) |
+| localStorage | `arutosio_theme_follow_os` | `'false'` only when user has manually overridden follow-OS theme |
+| localStorage | `arutosio_repos` | System repo list managed by `repos.js` (Package Store + `pkg` CLI consume it) |
+| IndexedDB | `arutosio_profile` / `handles` store | Persisted FS Access API directory handle for the linked profile folder |
+| IndexedDB | `arutosio_appearance` / `assets` store | Custom background + hero portrait binaries (keyed by `'background'` / `'portrait'`); managed by `appearance.js` |
+| localStorage | `arutosio_appearance_meta` | JSON blob with `{ name, background:{kind,mime,filename}, portrait:{mime,filename} }` — lightweight metadata to pair with the IDB binaries |
 
 ### Wipe flows
 
-- **Wipe All** (`os.js` wipe button) — clears both storages and deletes `aruta_packages` + every `aruta_app_<id>`
-- **Wipe Settings Only** — iterates `localStorage`, preserves `aruta_installed_apps` and any `aruta_perms_*`, clears everything else. IndexedDB untouched.
+- **Wipe All** (`os.js` wipe button) — clears both storages and deletes `arutosio_packages` + every `arutosio_app_<id>`
+- **Wipe Settings Only** — iterates `localStorage`, preserves `arutosio_installed_apps` and any `arutosio_perms_*`, clears everything else. IndexedDB untouched.
 
 ---
 
@@ -270,7 +272,7 @@ Trade-off: commands can touch main-thread globals if they want to. The permissio
 
 - Declared permissions (`manifest.permissions`) → **informational only**, shown in install modal
 - Real grants → runtime, per-method (mapping in `sandbox.js:PERM_REQUIRED`)
-- Stored in `localStorage.aruta_perms_<id>`
+- Stored in `localStorage.arutosio_perms_<id>`
 
 `permissions.js:permRequest(appId, perm)`:
 1. Read stored state
@@ -338,19 +340,19 @@ Host-provided menus today: desktop background (Appearance / Open Files / Refresh
 
 ## Theme propagation
 
-`core.js:toggleTheme` is the single mutation point. After flipping `data-theme` on `<html>` and persisting `aruta_theme`, it calls `window.sandbox.broadcastTheme(currentTheme)`, which postMessages every mounted iframe `{type:'theme', value}`. The in-iframe bootstrap (`IFRAME_BOOT`) listens for that envelope and writes it onto its own `<html>` `data-theme`, so apps that key off `[data-theme="light"]` selectors restyle live with no permission prompt.
+`core.js:toggleTheme` is the single mutation point. After flipping `data-theme` on `<html>` and persisting `arutosio_theme`, it calls `window.sandbox.broadcastTheme(currentTheme)`, which postMessages every mounted iframe `{type:'theme', value}`. The in-iframe bootstrap (`IFRAME_BOOT`) listens for that envelope and writes it onto its own `<html>` `data-theme`, so apps that key off `[data-theme="light"]` selectors restyle live with no permission prompt.
 
 The initial theme is also embedded in the `init` payload (`{manifest, files, theme}`) so the *first* iframe paint already matches the host — no flash of the iframe's CSS default.
 
 ### Follow-OS theme
 
-Default for new installs. `app.js` reads `localStorage.aruta_theme_follow_os` (treats absent as `true`), checks `prefers-color-scheme`, and registers a `matchMedia` `change` listener. While follow-OS is on, every system theme flip calls `toggleTheme({ keepFollowOS: true })` so the OS-driven change doesn't disable the very mode that triggered it. A manual click on the theme button calls `toggleTheme()` with no opts → flips follow-OS off so the user's explicit choice sticks.
+Default for new installs. `app.js` reads `localStorage.arutosio_theme_follow_os` (treats absent as `true`), checks `prefers-color-scheme`, and registers a `matchMedia` `change` listener. While follow-OS is on, every system theme flip calls `toggleTheme({ keepFollowOS: true })` so the OS-driven change doesn't disable the very mode that triggered it. A manual click on the theme button calls `toggleTheme()` with no opts → flips follow-OS off so the user's explicit choice sticks.
 
 The Settings → Theme panel renders a "Follow OS" toggle that lets the user re-enable follow-OS after manual override.
 
 ## Profile (portable state) hooks
 
-`profile.js` reads/writes the union of `aruta_*` localStorage keys, the `aruta_packages` IDB, and every `aruta_app_<id>` IDB. It can mirror that snapshot live to a folder picked via FS Access API or to/from a `.zip` (encoded by [`JavaScript/zip.js`](../JavaScript/zip.js), STORE-only).
+`profile.js` reads/writes the union of `arutosio_*` localStorage keys, the `arutosio_packages` IDB, and every `arutosio_app_<id>` IDB. It can mirror that snapshot live to a folder picked via FS Access API or to/from a `.zip` (encoded by [`JavaScript/zip.js`](../JavaScript/zip.js), STORE-only).
 
 Hook points (each call enqueues a 400 ms-debounced full-snapshot write):
 
@@ -358,7 +360,7 @@ Hook points (each call enqueues a 400 ms-debounced full-snapshot write):
 - `registry.js` install/uninstall paths → `profile.markDirty('manifests')` + `'file'`
 - `sandbox.js:_appStorageSet/Remove` → `profile.markDirty('app', appId)`
 
-Boot gate: `app.js:showApp()` awaits `window.__arutaProfileReady`. If a linked folder restored state successfully, the IIFE has already triggered `location.reload()` and the gate resolves `true` — bootstrap aborts to avoid double work. See [profile.md](./profile.md) for the full lifecycle.
+Boot gate: `app.js:showApp()` awaits `window.__arutosioProfileReady`. If a linked folder restored state successfully, the IIFE has already triggered `location.reload()` and the gate resolves `true` — bootstrap aborts to avoid double work. See [profile.md](./profile.md) for the full lifecycle.
 
 ## Sandbox: `manifest.allowOrigin`
 
@@ -374,7 +376,7 @@ The trade-off: an `allow-same-origin` iframe shares the host's origin, can reach
 - **Chromium-only.** Navigation relies on the FS Access API. If no folder is linked (or permission was never granted / is dormant), all three commands print `no profile folder linked. Open Settings → Profile to pick one.`
 - **Read-only handle accessor.** `window.profile.getLinkedHandle()` calls `queryPermission({ mode: 'read' })` without ever prompting — safe to invoke without a user gesture. Returns the `FileSystemDirectoryHandle` or `null`.
 - **Path resolution.** A local `resolvePath(target, cwd)` normalizes `.`/`..`, treats leading `/` or `~` as absolute, and throws `cannot go above home` if `..` would escape the root. There is no way to reach files outside the linked folder from the terminal.
-- **Prompt.** The visible prompt is `⚜ aruta:~$ ` at home and `⚜ aruta:~/sub/dir$ ` inside a subdirectory; it updates after every successful `cd`.
+- **Prompt.** The visible prompt is `⚜ arutosio:~$ ` at home and `⚜ arutosio:~/sub/dir$ ` inside a subdirectory; it updates after every successful `cd`.
 
 ### Live input decoration (zsh-like)
 
@@ -390,7 +392,7 @@ Non-goals for v1: `cat`/file-content commands, Firefox virtual-workspace fallbac
 
 ### History features
 
-- **Persisted history.** `_history` mirrors to `localStorage.aruta_term_history` (JSON array, capped at 200 entries). Loaded in `initTerminal`, re-saved after every successful `termRun`.
+- **Persisted history.** `_history` mirrors to `localStorage.arutosio_term_history` (JSON array, capped at 200 entries). Loaded in `initTerminal`, re-saved after every successful `termRun`.
 - **Bang expansion.** Before parsing, `_expandHistory(line)` rewrites:
     - `!!` → most recent entry
     - `!N` → 1-based index into history
@@ -423,3 +425,38 @@ User clicks Install
 ```
 
 The trust boundary (install-confirm modal) is **never bypassed**: a third-party app with the `install` permission can submit zips but cannot approve them. `listInstalled` returns only `{id, name, version, type}` — file blobs stay host-side. See `JavaScript/sandbox.js` (`installZip`, `listInstalled` cases) and `defaultPackages/packagestore/index.js`.
+
+---
+
+## Local mode (`arutosiod`)
+
+The same static site has two runtime modes. `JavaScript/local.js` probes
+`GET /api/health`; when it returns `name: "arutosiod"` the page is in **local
+mode**, otherwise it stays in the original **hosted** mode.
+
+Local mode changes these boundaries:
+
+- **Login** — a one-time token becomes an HttpOnly `SameSite=Strict` cookie;
+  mutations also send `X-Arutosio-CSRF`. The token lives in
+  `~/.arutosio/token` (0600).
+- **Profile** — `profile.js` skips the portable-folder backend. `local.js`
+  syncs shared `arutosio_*` settings to `/api/profile/localStorage` and app KV
+  to `/api/profile/apps/<id>`.
+- **App isolation** — `sandbox.js` forces every package iframe to an opaque
+  origin, even if its manifest says `allowOrigin: true`. Apps reach the
+  machine only through `ctx.fs` and the host permission gate.
+- **Files** — `ctx.fs` is the read/write API used by Files and Grimoire;
+  `fs.read`, `fs.write` and `fs.delete` are never auto-granted.
+- **Windows** — `session.js` stores open windows, geometry and focus per
+  device via `/api/profile/session/<device>`.
+- **Terminal** — `terminal.js` loads xterm.js from the daemon and connects to
+  `/ws/term` with a per-device session id. The daemon keeps the PTY after the
+  browser disconnects, so reloading attaches to the same shell; the virtual
+  shell stays available as a second mode.
+- **System** — `system.js` drives the System window: overview, processes,
+  user services, terminal sessions and trash, backed by `/api/system/*`.
+- **Server** — the Go daemon lives in `server/` and is excluded from the
+  GitHub Pages artifact by `.github/workflows/deploy.yml`.
+
+Hosted mode keeps the browser-local storage, folder profile, virtual shell and
+same-origin package behaviour described in the rest of this document.

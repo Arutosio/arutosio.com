@@ -7,7 +7,7 @@
     "roles": ["app", "command"],
     "entries": { "app": "ui.js", "command": "cli.js" },
     "commandAlias": "fortune",
-    "author": "Aruta",
+    "author": "Arutosio",
     "category": "tools",
     "permissions": ["fetch", "terminal"]
 }

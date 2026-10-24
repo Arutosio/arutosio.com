@@ -2,10 +2,12 @@
  * ║  TERMINAL — Built-in shell with command parser + history ║
  * ╚══════════════════════════════════════════════════════════╝ */
 
-const HISTORY_KEY = 'aruta_term_history';
+const HISTORY_KEY = 'arutosio_term_history';
 const HISTORY_MAX = 200;
 
 let _output, _input, _prompt, _overlay;
+let _machineEl, _xterm, _fit, _ws, _ro, _modeSelect, _statusEl, _reconnectBtn, _machineSend;
+let _mode = 'virtual';
 let _history = [];
 let _historyIdx = -1;
 let _initialized = false;
@@ -220,7 +222,7 @@ const BUILTINS = {
             if (!id) { termPrint('usage: permissions <id>', 'term-error'); return; }
             const m = window.registry?.getManifest(id);
             if (!m) { termPrint('not installed: ' + id, 'term-error'); return; }
-            const perms = JSON.parse(localStorage.getItem('aruta_perms_' + id) || '{}');
+            const perms = JSON.parse(localStorage.getItem('arutosio_perms_' + id) || '{}');
             termPrintHTML(`<span class="term-info">${_escape(m.name)}</span> <span class="term-muted">(</span><span class="term-value">${_escape(id)}</span><span class="term-muted">)</span>`);
             const decl = m.permissions || [];
             const all = Array.from(new Set([...decl, ...Object.keys(perms)]));
@@ -338,6 +340,11 @@ function _expandHistory(line) {
 }
 
 async function termRun(line) {
+    // In machine mode the PTY owns parsing, quoting and job control.
+    if (_mode === 'machine' && _machineSend) {
+        _machineSend(String(line));
+        return;
+    }
     // A pasted blob may contain newlines — run each non-empty line in order
     // so "cmd1\ncmd2" pasted into the input dispatches both commands.
     if (typeof line === 'string' && /\r?\n/.test(line)) {
@@ -618,6 +625,145 @@ function _renderOverlay() {
     }
 }
 
+function _loadXtermCSS(href) {
+    return new Promise((resolve, reject) => {
+        if (document.querySelector('link[data-arutosio-xterm]')) { resolve(); return; }
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        link.dataset.arutosioXterm = '1';
+        link.onload = () => resolve();
+        link.onerror = () => reject(new Error('xterm css failed'));
+        document.head.appendChild(link);
+    });
+}
+
+function _loadXtermScript(src) {
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('xterm script failed'));
+        document.head.appendChild(script);
+    });
+}
+
+function _termSessionId() {
+    let id = null;
+    try { id = localStorage.getItem('arutosio_term_session'); } catch (_) {}
+    if (!id) {
+        const device = localStorage.getItem('arutosio_device_id') || Math.random().toString(36).slice(2);
+        id = 'term-' + String(device).replace(/[^A-Za-z0-9._-]/g, '').slice(0, 48);
+        try { localStorage.setItem('arutosio_term_session', id); } catch (_) {}
+    }
+    return id;
+}
+
+function _connectMachine() {
+    if (!window.arutosioLocal?.isLocal) {
+        if (_statusEl) _statusEl.textContent = 'local mode required';
+        return;
+    }
+    if (!_xterm) return;
+    try { _ws?.close(); } catch {}
+    _ws = window.arutosioLocal.openTerm(_xterm.cols, _xterm.rows, _termSessionId());
+    _ws.binaryType = 'arraybuffer';
+    if (_statusEl) _statusEl.textContent = 'connecting…';
+    if (_reconnectBtn) _reconnectBtn.hidden = true;
+    _ws.onopen = () => {
+        if (_statusEl) _statusEl.textContent = 'connected';
+        try { _xterm.focus(); } catch {}
+    };
+    _ws.onmessage = (e) => {
+        if (typeof e.data === 'string') {
+            try {
+                const msg = JSON.parse(e.data);
+                if (msg.type === 'exit') {
+                    _xterm.write('\r\n\x1b[33m[exit ' + msg.code + ']\x1b[0m\r\n');
+                    return;
+                }
+            } catch {}
+            _xterm.write(e.data);
+            return;
+        }
+        _xterm.write(new Uint8Array(e.data));
+    };
+    _ws.onclose = () => {
+        if (_statusEl) _statusEl.textContent = 'disconnected';
+        if (_reconnectBtn) _reconnectBtn.hidden = false;
+        try { _xterm.write('\r\n\x1b[31m[disconnected]\x1b[0m\r\n'); } catch {}
+    };
+    _ws.onerror = () => { if (_statusEl) _statusEl.textContent = 'error'; };
+}
+
+async function _ensureMachine() {
+    if (_xterm) {
+        try { _fit.fit(); _xterm.focus(); } catch {}
+        if (!_ws || _ws.readyState > 1) _connectMachine();
+        return;
+    }
+    try {
+        if (!window.Terminal) {
+            await _loadXtermCSS('/term/xterm.css');
+            await _loadXtermScript('/term/xterm.js');
+        }
+        if (!window.FitAddon) await _loadXtermScript('/term/addon-fit.js');
+        _xterm = new Terminal({
+            cursorBlink: true,
+            fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
+            fontSize: 14,
+            scrollback: 5000,
+            theme: {
+                background: '#0c0a1a',
+                foreground: '#e8e6f0',
+                cursor: '#ffc857',
+                selectionBackground: '#3a2a0f'
+            }
+        });
+        _fit = new FitAddon.FitAddon();
+        _xterm.loadAddon(_fit);
+        _xterm.open(_machineEl);
+        _fit.fit();
+        _xterm.onData((data) => {
+            if (_ws && _ws.readyState === 1) _ws.send(new TextEncoder().encode(data));
+        });
+        _xterm.onResize(({ cols, rows }) => {
+            if (_ws && _ws.readyState === 1) _ws.send(JSON.stringify({ type: 'resize', cols, rows }));
+        });
+        _machineSend = (line) => {
+            if (_ws && _ws.readyState === 1) {
+                const text = line.endsWith('\n') ? line : line + '\n';
+                _ws.send(new TextEncoder().encode(text));
+            }
+        };
+        _ro = new ResizeObserver(() => { try { _fit.fit(); } catch {} });
+        _ro.observe(_machineEl);
+        requestAnimationFrame(() => { try { _fit.fit(); } catch {} });
+        _connectMachine();
+    } catch (e) {
+        console.warn('[terminal] xterm failed', e);
+        if (_statusEl) _statusEl.textContent = 'xterm unavailable';
+        _setTermMode('virtual');
+    }
+}
+
+function _setTermMode(mode) {
+    if (mode === 'machine' && !window.arutosioLocal?.isLocal) mode = 'virtual';
+    _mode = mode;
+    if (_modeSelect) _modeSelect.value = mode;
+    const win = document.getElementById('win-terminal');
+    const virtualEl = win?.querySelector('#term-virtual');
+    const machineEl = win?.querySelector('#term-machine');
+    if (virtualEl) virtualEl.hidden = mode !== 'virtual';
+    if (machineEl) machineEl.hidden = mode !== 'machine';
+    if (mode === 'machine') {
+        _ensureMachine();
+    } else {
+        setTimeout(() => _input?.focus(), 0);
+    }
+    try { window.storage?.set('arutosio_term_mode', mode); } catch {}
+}
+
 function initTerminal() {
     if (_initialized) return;
     const win = document.getElementById('win-terminal');
@@ -625,22 +771,41 @@ function initTerminal() {
     const content = win.querySelector('.win-content');
     if (!content) return;
 
+    const local = !!window.arutosioLocal?.isLocal;
     content.innerHTML = `
-        <div class="term-screen">
-            <div class="term-output" id="term-output"></div>
-            <div class="term-inputline">
-                <span class="term-prompt" id="term-prompt">⚜ arutosio:~$ </span>
-                <div class="term-input-wrap">
-                    <div class="term-overlay" id="term-overlay" aria-hidden="true"></div>
-                    <input class="term-input" id="term-input" type="text" autocomplete="off" spellcheck="false" autocapitalize="off">
+        <div class="term-shell">
+            <div class="term-modebar" ${local ? '' : 'hidden'}>
+                <label class="term-mode-label" for="term-mode">Mode</label>
+                <select class="term-mode-select" id="term-mode">
+                    <option value="virtual">Virtual</option>
+                    <option value="machine">This machine</option>
+                </select>
+                <span class="term-mode-status" id="term-status"></span>
+                <button class="term-mode-btn" id="term-reconnect" type="button" hidden>Reconnect</button>
+            </div>
+            <div class="term-panel term-virtual" id="term-virtual">
+                <div class="term-screen">
+                    <div class="term-output" id="term-output"></div>
+                    <div class="term-inputline">
+                        <span class="term-prompt" id="term-prompt">⚜ arutosio:~$ </span>
+                        <div class="term-input-wrap">
+                            <div class="term-overlay" id="term-overlay" aria-hidden="true"></div>
+                            <input class="term-input" id="term-input" type="text" autocomplete="off" spellcheck="false" autocapitalize="off">
+                        </div>
+                    </div>
                 </div>
             </div>
+            <div class="term-panel term-machine" id="term-machine" hidden></div>
         </div>
     `;
     _output = content.querySelector('#term-output');
     _input = content.querySelector('#term-input');
     _prompt = content.querySelector('#term-prompt');
     _overlay = content.querySelector('#term-overlay');
+    _machineEl = content.querySelector('#term-machine');
+    _modeSelect = content.querySelector('#term-mode');
+    _statusEl = content.querySelector('#term-status');
+    _reconnectBtn = content.querySelector('#term-reconnect');
 
     _historyIdx = _history.length;
 
@@ -652,8 +817,15 @@ function initTerminal() {
     _input.addEventListener('input', _renderOverlay);
     _renderOverlay();
     content.addEventListener('click', (e) => {
+        if (_mode === 'machine') { _xterm?.focus(); return; }
         if (e.target.tagName !== 'INPUT' && !window.getSelection()?.toString()) _input.focus();
     });
+    _modeSelect?.addEventListener('change', () => _setTermMode(_modeSelect.value));
+    _reconnectBtn?.addEventListener('click', () => _connectMachine());
+    window.addEventListener('pagehide', () => { try { _ws?.close(); } catch {} });
+
+    const saved = localStorage.getItem('arutosio_term_mode');
+    _setTermMode(local && saved !== 'virtual' ? 'machine' : 'virtual');
 
     _initialized = true;
 }

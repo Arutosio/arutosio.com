@@ -2,15 +2,21 @@
  * ║  REPOS — System-level registry of package-store sources   ║
  * ║  Promoted from Package Store private state so any app or  ║
  * ║  command can browse / mutate enabled repositories.        ║
- * ║  Backed by localStorage.aruta_repos (rides profile mirror)║
+ * ║  Backed by localStorage.arutosio_repos                      ║
+ * ║  (rides the portable-profile mirror)                        ║
  * ╚══════════════════════════════════════════════════════════╝ */
 (function () {
-    const LS_KEY = 'aruta_repos';
+    const LS_KEY = 'arutosio_repos';
 
+    // Resolve against the current origin so the same seed works on the public
+    // site, a local daemon and a development static server.
+    const origin = (location.origin && location.origin !== 'null')
+        ? location.origin
+        : 'https://arutosio.com';
     const DEFAULT_SEED = [{
-        url: 'https://raw.githubusercontent.com/Arutosio/aruta.sh/master/packages/index.json',
+        url: origin + '/packages/index.json',
         name: 'Official',
-        description: 'Curated bundle by Aruta',
+        description: 'Curated bundle by Arutosio',
         enabled: false,
         addedAt: Date.now(),
     }];
@@ -122,14 +128,18 @@
         // the migration swaps in the real list once it resolves and emits.
         _repos = DEFAULT_SEED.map(r => ({ ...r }));
         _write();
-        _tryMigrateLegacyPackagestoreRepos();
+        // Wait for the one-time namespace migration: it may have just copied
+        // the old packagestore KV store into the new app DB.
+        Promise.resolve(window.__arutosioMigrationReady)
+            .then(_tryMigrateLegacyPackagestoreRepos)
+            .catch(() => {});
     }
 
-    // One-shot: copy legacy `repos` entry from `aruta_app_packagestore.kv`
-    // into `localStorage.aruta_repos` and drop it from IDB. Silent on miss.
+    // One-shot: copy a legacy `repos` entry from the packagestore app KV
+    // into `localStorage.arutosio_repos` and drop it from IDB. Silent on miss.
     function _tryMigrateLegacyPackagestoreRepos() {
         try {
-            const req = indexedDB.open('aruta_app_packagestore');
+            const req = indexedDB.open('arutosio_app_packagestore');
             // If upgradeneeded fires, the DB didn't previously exist. Abort so
             // we don't leave an empty v1 stub that would block the real
             // sandbox _appStorageDB from creating its 'kv' store later.
@@ -139,11 +149,7 @@
             req.onsuccess = () => {
                 const db = req.result;
                 if (!db.objectStoreNames.contains('kv')) {
-                    // Either this boot created a stub, or an earlier buggy
-                    // migration did. Either way, delete it so the next
-                    // _appStorageDB open recreates it with kv.
                     try { db.close(); } catch (_) {}
-                    try { indexedDB.deleteDatabase('aruta_app_packagestore'); } catch (_) {}
                     return;
                 }
                 try {
@@ -162,7 +168,7 @@
                     t.oncomplete = () => { try { db.close(); } catch (_) {} };
                 } catch (_) { try { db.close(); } catch (__) {} }
             };
-            // abort() + deleteDatabase both surface as error — swallow silently
+            // abort() surfaces as error — swallow silently
             req.onerror = () => {};
         } catch (_) {}
     }

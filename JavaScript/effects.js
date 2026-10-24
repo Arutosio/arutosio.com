@@ -283,7 +283,7 @@ function initMagicCursor() {
     // desktop window narrowed past the breakpoint matches a real phone.
     const mq = window.matchMedia('(pointer: coarse), (max-width: 640px)');
     const sync = () => {
-        const userOff = localStorage.getItem('aruta_settings-cursor') === 'false';
+        const userOff = localStorage.getItem('arutosio_settings-cursor') === 'false';
         const enabled = !mq.matches && !userOff;
         document.documentElement.classList.toggle('magic-cursor-active', enabled);
         if (el) el.style.display = enabled ? '' : 'none';

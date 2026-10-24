@@ -1,54 +1,75 @@
-# arutOS
+# Arutosio
 
-Personal site for [Arutosio](https://github.com/Arutosio) built as a browser-based desktop environment.
-Draggable, resizable, stackable windows on top of a time-of-day animated wallpaper, with a built-in
-terminal and a scalable plugin system.
+Personal site for [Arutosio](https://github.com/Arutosio) built as a browser-based
+desktop environment. Draggable, resizable, stackable windows over a time-of-day
+wallpaper, a built-in terminal, a package system and an optional local daemon
+that gives the OS real files and a real shell.
 
 > ⚠️ **This is proprietary personal work, not an open-source template.**
 > See [Copyright & Rights](#copyright--rights) below before touching anything.
 
 ## Stack
 
-- **React 19** + **TypeScript 5** — strongly-typed window state
-- **Vite 6** — dev server + build
-- **Tailwind CSS 4** — design tokens in CSS
-- **react-rnd** — battle-tested drag + resize for windows
-- **Zustand** — tiny store for window manager + settings + plugins
-- **Framer Motion** — window open/close animations
-- **lucide-react** — icon set
+- **Static site** — vanilla HTML, CSS and JavaScript. No build step.
+- **IndexedDB + localStorage** — packages, app data, settings, sessions.
+- **Go daemon (`server/`)** — optional local mode: static host, filesystem API,
+  server-side profile/session, PTY over WebSocket.
+- **xterm.js** — real terminal rendering for local mode.
+- **Package sandbox** — iframe `ctx` bridge, permissions, zip installer.
 
-## Scripts
+## Run
+
+Hosted mode (the public site) is just static files:
 
 ```bash
-npm install      # one-time setup (or after pulling new deps)
-npm run dev      # Vite dev server — hot reload at http://localhost:5173
-npm run build    # Type-check + production build → dist/
-npm run preview  # Serve the built dist/ locally
-npm run typecheck
+python3 -m http.server 8080
+open http://localhost:8080
 ```
+
+Local mode (real files and shell on this machine):
+
+```bash
+cd server
+./install.sh          # per-user systemd service, no sudo
+```
+
+or from a checkout without installing:
+
+```bash
+cd server
+./arutosiod -web .. -root "$HOME" -data "$HOME/.arutosio"
+```
+
+See [`server/README.md`](./server/README.md) for the daemon, SSH tunnel,
+security model and API.
 
 ## Project layout
 
 ```
-Files/              # static assets (videos, images, fonts, icons) — served at site root via Vite publicDir
-src/
-  App.tsx           # root shell
-  main.tsx          # React entry
-  index.css         # Tailwind 4 @theme tokens + base reset
-  components/       # reusable UI: Wallpaper, Window, TopBar, StartMenu, ClockPopover, SysInfoPopover, …
-  apps/             # window content per "app" (Home, Bio, Projects, Donate, Settings, Terminal)
-  store/            # Zustand stores (windows, settings, plugins)
-  lib/              # pure helpers (time slots, phase theme, browser info, apps registry, terminal command registry)
-  types/            # shared TypeScript types
-index.html          # Vite entry point
-vite.config.ts
-tsconfig*.json
+index.html          # OS shell
+JavaScript/         # window manager, settings, terminal, sandbox, profile, local mode
+Style/              # desktop, windows, terminal and section styling
+defaultPackages/    # bundled apps and commands (Files, Grimoire, Terminal, …)
+packages/           # example package repository
+Backgrounds/        # time-of-day wallpaper clips
+Images/  Brand/     # portraits, icons, social images
+docs/               # architecture, ctx API, packages, profile, permissions
+server/             # optional Go daemon for local mode
 ```
+
+## Local mode
+
+`JavaScript/local.js` probes `/api/health`. When the site is served by
+`arutosiod`, settings and app data live on the machine, Files browses real
+directories, Grimoire edits real files, the Terminal is a real persistent PTY
+and the System app manages processes, user services, terminal sessions and
+trash. When the site is hosted on GitHub Pages, everything stays browser-local
+as before.
 
 ## Wallpaper
 
 Four `.webm` clips rotate by hour of day (dawn / noon / sunset / night).
-Files live in `Files/Videos_webm/` and are resolved via Vite `publicDir`.
+Files live in `Backgrounds/`.
 
 ## Copyright & Rights
 
@@ -84,14 +105,13 @@ as an open-source template, starter, or reusable boilerplate.
 ### Third-party assets
 
 Some media shown inside the site (notably the background video clips
-under `Files/Videos_webm/`) are short excerpts from animated works whose
+under `Backgrounds/`) are short excerpts from animated works whose
 copyright belongs to their respective owners. They are included for a
 personal, non-commercial homage use. If you represent a rights holder
 and want these removed, please open an issue.
 
-Bundled third-party libraries (React, Vite, Tailwind CSS, react-rnd,
-Zustand, Framer Motion, lucide-react, …) remain covered by their
-respective upstream licenses.
+Bundled third-party libraries (xterm.js, highlight.js, Font Awesome,
+JSZip, Trystero, …) remain covered by their respective upstream licenses.
 
 ### Contact
 

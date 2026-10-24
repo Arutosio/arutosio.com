@@ -5,7 +5,7 @@
  * Full settings panel with categories: Appearance, Performance,
  * Clock, Language, Sound, Reset, About. Each category has its
  * own page with toggles, sliders, and selectors.
- * All preferences persist in localStorage with 'aruta_' prefix.
+ * All preferences persist in localStorage with 'arutosio_' prefix.
  * ──────────────────────────────── */
 function initSettings() {
     // Sidebar category navigation
@@ -46,11 +46,11 @@ function initSettings() {
     // Defaults to true; manual theme toggles flip this off via toggleTheme().
     const followToggle = document.getElementById('settings-theme-follow-toggle');
     if (followToggle) {
-        const isOn = localStorage.getItem('aruta_theme_follow_os') !== 'false';
+        const isOn = localStorage.getItem('arutosio_theme_follow_os') !== 'false';
         followToggle.classList.toggle('active', isOn);
         followToggle.addEventListener('click', () => {
             const nowOn = !followToggle.classList.contains('active');
-            localStorage.setItem('aruta_theme_follow_os', nowOn ? 'true' : 'false');
+            localStorage.setItem('arutosio_theme_follow_os', nowOn ? 'true' : 'false');
             followToggle.classList.toggle('active', nowOn);
             if (nowOn) {
                 const osPref = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
@@ -75,12 +75,12 @@ function initSettings() {
     }
     const fontSel = document.getElementById('settings-font');
     if (fontSel) {
-        const saved = localStorage.getItem('aruta_font') || 'default';
+        const saved = localStorage.getItem('arutosio_font') || 'default';
         fontSel.value = FONTS[saved] ? saved : 'default';
         applyFont(fontSel.value);
         fontSel.addEventListener('change', () => {
             applyFont(fontSel.value);
-            localStorage.setItem('aruta_font', fontSel.value);
+            localStorage.setItem('arutosio_font', fontSel.value);
         });
     }
 
@@ -88,7 +88,7 @@ function initSettings() {
     const fontRange = document.getElementById('settings-font-size');
     const fontLabel = document.getElementById('font-size-label');
     if (fontRange) {
-        const saved = localStorage.getItem('aruta_fontsize') || '100';
+        const saved = localStorage.getItem('arutosio_fontsize') || '100';
         fontRange.value = saved;
         if (fontLabel) fontLabel.textContent = saved + '%';
         document.documentElement.style.fontSize = saved + '%';
@@ -96,7 +96,7 @@ function initSettings() {
             const val = fontRange.value;
             document.documentElement.style.fontSize = val + '%';
             if (fontLabel) fontLabel.textContent = val + '%';
-            localStorage.setItem('aruta_fontsize', val);
+            localStorage.setItem('arutosio_fontsize', val);
         });
     }
 
@@ -116,7 +116,7 @@ function initSettings() {
             const colors = ACCENTS[btn.dataset.accent];
             if (colors) {
                 applyAccent(colors.gold, colors.goldLight);
-                localStorage.setItem('aruta_accent', btn.dataset.accent);
+                localStorage.setItem('arutosio_accent', btn.dataset.accent);
             }
         });
     });
@@ -126,8 +126,8 @@ function initSettings() {
             const hex = customPicker.value;
             const light = lightenHex(hex, 0.4);
             applyAccent(hex, light);
-            localStorage.setItem('aruta_accent', 'custom');
-            localStorage.setItem('aruta_accent_custom', hex);
+            localStorage.setItem('arutosio_accent', 'custom');
+            localStorage.setItem('arutosio_accent_custom', hex);
             document.querySelectorAll('.settings-color-btn').forEach(b => b.classList.remove('active'));
             customBtn.classList.add('active');
             customBtn.style.setProperty('--custom-color', hex);
@@ -137,9 +137,9 @@ function initSettings() {
     }
 
     // Restore saved accent
-    const savedAccent = localStorage.getItem('aruta_accent');
+    const savedAccent = localStorage.getItem('arutosio_accent');
     if (savedAccent === 'custom') {
-        const hex = localStorage.getItem('aruta_accent_custom') || '#ffc857';
+        const hex = localStorage.getItem('arutosio_accent_custom') || '#ffc857';
         if (customPicker) customPicker.value = hex;
         applyAccent(hex, lightenHex(hex, 0.4));
         document.querySelectorAll('.settings-color-btn').forEach(b => b.classList.remove('active'));
@@ -164,24 +164,24 @@ function initSettings() {
         if (btn.dataset.magic === 'custom') return;
         btn.addEventListener('click', () => {
             applyMagic(MAGIC_PRESETS[btn.dataset.magic]);
-            localStorage.setItem('aruta_magic', btn.dataset.magic);
+            localStorage.setItem('arutosio_magic', btn.dataset.magic);
             syncMagicUI(btn.dataset.magic);
         });
     });
     if (magicPicker) {
         const onMagicPick = () => {
             applyMagic(magicPicker.value);
-            localStorage.setItem('aruta_magic', 'custom');
-            localStorage.setItem('aruta_magic_custom', magicPicker.value);
+            localStorage.setItem('arutosio_magic', 'custom');
+            localStorage.setItem('arutosio_magic_custom', magicPicker.value);
             syncMagicUI('custom', magicPicker.value);
         };
         magicPicker.addEventListener('input', onMagicPick);
         magicPicker.addEventListener('change', onMagicPick);
     }
     {   // Restore UI state only — the colors were applied at boot.
-        const m = localStorage.getItem('aruta_magic');
+        const m = localStorage.getItem('arutosio_magic');
         if (m === 'custom') {
-            const hex = localStorage.getItem('aruta_magic_custom') || MAGIC_PRESETS.purple;
+            const hex = localStorage.getItem('arutosio_magic_custom') || MAGIC_PRESETS.purple;
             if (magicPicker) magicPicker.value = hex;
             syncMagicUI('custom', hex);
         } else if (m && MAGIC_PRESETS[m]) syncMagicUI(m);
@@ -194,7 +194,7 @@ function initSettings() {
     if (borderPicker) {
         const onBorderPick = () => {
             applyBorderTint(borderPicker.value);
-            localStorage.setItem('aruta_border_custom', borderPicker.value);
+            localStorage.setItem('arutosio_border_custom', borderPicker.value);
             if (borderCustomBtn) {
                 borderCustomBtn.classList.add('active');
                 borderCustomBtn.style.setProperty('--custom-color', borderPicker.value);
@@ -206,12 +206,12 @@ function initSettings() {
     if (borderAutoBtn) {
         borderAutoBtn.addEventListener('click', () => {
             applyBorderTint(null);
-            localStorage.removeItem('aruta_border_custom');
+            localStorage.removeItem('arutosio_border_custom');
             borderCustomBtn?.classList.remove('active');
         });
     }
     {
-        const hex = localStorage.getItem('aruta_border_custom');
+        const hex = localStorage.getItem('arutosio_border_custom');
         if (hex && borderPicker) {
             borderPicker.value = hex;
             if (borderCustomBtn) {
@@ -233,14 +233,14 @@ function initSettings() {
         range.addEventListener('input', () => {
             const v = parseInt(range.value, 10);
             apply(v);
-            localStorage.setItem(key, v);
+            window.storage.set(key, String(v));  // storage.set also marks the linked profile dirty
             if (label) label.textContent = v + suffix;
         });
     }
-    wireRange('settings-border-alpha', 'border-alpha-label', 'aruta_border_alpha', 100, '%', applyBorderAlpha);
-    wireRange('settings-blur', 'blur-label', 'aruta_blur', 18, 'px', applyBlur);
-    wireRange('settings-radius', 'radius-label', 'aruta_radius', 100, '%', applyRadius);
-    wireRange('settings-bgdim', 'bgdim-label', 'aruta_bg_dim', 0, '%', applyBgDim);
+    wireRange('settings-border-alpha', 'border-alpha-label', 'arutosio_border_alpha', 100, '%', applyBorderAlpha);
+    wireRange('settings-blur', 'blur-label', 'arutosio_blur', 18, 'px', applyBlur);
+    wireRange('settings-radius', 'radius-label', 'arutosio_radius', 100, '%', applyRadius);
+    wireRange('settings-bgdim', 'bgdim-label', 'arutosio_bg_dim', 0, '%', applyBgDim);
 
     // ── Wallpaper overlay colour (defaults to the accent) ──
     const bgdimPicker = document.getElementById('settings-bgdim-color');
@@ -253,12 +253,12 @@ function initSettings() {
         else bgdimBtn.style.removeProperty('--custom-color');
     };
     if (bgdimPicker) {
-        const saved = localStorage.getItem('aruta_bg_dim_color');
+        const saved = localStorage.getItem('arutosio_bg_dim_color');
         if (saved) bgdimPicker.value = saved;
         markBgDimColor(saved);
         const onPick = () => {
             applyBgDimColor(bgdimPicker.value);
-            localStorage.setItem('aruta_bg_dim_color', bgdimPicker.value);
+            window.storage.set('arutosio_bg_dim_color', bgdimPicker.value);
             markBgDimColor(bgdimPicker.value);
         };
         bgdimPicker.addEventListener('input', onPick);
@@ -267,7 +267,7 @@ function initSettings() {
     if (bgdimClear) {
         bgdimClear.addEventListener('click', () => {
             applyBgDimColor(null);
-            localStorage.removeItem('aruta_bg_dim_color');
+            window.storage.del('arutosio_bg_dim_color');
             markBgDimColor(null);
         });
     }
@@ -279,7 +279,7 @@ function initSettings() {
     if (bgtintPicker) {
         const onBgTintPick = () => {
             applyBgTint(bgtintPicker.value);
-            localStorage.setItem('aruta_bgtint', bgtintPicker.value);
+            localStorage.setItem('arutosio_bgtint', bgtintPicker.value);
             if (bgtintBtn) {
                 bgtintBtn.classList.add('active');
                 bgtintBtn.style.setProperty('--custom-color', bgtintPicker.value);
@@ -291,12 +291,12 @@ function initSettings() {
     if (bgtintClear) {
         bgtintClear.addEventListener('click', () => {
             applyBgTint(null);
-            localStorage.removeItem('aruta_bgtint');
+            localStorage.removeItem('arutosio_bgtint');
             bgtintBtn?.classList.remove('active');
         });
     }
     {
-        const hex = localStorage.getItem('aruta_bgtint');
+        const hex = localStorage.getItem('arutosio_bgtint');
         if (hex && bgtintPicker) {
             bgtintPicker.value = hex;
             if (bgtintBtn) {
@@ -311,7 +311,7 @@ function initSettings() {
     const dateEl = document.getElementById('hud-date');
     const dateSep = document.querySelector('.hud-clock-sep');
     if (dateToggle) {
-        const showDate = localStorage.getItem('aruta_showdate') !== 'false';
+        const showDate = localStorage.getItem('arutosioowdate') !== 'false';
         dateToggle.classList.toggle('active', showDate);
         if (!showDate && dateEl) { dateEl.style.display = 'none'; if (dateSep) dateSep.style.display = 'none'; }
         dateToggle.addEventListener('click', () => {
@@ -319,20 +319,20 @@ function initSettings() {
             const show = dateToggle.classList.contains('active');
             if (dateEl) dateEl.style.display = show ? '' : 'none';
             if (dateSep) dateSep.style.display = show ? '' : 'none';
-            localStorage.setItem('aruta_showdate', show);
+            localStorage.setItem('arutosioowdate', show);
         });
     }
 
     // 24h format
     const h24Toggle = document.getElementById('settings-24h');
     if (h24Toggle) {
-        const use24 = localStorage.getItem('aruta_24h') !== 'false';
+        const use24 = localStorage.getItem('arutosio_24h') !== 'false';
         h24Toggle.classList.toggle('active', use24);
         window._use24h = use24;
         h24Toggle.addEventListener('click', () => {
             h24Toggle.classList.toggle('active');
             window._use24h = h24Toggle.classList.contains('active');
-            localStorage.setItem('aruta_24h', window._use24h);
+            localStorage.setItem('arutosio_24h', window._use24h);
         });
     }
 
@@ -343,7 +343,7 @@ function initSettings() {
         lpToggle.addEventListener('click', () => {
             lpToggle.classList.toggle('active');
             const on = lpToggle.classList.contains('active');
-            localStorage.setItem('aruta_low_power', on ? 'on' : 'off');
+            localStorage.setItem('arutosio_low_power', on ? 'on' : 'off');
             window.applyLowPower?.(on);
         });
     }
@@ -351,13 +351,13 @@ function initSettings() {
     // Auto-hide taskbar (macOS-dock style) — overlays + lets windows expand
     const autohideToggle = document.getElementById('settings-taskbar-autohide');
     if (autohideToggle) {
-        const on = localStorage.getItem('aruta_taskbar_autohide') === 'true';
+        const on = localStorage.getItem('arutosio_taskbar_autohide') === 'true';
         autohideToggle.classList.toggle('active', on);
         if (on) window.taskbarAutohide?.enable();
         autohideToggle.addEventListener('click', () => {
             autohideToggle.classList.toggle('active');
             const en = autohideToggle.classList.contains('active');
-            localStorage.setItem('aruta_taskbar_autohide', en);
+            localStorage.setItem('arutosio_taskbar_autohide', en);
             if (en) window.taskbarAutohide?.enable();
             else window.taskbarAutohide?.disable();
             window.relayoutManagedWindows?.();
@@ -388,31 +388,32 @@ function initSettings() {
 
     initProfileSettings();
     initAppearanceCustom();
+    initToggleA11y();
 
-    // Reset button — clears all aruta_ settings from localStorage
+    // Reset button — clears all arutosio_ settings from localStorage
     const resetBtn = document.getElementById('settings-reset');
     if (resetBtn) {
         resetBtn.addEventListener('click', () => {
-            localStorage.removeItem('aruta_theme');
-            localStorage.removeItem('aruta_fontsize');
-            localStorage.removeItem('aruta_font');
-            localStorage.removeItem('aruta_accent');
-            localStorage.removeItem('aruta_accent_custom');
-            localStorage.removeItem('aruta_showdate');
-            localStorage.removeItem('aruta_24h');
-            localStorage.removeItem('aruta_taskbar_autohide');
-            localStorage.removeItem('aruta_low_power');
-            localStorage.removeItem('aruta_lang');
+            localStorage.removeItem('arutosio_theme');
+            localStorage.removeItem('arutosio_fontsize');
+            localStorage.removeItem('arutosio_font');
+            localStorage.removeItem('arutosio_accent');
+            localStorage.removeItem('arutosio_accent_custom');
+            localStorage.removeItem('arutosioowdate');
+            localStorage.removeItem('arutosio_24h');
+            localStorage.removeItem('arutosio_taskbar_autohide');
+            localStorage.removeItem('arutosio_low_power');
+            localStorage.removeItem('arutosio_lang');
             // Theme tweaks (magic / borders / blur / roundness / bg tint)
-            localStorage.removeItem('aruta_magic');
-            localStorage.removeItem('aruta_magic_custom');
-            localStorage.removeItem('aruta_border_custom');
-            localStorage.removeItem('aruta_border_alpha');
-            localStorage.removeItem('aruta_blur');
-            localStorage.removeItem('aruta_radius');
-            localStorage.removeItem('aruta_bgtint');
-            localStorage.removeItem('aruta_bg_dim');
-            localStorage.removeItem('aruta_bg_dim_color');
+            localStorage.removeItem('arutosio_magic');
+            localStorage.removeItem('arutosio_magic_custom');
+            localStorage.removeItem('arutosio_border_custom');
+            localStorage.removeItem('arutosio_border_alpha');
+            localStorage.removeItem('arutosio_blur');
+            localStorage.removeItem('arutosio_radius');
+            localStorage.removeItem('arutosio_bgtint');
+            localStorage.removeItem('arutosio_bg_dim');
+            localStorage.removeItem('arutosio_bg_dim_color');
             applyMagic(null);
             applyBorderTint(null);
             applyBorderAlpha(100);
@@ -424,7 +425,7 @@ function initSettings() {
             document.querySelector('.settings-color-btn[data-bgdim="custom"]')?.classList.remove('active');
             // Performance toggles back to defaults (apply only if overridden)
             for (const [id, config] of Object.entries(PERF_TOGGLES)) {
-                localStorage.removeItem('aruta_' + id);
+                localStorage.removeItem('arutosio_' + id);
                 const defOn = perfDefault(id, config);
                 const tgl = document.getElementById(id);
                 if (tgl) tgl.classList.toggle('active', defOn);
@@ -437,7 +438,7 @@ function initSettings() {
                     try { window.widgets.disable(m.id); } catch {}
                 }
             }
-            localStorage.removeItem('aruta_widgets');
+            localStorage.removeItem('arutosio_widgets');
             // Reset to defaults
             document.documentElement.style.fontSize = '100%';
             applyAccent('#ffc857', '#ffe4a0');
@@ -467,7 +468,7 @@ function initSettings() {
             resetRange('settings-radius', 'radius-label', 100, '%');
             resetRange('settings-bgdim', 'bgdim-label', 0, '%');
             // Reset appearance customizations (backgrounds + rotation, portrait, name)
-            window.appearance?.reset().then(refreshAppearanceUI);
+            window.appearance?.reset().catch(e => console.warn('[settings] appearance reset failed', e)).finally(refreshAppearanceUI);
             refreshAppearanceUI();
             const t = window.t();
             if (window.showToast) showToast(t.toast_reset_done || 'Settings restored to defaults', 'success');
@@ -490,9 +491,9 @@ function initSettings() {
             try { sessionStorage.clear(); } catch (e) { console.warn('sessionStorage.clear failed', e); }
             // Delete IndexedDB: package registry + each app's private storage DB
             try {
-                indexedDB.deleteDatabase('aruta_packages');
-                indexedDB.deleteDatabase('aruta_appearance');
-                for (const id of appIds) indexedDB.deleteDatabase('aruta_app_' + id);
+                indexedDB.deleteDatabase('arutosio_packages');
+                indexedDB.deleteDatabase('arutosio_appearance');
+                for (const id of appIds) indexedDB.deleteDatabase('arutosio_app_' + id);
             } catch (e) { console.warn('indexedDB wipe failed', e); }
             if (window.showToast) showToast(t.toast_wipe_done || 'Local data wiped. Reloading…', 'warning', 1200);
             setTimeout(() => location.reload(), 900);
@@ -510,17 +511,17 @@ function initSettings() {
             if (!ok) return;
             try {
                 const preserve = new Set();
-                preserve.add('aruta_installed_apps');
-                preserve.add('aruta_defaults_seen');
-                preserve.add('aruta_defaults_uninstalled');
+                preserve.add('arutosio_installed_apps');
+                preserve.add('arutosio_defaults_seen');
+                preserve.add('arutosio_defaults_uninstalled');
                 for (let i = 0; i < localStorage.length; i++) {
                     const k = localStorage.key(i);
-                    if (k && k.startsWith('aruta_perms_')) preserve.add(k);
+                    if (k && k.startsWith('arutosio_perms_')) preserve.add(k);
                 }
                 const toRemove = [];
                 for (let i = 0; i < localStorage.length; i++) {
                     const k = localStorage.key(i);
-                    if (k && k.startsWith('aruta_') && !preserve.has(k)) toRemove.push(k);
+                    if (k && k.startsWith('arutosio_') && !preserve.has(k)) toRemove.push(k);
                 }
                 toRemove.forEach(k => localStorage.removeItem(k));
             } catch (e) { console.warn('wipe settings failed', e); }
@@ -546,16 +547,39 @@ function initSettings() {
         toggle.addEventListener('click', () => {
             toggle.classList.toggle('active');
             const enabled = toggle.classList.contains('active');
-            localStorage.setItem('aruta_' + id, enabled);
+            window.storage.set('arutosio_' + id, String(enabled));
             applyPerfToggle(config, enabled);
         });
     }
 }
 
+/**
+ * Expose every .settings-toggle as an ARIA switch named by its row title.
+ * aria-checked follows the .active class, so the many click handlers that
+ * flip that class don't each need to know about ARIA.
+ */
+function initToggleA11y(root = document) {
+    root.querySelectorAll('.settings-toggle').forEach((btn, i) => {
+        if (btn.dataset.a11y) return;
+        btn.dataset.a11y = '1';
+        btn.setAttribute('role', 'switch');
+        if (!btn.hasAttribute('aria-label') && !btn.hasAttribute('aria-labelledby')) {
+            const title = btn.closest('.settings-row')?.querySelector('.settings-label strong');
+            if (title) {
+                if (!title.id) title.id = (btn.id || 'settings-toggle-' + i) + '-title';
+                btn.setAttribute('aria-labelledby', title.id);
+            }
+        }
+        const sync = () => btn.setAttribute('aria-checked', btn.classList.contains('active') ? 'true' : 'false');
+        sync();
+        new MutationObserver(sync).observe(btn, { attributes: true, attributeFilter: ['class'] });
+    });
+}
+
 /* ────────────────────────────────
  * § PERFORMANCE TOGGLES
  * Visual-effect switches (Settings → Performance). Persisted as
- * 'aruta_<id>' in localStorage; def: false marks opt-in (off by default).
+ * 'arutosio_<id>' in localStorage; def: false marks opt-in (off by default).
  * ──────────────────────────────── */
 const PERF_TOGGLES = {
     'settings-particles': { selector: '#rune-bg', prop: 'display' },
@@ -580,7 +604,7 @@ function perfDefault(id, config) {
     return typeof override === 'boolean' ? override : perfBaseline(config);
 }
 function perfEnabled(id, config) {
-    const saved = localStorage.getItem('aruta_' + id);
+    const saved = localStorage.getItem('arutosio_' + id);
     return saved == null ? perfDefault(id, config) : saved === 'true';
 }
 
@@ -736,23 +760,23 @@ function applyBgDimColor(hex) {
  * a reload reverted it until the Settings window was opened.
  */
 function restoreThemeTweaks() {
-    const accent = localStorage.getItem('aruta_accent');
+    const accent = localStorage.getItem('arutosio_accent');
     if (accent === 'custom') {
-        const hex = localStorage.getItem('aruta_accent_custom') || '#ffc857';
+        const hex = localStorage.getItem('arutosio_accent_custom') || '#ffc857';
         applyAccent(hex, lightenHex(hex, 0.4));
     } else if (accent && ACCENTS[accent]) {
         applyAccent(ACCENTS[accent].gold, ACCENTS[accent].goldLight);
     }
-    const magic = localStorage.getItem('aruta_magic');
-    if (magic === 'custom') applyMagic(localStorage.getItem('aruta_magic_custom') || MAGIC_PRESETS.purple);
+    const magic = localStorage.getItem('arutosio_magic');
+    if (magic === 'custom') applyMagic(localStorage.getItem('arutosio_magic_custom') || MAGIC_PRESETS.purple);
     else if (magic && MAGIC_PRESETS[magic]) applyMagic(MAGIC_PRESETS[magic]);
-    applyBorderTint(localStorage.getItem('aruta_border_custom') || null);
-    applyBorderAlpha(parseInt(localStorage.getItem('aruta_border_alpha') ?? '100', 10));
-    applyBlur(parseInt(localStorage.getItem('aruta_blur') ?? '18', 10));
-    applyRadius(parseInt(localStorage.getItem('aruta_radius') ?? '100', 10));
-    applyBgTint(localStorage.getItem('aruta_bgtint') || null);
-    applyBgDim(parseInt(localStorage.getItem('aruta_bg_dim') ?? '0', 10));
-    applyBgDimColor(localStorage.getItem('aruta_bg_dim_color') || null);
+    applyBorderTint(localStorage.getItem('arutosio_border_custom') || null);
+    applyBorderAlpha(parseInt(localStorage.getItem('arutosio_border_alpha') ?? '100', 10));
+    applyBlur(parseInt(localStorage.getItem('arutosio_blur') ?? '18', 10));
+    applyRadius(parseInt(localStorage.getItem('arutosio_radius') ?? '100', 10));
+    applyBgTint(localStorage.getItem('arutosio_bgtint') || null);
+    applyBgDim(parseInt(localStorage.getItem('arutosio_bg_dim') ?? '0', 10));
+    applyBgDimColor(localStorage.getItem('arutosio_bg_dim_color') || null);
 }
 window.restoreThemeTweaks = restoreThemeTweaks;
 
@@ -770,6 +794,21 @@ function initProfileSettings() {
     const importBtn  = document.getElementById('settings-profile-import');
     const importFile = document.getElementById('settings-profile-import-file');
     if (!pickBtn || !exportBtn || !importBtn) return;
+
+    // Local mode: the daemon owns the profile. Hiding the folder backend
+    // avoids mixing the portable-folder feature with the machine state.
+    if (window.arutosioLocal?.isLocal) {
+        if (statusEl) {
+            statusEl.textContent = 'This machine — connected to arutosiod ' +
+                (window.arutosioLocal.version || '');
+        }
+        for (const el of [pickBtn, reconnBtn, unlinkBtn, exportBtn, importBtn]) {
+            const row = el?.closest('.settings-row');
+            if (row) row.style.display = 'none';
+            else if (el) el.style.display = 'none';
+        }
+        return;
+    }
 
     const hasFSAPI = !!(window.showDirectoryPicker);
 
@@ -985,14 +1024,14 @@ function initProfileSettings() {
     refreshStatus();
     // Expose so the global i18n:changed listener can re-render status/button
     // labels when the user switches language. Registered at file bottom.
-    window.__arutaProfileRefresh = refreshStatus;
+    window.__arutosioProfileRefresh = refreshStatus;
 }
 
 
 /* ────────────────────────────────
  * § APPEARANCE CUSTOM — Background / Portrait / Display name
  * Inputs live in the Appearance panel; persistence is handled by
- * window.appearance (IDB `aruta_appearance` + LS `aruta_appearance_meta`).
+ * window.appearance (IDB `arutosio_appearance` + LS `arutosio_appearance_meta`).
  * ──────────────────────────────── */
 function refreshAppearanceUI() {
     if (!window.appearance) return;
@@ -1061,7 +1100,7 @@ function renderBackgroundList(bgs, mode) {
         if (mode === 'time') {
             const sel = document.createElement('select');
             sel.className = 'settings-select';
-            sel.setAttribute('aria-label', t.settings_bg_slot || 'Time of day');
+            sel.setAttribute('aria-label', (t.settings_bg_slot || 'Time of day') + ': ' + name.textContent);
             for (const [value, label] of Object.entries(slotLabels)) {
                 const opt = document.createElement('option');
                 opt.value = value;
@@ -1108,6 +1147,8 @@ function initAppearanceCustom() {
             window.showToast?.((t.toast_appearance_too_big || 'File too large — max ') + mb + ' MB', 'warning');
         } else if (res?.reason === 'bad_type') {
             window.showToast?.(t.toast_appearance_bad_type || 'Unsupported file type', 'warning');
+        } else if (res?.reason === 'unsupported') {
+            window.showToast?.(t.toast_appearance_unsupported || 'This browser cannot play that video format — try MP4 (H.264) or WebM', 'warning');
         } else if (res?.reason === 'image_only') {
             window.showToast?.(t.toast_appearance_image_only || 'Portrait must be an image', 'warning');
         } else {
@@ -1121,7 +1162,9 @@ function initAppearanceCustom() {
             const files = Array.from(bgFile.files || []);
             bgFile.value = '';
             if (!files.length) return;
-            const res = await window.appearance.addBackgrounds(files);
+            let res;
+            try { res = await window.appearance.addBackgrounds(files); }
+            catch (e) { console.warn('[settings] add backgrounds failed', e); res = { ok: false, reason: 'failed' }; }
             toastFor(res);
             refreshAppearanceUI();
         });
@@ -1200,7 +1243,7 @@ function initAppearanceCustom() {
 // (profile status, background/portrait status, permissions + widgets lists).
 document.addEventListener('i18n:changed', () => {
     try { refreshAppearanceUI(); } catch (_) {}
-    try { window.__arutaProfileRefresh?.(); } catch (_) {}
+    try { window.__arutosioProfileRefresh?.(); } catch (_) {}
     try { window.permissions?.renderSettings?.(); } catch (_) {}
     try { window.widgets?.renderSettings?.(); } catch (_) {}
 });

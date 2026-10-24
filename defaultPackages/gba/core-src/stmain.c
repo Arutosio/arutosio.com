@@ -1,4 +1,4 @@
-/* aruta.sh GBA Link core — single-threaded mGBA WASM wrapper with SIO→JS hooks.
+/* Arutosio GBA Link core — single-threaded mGBA WASM wrapper with SIO→JS hooks.
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this

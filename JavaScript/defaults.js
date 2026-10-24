@@ -6,8 +6,8 @@
  * ╚══════════════════════════════════════════════════════════╝ */
 
 const DEFAULTS_URL = 'defaultPackages/defaults.json';
-const SEEN_KEY = 'aruta_defaults_seen';
-const BLACKLIST_KEY = 'aruta_defaults_uninstalled';
+const SEEN_KEY = 'arutosio_defaults_seen';
+const BLACKLIST_KEY = 'arutosio_defaults_uninstalled';
 
 let _indexCache = null;          // memoized defaults.json (the parsed object)
 const _manifestCache = new Map(); // id -> last fetched manifest (for name/icon)
@@ -68,13 +68,16 @@ async function installDefault(pkg) {
     await window.registry.saveManifest(manifest, map);
     // Default (system) packages ship trusted — auto-grant every permission
     // the manifest declares, so the user doesn't see a stream of prompts on
-    // first use. Existing grants are preserved; only missing ones are set.
+    // first use. Machine filesystem permissions are the exception: they are
+    // always asked explicitly, even for bundled apps.
     if (Array.isArray(manifest.permissions) && manifest.permissions.length) {
-        const grants = window.storage.get('aruta_perms_' + manifest.id, {}) || {};
+        const manual = new Set(['fs.read', 'fs.write', 'fs.delete', 'term']);
+        const grants = window.storage.get('arutosio_perms_' + manifest.id, {}) || {};
         for (const p of manifest.permissions) {
+            if (manual.has(p)) continue;
             if (!(p in grants)) grants[p] = 'granted';
         }
-        window.storage.set('aruta_perms_' + manifest.id, grants);
+        window.storage.set('arutosio_perms_' + manifest.id, grants);
     }
     return manifest;
 }

@@ -26,7 +26,7 @@ document.addEventListener('visibilitychange', () => {
 /* ────────────────────────────────
  * § I18N — Language detection, switching, translation
  * Reads from the global `i18n` object defined in config.js.
- * Persists choice in localStorage under 'aruta_lang'.
+ * Persists choice in localStorage under 'arutosio_lang'.
  * ──────────────────────────────── */
 
 /**
@@ -71,7 +71,7 @@ function detectLanguage() {
 function switchLanguage(lang) {
     if (!i18n[lang] || lang === currentLang) return;
     currentLang = lang;
-    localStorage.setItem('aruta_lang', lang);
+    localStorage.setItem('arutosio_lang', lang);
     document.documentElement.setAttribute('lang', lang === 'fn' ? 'en' : lang);
     setActiveLangBtn(lang);
     applyTranslations(lang);
@@ -109,7 +109,7 @@ function setActiveLangBtn(lang) {
 /* ────────────────────────────────
  * § THEME — Dark/Light mode toggle
  * Uses a CSS ripple transition centered on the toggle button.
- * Persists choice in localStorage under 'aruta_theme'.
+ * Persists choice in localStorage under 'arutosio_theme'.
  * ──────────────────────────────── */
 
 /**
@@ -120,7 +120,7 @@ function toggleTheme(opts) {
     // passes { keepFollowOS:true } when reacting to a system change so it
     // doesn't disable the very mode it's responding to.
     if (!opts || !opts.keepFollowOS) {
-        try { localStorage.setItem('aruta_theme_follow_os', 'false'); } catch (_) {}
+        try { localStorage.setItem('arutosio_theme_follow_os', 'false'); } catch (_) {}
     }
     unlockAchievement('theme_switch');
     // Ripple transition effect
@@ -142,7 +142,7 @@ function toggleTheme(opts) {
     _isLight = currentTheme === 'light';
     window.currentTheme = currentTheme;
     document.documentElement.setAttribute('data-theme', currentTheme);
-    localStorage.setItem('aruta_theme', currentTheme);
+    localStorage.setItem('arutosio_theme', currentTheme);
     updateThemeIcon();
     // Push the new theme to every mounted app iframe so CSS vars update live.
     window.sandbox?.broadcastTheme?.(currentTheme);

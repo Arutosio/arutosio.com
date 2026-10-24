@@ -1,6 +1,6 @@
 {
-    "name": "Aruta.sh Examples",
-    "description": "Demo packages bundled with the aruta.sh source repo. Install these to see what a plugin looks like in action.",
+    "name": "Arutosio Examples",
+    "description": "Demo packages bundled with the arutosio.com source repo. Install these to see what a plugin looks like in action.",
     "packages": [
         {
             "id": "greet",
@@ -8,7 +8,7 @@
             "icon": "✨",
             "version": "1.0.0",
             "type": "command",
-            "author": "Aruta",
+            "author": "Arutosio",
             "description": "Prints a friendly greeting and fires a toast.",
             "url": "greet.zip",
             "permissions": ["terminal", "notifications"]
@@ -20,7 +20,7 @@
             "version": "1.0.1",
             "type": "app",
             "category": "games",
-            "author": "Aruta",
+            "author": "Arutosio",
             "description": "An example Snake implementation shipped as a demo app. Distinct from the bundled default Snake.",
             "url": "arcane-snake.zip",
             "permissions": ["storage", "notifications"]

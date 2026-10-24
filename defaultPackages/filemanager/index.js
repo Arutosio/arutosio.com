@@ -156,6 +156,55 @@ class ProfileBackend {
     }
 }
 
+// ── Machine backend (arutosiod via ctx.fs) ──────────────────────────────
+class MachineBackend {
+    constructor(ctx) { this.ctx = ctx; }
+    get kind() { return 'machine'; }
+    isWritable() { return true; }
+    async list(path) {
+        const r = await this.ctx.fs.list(path || '');
+        return sortEntries((r.entries || []).map(it => ({
+            name: it.name,
+            kind: it.kind === 'dir' ? 'dir' : 'file',
+            size: it.size || 0,
+            mime: it.kind === 'file' ? mimeFromName(it.name) : '',
+            symlink: it.kind === 'symlink',
+            link: it.link || '',
+        })));
+    }
+    async readFile(path, max) {
+        const r = await this.ctx.fs.read(path, max || 0);
+        return {
+            bytes: r.bytes instanceof Uint8Array ? r.bytes : new Uint8Array(r.bytes || []),
+            mime: r.mime || mimeFromName(path),
+            etag: r.etag || '',
+        };
+    }
+    async writeFile(path, bytes, mime, etag) {
+        const data = bytes instanceof Uint8Array ? bytes : new TextEncoder().encode(bytes || '');
+        return await this.ctx.fs.write(path, data, etag || '');
+    }
+    async createFile(parentPath, name, content) {
+        const np = parentPath ? parentPath + '/' + name : name;
+        const data = content instanceof Uint8Array ? content : new TextEncoder().encode(content || '');
+        // '*' is create-only: never clobber an existing machine file.
+        await this.ctx.fs.write(np, data, '*');
+        return np;
+    }
+    async createDir(parentPath, name) {
+        const np = parentPath ? parentPath + '/' + name : name;
+        await this.ctx.fs.mkdir(np);
+    }
+    async deleteNode(path) {
+        await this.ctx.fs.delete(path, { trash: true });
+    }
+    async rename(path, newName) {
+        const parentPath = path.split('/').slice(0, -1).join('/');
+        const np = parentPath ? parentPath + '/' + newName : newName;
+        await this.ctx.fs.rename(path, np);
+    }
+}
+
 // ── External-folder backend (FS Access) ─────────────────────────────────
 class ExternalBackend {
     constructor(rootHandle) { this.root = rootHandle; this.name = rootHandle?.name || 'folder'; }
@@ -265,7 +314,11 @@ class PackagesBackend {
 // ── UI ──────────────────────────────────────────────────────────────────
 export default {
     async mount(root, ctx) {
-        const SOURCES = [
+        const SOURCES = ctx.local ? [
+            { id: 'machine',  icon: '🖥', label: 'This machine' },
+            { id: 'virtual',  icon: '📝', label: 'Virtual' },
+            { id: 'packages', icon: '📦', label: 'Packages' },
+        ] : [
             { id: 'virtual',  icon: '📝', label: 'Virtual' },
             { id: 'profile',  icon: '💾', label: 'Profile' },
             { id: 'external', icon: '🗂', label: 'External' },
@@ -310,7 +363,9 @@ export default {
             resetPreview();
             root.querySelectorAll('.fm-source').forEach(el => el.classList.toggle('active', el.dataset.source === id));
             try {
-                if (id === 'virtual') {
+                if (id === 'machine') {
+                    backend = new MachineBackend(ctx);
+                } else if (id === 'virtual') {
                     const saved = await ctx.storage.get(VirtualBackend.key);
                     backend = new VirtualBackend(ctx, saved || undefined);
                 } else if (id === 'profile') {
@@ -372,6 +427,9 @@ export default {
                 const items = await backend.list(cwd);
                 if (currentSource === 'profile') {
                     const header = `<div class="fm-warn">⚠ Changes sync to your linked folder immediately.</div>`;
+                    $tree.innerHTML = header + (items.length ? renderEntries(items) : `<div class="fm-empty">Empty folder.</div>`);
+                } else if (currentSource === 'machine') {
+                    const header = `<div class="fm-warn">⚠ Changes are written directly to this machine.</div>`;
                     $tree.innerHTML = header + (items.length ? renderEntries(items) : `<div class="fm-empty">Empty folder.</div>`);
                 } else {
                     $tree.innerHTML = items.length ? renderEntries(items) : `<div class="fm-empty">Empty.</div>`;
@@ -467,7 +525,25 @@ export default {
                 catch (e) { ctx.toast?.('Delete failed: ' + (e.message || e), 'error'); }
                 return;
             }
-            // Download / openGrimoire need to read the file first.
+            if (currentSource === 'machine' && act === 'download') {
+                try { await ctx.fs.download(path); }
+                catch (e) { ctx.toast?.('Download failed: ' + (e.message || e), 'error'); }
+                return;
+            }
+            if (currentSource === 'machine' && act === 'openGrimoire') {
+                try {
+                    await ctx.handoff('grimoire', {
+                        type: 'machineFile',
+                        path,
+                        name: it.name,
+                        mime: mimeFromName(it.name),
+                    });
+                } catch (e) {
+                    ctx.toast?.('Handoff failed: ' + (e.message || e), 'error');
+                }
+                return;
+            }
+            // Other sources hand off text, so read the file first.
             let data;
             try { data = await backend.readFile(path); }
             catch (e) { ctx.toast?.('Read failed: ' + (e.message || e), 'error'); return; }
@@ -497,19 +573,40 @@ export default {
             resetPreview();
             if (!selected || selected.kind !== 'file') return;
             const path = cwd ? cwd + '/' + selected.name : selected.name;
-            let data;
-            try { data = await backend.readFile(path); }
-            catch (e) {
-                $preview.innerHTML = `<div class="fm-empty">Read failed: ${escapeHTML(e.message || e)}</div>`;
-                return;
-            }
             const name = selected.name;
-            const mime = data.mime || mimeFromName(name);
-            const size = fmtSize(data.bytes.byteLength);
+            const mime = mimeFromName(name);
             const isText  = isTextLike(name, mime);
             const isImage = /^image\//.test(mime);
             const isVideo = /^video\//.test(mime);
             const isAudio = /^audio\//.test(mime);
+
+            if (backend?.kind === 'machine') {
+                if (!isText && !isImage && !isVideo && !isAudio) {
+                    $preview.innerHTML = `
+                        <div class="fm-preview-title">${escapeHTML(name)}</div>
+                        <div class="fm-preview-meta">${escapeHTML(mime)} · ${fmtSize(selected.size)}</div>
+                        <div class="fm-preview-body"><em>Binary file — use Download to open it.</em></div>
+                    `;
+                    return;
+                }
+                const max = isText ? 256 * 1024 : 32 * 1024 * 1024;
+                if (selected.size > max) {
+                    $preview.innerHTML = `
+                        <div class="fm-preview-title">${escapeHTML(name)}</div>
+                        <div class="fm-preview-meta">${escapeHTML(mime)} · ${fmtSize(selected.size)}</div>
+                        <div class="fm-preview-body"><em>File too large for inline preview — use Download.</em></div>
+                    `;
+                    return;
+                }
+            }
+
+            let data;
+            try { data = await backend.readFile(path, isText ? 256 * 1024 : 32 * 1024 * 1024); }
+            catch (e) {
+                $preview.innerHTML = `<div class="fm-empty">Read failed: ${escapeHTML(e.message || e)}</div>`;
+                return;
+            }
+            const size = fmtSize(data.bytes.byteLength);
 
             let body = '';
             if (isText) {
@@ -560,8 +657,19 @@ export default {
             $uploadInput.value = '';
             for (const f of files) {
                 try {
-                    const bytes = new Uint8Array(await f.arrayBuffer());
-                    await backend.createFile(cwd, f.name, bytes);
+                    if (backend.kind === 'machine' && ctx.fs.upload) {
+                        const np = cwd ? cwd + '/' + f.name : f.name;
+                        try {
+                            await ctx.fs.upload(np, f, false);
+                        } catch (e) {
+                            if (!String(e.message || e).includes('already exists')) throw e;
+                            if (!confirm(`Overwrite "${f.name}"?`)) continue;
+                            await ctx.fs.upload(np, f, true);
+                        }
+                    } else {
+                        const bytes = new Uint8Array(await f.arrayBuffer());
+                        await backend.createFile(cwd, f.name, bytes);
+                    }
                 } catch (e) { ctx.toast?.('Upload failed: ' + f.name + ' — ' + (e.message || e), 'error'); }
             }
             await refresh();
@@ -597,7 +705,7 @@ export default {
         root.querySelectorAll('.fm-source').forEach(el => {
             el.addEventListener('click', () => selectSource(el.dataset.source));
         });
-        await selectSource('virtual');
+        await selectSource(ctx.local ? 'machine' : 'virtual');
     },
 
     async unmount(root, ctx) {

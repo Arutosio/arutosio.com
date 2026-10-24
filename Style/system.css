@@ -1,0 +1,199 @@
+/* ╔══════════════════════════════════════════════════════════╗
+ * ║  SYSTEM — This-machine overview, processes, services       ║
+ * ╚══════════════════════════════════════════════════════════╝ */
+
+#win-system {
+    width: min(980px, calc(100vw - 80px));
+    height: min(680px, calc(100dvh - 120px));
+}
+#win-system.win-maximized { height: auto; }
+#win-system .win-content {
+    padding: 0;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    background: rgba(8, 6, 18, 0.92);
+    display: flex;
+}
+
+.system-content { display: flex; min-height: 0; }
+.sys-shell {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-height: 0;
+}
+.sys-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--gold-18, rgba(255, 200, 87, 0.18));
+    background: rgba(8, 6, 18, 0.55);
+    flex-wrap: wrap;
+}
+.sys-tab {
+    border: 0;
+    background: transparent;
+    color: var(--text-dim, rgba(232, 232, 240, 0.65));
+    padding: 6px 10px;
+    border-radius: 7px;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+.sys-tab:hover { background: rgba(255, 200, 87, 0.08); color: var(--gold-light, #ffe4a0); }
+.sys-tab.active { background: rgba(255, 200, 87, 0.16); color: var(--gold, #ffc857); }
+.sys-refresh {
+    margin-left: auto;
+    border: 0;
+    background: transparent;
+    color: var(--gold, #ffc857);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+.sys-refresh:hover { background: rgba(255, 200, 87, 0.1); }
+.sys-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 14px;
+}
+.sys-pane[hidden] { display: none; }
+.sys-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.sys-card {
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid var(--gold-18, rgba(255, 200, 87, 0.18));
+    border-radius: 10px;
+    padding: 10px 12px;
+    min-width: 0;
+}
+.sys-card > span {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(232, 232, 240, 0.5);
+    margin-bottom: 3px;
+}
+.sys-card > strong {
+    display: block;
+    font-size: 15px;
+    color: var(--gold-light, #ffe4a0);
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.sys-card > small {
+    display: block;
+    font-size: 11px;
+    color: rgba(232, 232, 240, 0.55);
+    margin-top: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.sys-bar {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 99px;
+    margin-top: 8px;
+    overflow: hidden;
+}
+.sys-bar > span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold, #ffc857), var(--purple, #a78bfa));
+    border-radius: 99px;
+}
+.sys-paths {
+    display: grid;
+    gap: 6px;
+    font-size: 11px;
+    color: rgba(232, 232, 240, 0.65);
+    margin-bottom: 12px;
+}
+.sys-paths strong { color: var(--gold, #ffc857); margin-right: 8px; }
+.sys-paths code {
+    font-family: 'Courier New', monospace;
+    word-break: break-all;
+    color: var(--purple, #a78bfa);
+}
+.sys-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    min-width: 620px;
+}
+.sys-table th, .sys-table td {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    vertical-align: middle;
+}
+.sys-table th {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(232, 232, 240, 0.45);
+    position: sticky;
+    top: 0;
+    background: rgba(8, 6, 18, 0.95);
+}
+.sys-table code { color: var(--purple, #a78bfa); font-family: 'Courier New', monospace; }
+.sys-command {
+    max-width: 420px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: rgba(232, 232, 240, 0.8);
+}
+.sys-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.sys-btn {
+    border: 1px solid var(--gold-18, rgba(255, 200, 87, 0.25));
+    background: rgba(255, 200, 87, 0.06);
+    color: var(--gold-light, #ffe4a0);
+    border-radius: 6px;
+    padding: 3px 7px;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+.sys-btn:hover { background: rgba(255, 200, 87, 0.15); }
+.sys-btn:disabled { opacity: 0.4; cursor: default; }
+.sys-danger {
+    color: #fb7185;
+    border-color: rgba(251, 113, 133, 0.35);
+    background: rgba(251, 113, 133, 0.06);
+}
+.sys-danger:hover { background: rgba(251, 113, 133, 0.15); }
+.sys-notice {
+    padding: 24px;
+    text-align: center;
+    color: rgba(232, 232, 240, 0.6);
+    font-size: 13px;
+    line-height: 1.6;
+}
+.sys-hint { font-size: 11px; color: rgba(232, 232, 240, 0.45); margin-top: 8px; }
+
+[data-theme="light"] #win-system .win-content { background: #fff8eb; }
+[data-theme="light"] .sys-tabs { background: rgba(255, 248, 235, 0.9); }
+[data-theme="light"] .sys-card { background: rgba(42, 26, 8, 0.04); }
+[data-theme="light"] .sys-card > strong { color: #2a1a08; }
+[data-theme="light"] .sys-table th { background: #fff8eb; }
+[data-theme="light"] .sys-command { color: #2a1a08; }
+
+@media (max-width: 700px) {
+    #win-system { width: calc(100vw - 16px); height: calc(100dvh - 90px); }
+    .sys-body { padding: 8px; }
+    .sys-grid { grid-template-columns: 1fr; }
+    .sys-table { min-width: 560px; }
+}

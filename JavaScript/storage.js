@@ -6,9 +6,11 @@
  * ╚══════════════════════════════════════════════════════════╝ */
 (function () {
     const constants = {
-        PACKAGES_DB:   'aruta_packages',
-        APP_DB_PREFIX: 'aruta_app_',
-        LS_PREFIX:     'aruta_',
+        PACKAGES_DB:   'arutosio_packages',
+        APP_DB_PREFIX: 'arutosio_app_',
+        APPEARANCE_DB: 'arutosio_appearance',
+        PROFILE_DB:    'arutosio_profile',
+        LS_PREFIX:     'arutosio_',
     };
 
     // ── localStorage shim ──────────────────────────────────
@@ -20,7 +22,7 @@
         del(key)                  { return window.storage ? window.storage.del(key) : false; },
     };
 
-    // ── registry (aruta_packages) ──────────────────────────
+    // ── registry (arutosio_packages) ──────────────────────────
     const registry = {
         /** Open the shared package registry DB. Uses the cached handle
          *  from db.js — safe to call repeatedly. */
@@ -32,7 +34,7 @@
         },
     };
 
-    // ── per-app KV (aruta_app_<id>) ────────────────────────
+    // ── per-app KV (arutosio_app_<id>) ────────────────────────
     function _appDB(appId) {
         return window.db.openDB(constants.APP_DB_PREFIX + appId, 1, (db) => {
             if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
@@ -56,6 +58,7 @@
                 t.objectStore('kv').put(value, key);
                 t.oncomplete = () => {
                     try { window.profile?.markDirty?.('app', appId); } catch {}
+                    try { document.dispatchEvent(new CustomEvent('arutosio:app-storage', { detail: { appId } })); } catch {}
                     res(true);
                 };
                 t.onerror = () => rej(t.error);
@@ -68,6 +71,7 @@
                 t.objectStore('kv').delete(key);
                 t.oncomplete = () => {
                     try { window.profile?.markDirty?.('app', appId); } catch {}
+                    try { document.dispatchEvent(new CustomEvent('arutosio:app-storage', { detail: { appId } })); } catch {}
                     res(true);
                 };
                 t.onerror = () => rej(t.error);

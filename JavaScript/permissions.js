@@ -2,8 +2,8 @@
  * ║  PERMISSIONS — iOS-style runtime grants for installed pkgs ║
  * ╚══════════════════════════════════════════════════════════╝ */
 
-const PERM_KEY_PREFIX = 'aruta_perms_';
-const PERM_LIST = ['storage', 'notifications', 'windows', 'terminal', 'fetch', 'theme', 'clipboard', 'profile-fs'];
+const PERM_KEY_PREFIX = 'arutosio_perms_';
+const PERM_LIST = ['storage', 'notifications', 'windows', 'terminal', 'fetch', 'theme', 'clipboard', 'profile-fs', 'fs.read', 'fs.write', 'fs.delete'];
 
 function permLabel(perm) { return window.t()['perm_' + perm] || perm; }
 function permDesc(perm)  { return window.t()['perm_' + perm + '_desc'] || perm; }
