@@ -38,9 +38,13 @@ mode stores everything on your machine.
   menu with search, widgets, multiple themes, time-of-day wallpapers and five
   UI languages.
 - **Files** — browse the virtual profile in hosted mode, or the real
-  filesystem in local mode, with upload, rename, trash and restore.
-- **Grimoire** — a writing/notes editor. In local mode it opens and saves real
-  files with conflict detection and restore.
+  filesystem in local mode, with upload, rename, trash and restore. Colored
+  file-type icons, filter and sort, drag to move entries, drop files/folders
+  from the OS, and drop a file on another source to copy it.
+- **Grimoire** — a writing/notes editor with file-type icons and a Markdown
+  preview. In local mode it opens and saves real files with conflict detection
+  and restore. Drop a machine file from Files to open it, or drop text files
+  from the OS into a workspace.
 - **Terminal** — a virtual command shell in hosted mode, a real PTY in local
   mode. Sessions survive page reloads and replay recent output.
 - **System** — local mode only: host/CPU/memory/disk overview, processes with
@@ -95,7 +99,7 @@ installing anything.
 The installer asks for confirmation, whether to expose the daemon on the LAN,
 and whether to open the port in `ufw`/`firewalld`. Use `--yes` for a
 non-interactive install. Useful options: `--port 7777`, `--prefix DIR`,
-`--version v0.5.2`, `--lan`, `--open-firewall`, `--no-firewall`,
+`--version v0.5.3`, `--lan`, `--open-firewall`, `--no-firewall`,
 `--no-service`.
 
 It links `~/.local/bin/arutosiod` to the installed binary. If that directory
@@ -204,8 +208,8 @@ Releases are built by [`.github/workflows/release.yml`](./.github/workflows/rele
 when a `v*` tag is pushed:
 
 ```bash
-git tag v0.5.2
-git push origin v0.5.2
+git tag v0.5.3
+git push origin v0.5.3
 ```
 
 Disable checks with `-update-url ""`, or point them at a mirror returning the
@@ -248,6 +252,10 @@ the user who installs it; treat the access token like an SSH credential. The
 daemon binds to loopback, checks the session cookie and CSRF on mutations,
 confines the Files API to `-root`, and forces package iframes to an opaque
 origin. No Tailscale, Cloudflare Tunnel or other relay is used.
+
+File icons are a curated subset of
+[vscode-icons](https://github.com/vscode-icons/vscode-icons) (MIT); the
+notice ships with each package under `icons/LICENSE`.
 
 ## Wallpaper
 

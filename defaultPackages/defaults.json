@@ -1,21 +1,338 @@
 {
     "version": 1,
     "packages": [
-        { "id": "rune",         "files": ["manifest.json", "index.js"] },
-        { "id": "weather",      "files": ["manifest.json", "index.js"] },
-        { "id": "timer",        "files": ["manifest.json", "index.js"] },
-        { "id": "qr",           "files": ["manifest.json", "index.js"] },
-        { "id": "whoami",       "files": ["manifest.json", "index.js"] },
-        { "id": "clip",         "files": ["manifest.json", "index.js"] },
-        { "id": "oracle",       "files": ["manifest.json", "ui.js", "cli.js", "style.css"] },
-        { "id": "dice-roller",  "files": ["manifest.json", "ui.js", "cli.js", "style.css"] },
-        { "id": "grimoire",     "files": ["manifest.json", "index.js", "style.css"] },
-        { "id": "snake",        "files": ["manifest.json", "index.js", "style.css"] },
-        { "id": "packagestore", "files": ["manifest.json", "ui.js", "cli.js", "style.css"] },
-        { "id": "filemanager",  "files": ["manifest.json", "index.js", "style.css"] },
-        { "id": "arcaneduel",   "files": ["manifest.json", "index.js", "style.css"] },
-        { "id": "gba",          "files": ["manifest.json", "index.js", "style.css", "bios.bin", "core/mgba.js", "core/mgba.wasm", "trystero.torrent.min.js"] },
-        { "id": "ultima-arutosio", "files": ["manifest.json", "data.js", "engine.js", "player.js", "index.js", "style.css"] },
-        { "id": "tavern",       "files": ["manifest.json", "ui.js", "widget.js", "chat.js", "style.css", "trystero.torrent.min.js"] }
+        {
+            "id": "rune",
+            "files": [
+                "manifest.json",
+                "index.js"
+            ]
+        },
+        {
+            "id": "weather",
+            "files": [
+                "manifest.json",
+                "index.js"
+            ]
+        },
+        {
+            "id": "timer",
+            "files": [
+                "manifest.json",
+                "index.js"
+            ]
+        },
+        {
+            "id": "qr",
+            "files": [
+                "manifest.json",
+                "index.js"
+            ]
+        },
+        {
+            "id": "whoami",
+            "files": [
+                "manifest.json",
+                "index.js"
+            ]
+        },
+        {
+            "id": "clip",
+            "files": [
+                "manifest.json",
+                "index.js"
+            ]
+        },
+        {
+            "id": "oracle",
+            "files": [
+                "manifest.json",
+                "ui.js",
+                "cli.js",
+                "style.css"
+            ]
+        },
+        {
+            "id": "dice-roller",
+            "files": [
+                "manifest.json",
+                "ui.js",
+                "cli.js",
+                "style.css"
+            ]
+        },
+        {
+            "id": "grimoire",
+            "files": [
+                "manifest.json",
+                "index.js",
+                "style.css",
+                "icons/LICENSE",
+                "icons/astro.svg",
+                "icons/audio.svg",
+                "icons/cmake.svg",
+                "icons/config.svg",
+                "icons/cpp.svg",
+                "icons/cppheader.svg",
+                "icons/csharp.svg",
+                "icons/css.svg",
+                "icons/csv.svg",
+                "icons/db.svg",
+                "icons/docker.svg",
+                "icons/editorconfig.svg",
+                "icons/env.svg",
+                "icons/excel.svg",
+                "icons/file.svg",
+                "icons/folder-asset.svg",
+                "icons/folder-audio.svg",
+                "icons/folder-binary.svg",
+                "icons/folder-component.svg",
+                "icons/folder-config.svg",
+                "icons/folder-css.svg",
+                "icons/folder-dist.svg",
+                "icons/folder-docs.svg",
+                "icons/folder-git.svg",
+                "icons/folder-github.svg",
+                "icons/folder-hook.svg",
+                "icons/folder-images.svg",
+                "icons/folder-js.svg",
+                "icons/folder-json.svg",
+                "icons/folder-library.svg",
+                "icons/folder-node.svg",
+                "icons/folder-package.svg",
+                "icons/folder-public.svg",
+                "icons/folder-root-open.svg",
+                "icons/folder-root.svg",
+                "icons/folder-sass.svg",
+                "icons/folder-script.svg",
+                "icons/folder-server.svg",
+                "icons/folder-src.svg",
+                "icons/folder-style.svg",
+                "icons/folder-test.svg",
+                "icons/folder-video.svg",
+                "icons/folder.svg",
+                "icons/font.svg",
+                "icons/git.svg",
+                "icons/go.svg",
+                "icons/gradle.svg",
+                "icons/graphql.svg",
+                "icons/html.svg",
+                "icons/image.svg",
+                "icons/ini.svg",
+                "icons/java.svg",
+                "icons/js.svg",
+                "icons/jsconfig.svg",
+                "icons/json.svg",
+                "icons/kotlin.svg",
+                "icons/less.svg",
+                "icons/license.svg",
+                "icons/link.svg",
+                "icons/log.svg",
+                "icons/markdown.svg",
+                "icons/maven.svg",
+                "icons/mysql.svg",
+                "icons/node.svg",
+                "icons/npm.svg",
+                "icons/pdf.svg",
+                "icons/pgsql.svg",
+                "icons/php.svg",
+                "icons/pnpm.svg",
+                "icons/powerpoint.svg",
+                "icons/prisma.svg",
+                "icons/python.svg",
+                "icons/reactjs.svg",
+                "icons/reactts.svg",
+                "icons/readme.svg",
+                "icons/ruby.svg",
+                "icons/rust.svg",
+                "icons/sass.svg",
+                "icons/scss.svg",
+                "icons/shell.svg",
+                "icons/sql.svg",
+                "icons/sqlite.svg",
+                "icons/svelte.svg",
+                "icons/svg.svg",
+                "icons/swift.svg",
+                "icons/terraform.svg",
+                "icons/text.svg",
+                "icons/toml.svg",
+                "icons/tsconfig.svg",
+                "icons/typescript.svg",
+                "icons/video.svg",
+                "icons/vue.svg",
+                "icons/wasm.svg",
+                "icons/word.svg",
+                "icons/xml.svg",
+                "icons/yaml.svg",
+                "icons/yarn.svg",
+                "icons/zip.svg"
+            ]
+        },
+        {
+            "id": "snake",
+            "files": [
+                "manifest.json",
+                "index.js",
+                "style.css"
+            ]
+        },
+        {
+            "id": "packagestore",
+            "files": [
+                "manifest.json",
+                "ui.js",
+                "cli.js",
+                "style.css"
+            ]
+        },
+        {
+            "id": "filemanager",
+            "files": [
+                "manifest.json",
+                "index.js",
+                "style.css",
+                "icons/LICENSE",
+                "icons/astro.svg",
+                "icons/audio.svg",
+                "icons/cmake.svg",
+                "icons/config.svg",
+                "icons/cpp.svg",
+                "icons/cppheader.svg",
+                "icons/csharp.svg",
+                "icons/css.svg",
+                "icons/csv.svg",
+                "icons/db.svg",
+                "icons/docker.svg",
+                "icons/editorconfig.svg",
+                "icons/env.svg",
+                "icons/excel.svg",
+                "icons/file.svg",
+                "icons/folder-asset.svg",
+                "icons/folder-audio.svg",
+                "icons/folder-binary.svg",
+                "icons/folder-component.svg",
+                "icons/folder-config.svg",
+                "icons/folder-css.svg",
+                "icons/folder-dist.svg",
+                "icons/folder-docs.svg",
+                "icons/folder-git.svg",
+                "icons/folder-github.svg",
+                "icons/folder-hook.svg",
+                "icons/folder-images.svg",
+                "icons/folder-js.svg",
+                "icons/folder-json.svg",
+                "icons/folder-library.svg",
+                "icons/folder-node.svg",
+                "icons/folder-package.svg",
+                "icons/folder-public.svg",
+                "icons/folder-root-open.svg",
+                "icons/folder-root.svg",
+                "icons/folder-sass.svg",
+                "icons/folder-script.svg",
+                "icons/folder-server.svg",
+                "icons/folder-src.svg",
+                "icons/folder-style.svg",
+                "icons/folder-test.svg",
+                "icons/folder-video.svg",
+                "icons/folder.svg",
+                "icons/font.svg",
+                "icons/git.svg",
+                "icons/go.svg",
+                "icons/gradle.svg",
+                "icons/graphql.svg",
+                "icons/html.svg",
+                "icons/image.svg",
+                "icons/ini.svg",
+                "icons/java.svg",
+                "icons/js.svg",
+                "icons/jsconfig.svg",
+                "icons/json.svg",
+                "icons/kotlin.svg",
+                "icons/less.svg",
+                "icons/license.svg",
+                "icons/link.svg",
+                "icons/log.svg",
+                "icons/markdown.svg",
+                "icons/maven.svg",
+                "icons/mysql.svg",
+                "icons/node.svg",
+                "icons/npm.svg",
+                "icons/pdf.svg",
+                "icons/pgsql.svg",
+                "icons/php.svg",
+                "icons/pnpm.svg",
+                "icons/powerpoint.svg",
+                "icons/prisma.svg",
+                "icons/python.svg",
+                "icons/reactjs.svg",
+                "icons/reactts.svg",
+                "icons/readme.svg",
+                "icons/ruby.svg",
+                "icons/rust.svg",
+                "icons/sass.svg",
+                "icons/scss.svg",
+                "icons/shell.svg",
+                "icons/sql.svg",
+                "icons/sqlite.svg",
+                "icons/svelte.svg",
+                "icons/svg.svg",
+                "icons/swift.svg",
+                "icons/terraform.svg",
+                "icons/text.svg",
+                "icons/toml.svg",
+                "icons/tsconfig.svg",
+                "icons/typescript.svg",
+                "icons/video.svg",
+                "icons/vue.svg",
+                "icons/wasm.svg",
+                "icons/word.svg",
+                "icons/xml.svg",
+                "icons/yaml.svg",
+                "icons/yarn.svg",
+                "icons/zip.svg"
+            ]
+        },
+        {
+            "id": "arcaneduel",
+            "files": [
+                "manifest.json",
+                "index.js",
+                "style.css"
+            ]
+        },
+        {
+            "id": "gba",
+            "files": [
+                "manifest.json",
+                "index.js",
+                "style.css",
+                "bios.bin",
+                "core/mgba.js",
+                "core/mgba.wasm",
+                "trystero.torrent.min.js"
+            ]
+        },
+        {
+            "id": "ultima-arutosio",
+            "files": [
+                "manifest.json",
+                "data.js",
+                "engine.js",
+                "player.js",
+                "index.js",
+                "style.css"
+            ]
+        },
+        {
+            "id": "tavern",
+            "files": [
+                "manifest.json",
+                "ui.js",
+                "widget.js",
+                "chat.js",
+                "style.css",
+                "trystero.torrent.min.js"
+            ]
+        }
     ]
 }

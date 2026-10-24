@@ -40,7 +40,7 @@ jobs:
             mkdir -p "$stage/web"
             cp "dist/arutosiod-$target" "$stage/arutosiod"
             tar -C . --exclude=.git --exclude=server --exclude=dist \
-              --exclude=node_modules -cf - . | tar -C "$stage/web" -xf -
+              --exclude=node_modules --exclude=tests -cf - . | tar -C "$stage/web" -xf -
             tar -C "$stage" -czf "$(pwd)/dist/arutosio-linux-$target.tar.gz" arutosiod web
             rm -rf "$stage" "dist/arutosiod-$target"
           done

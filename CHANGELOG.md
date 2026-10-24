@@ -9,6 +9,22 @@ either git commit SHAs or the `version` field inside a package's
 
 ## Site
 
+### 2026-10 — File icons, drag & drop (`arutosiod` 0.5.3)
+
+- **Files (1.6.0)** — colored file-type and folder icons from a curated
+  vscode-icons subset (MIT), exact-name/extension/compound-extension mapping,
+  filter box and name/size sorting, drag to move files and folders, drop
+  files/folders from the OS, drop a file on another source to copy it,
+  draggable breadcrumb targets.
+- **Grimoire (1.11.0)** — file-type/folder icons in the tree, drop a machine
+  file from Files to open it, drop text files from the OS into the current
+  virtual/disk workspace, a drop highlight over the editor, and the Preview
+  tab renders Markdown (headings, lists, quotes, code, links) with sanitized
+  HTML instead of showing its source.
+- Icons are bundled in each package with their MIT notice; no CDN calls.
+- Committed `tests/e2e.mjs`, which boots a throwaway daemon and checks the
+  icon, drag & drop, search and Markdown-preview paths in Chromium.
+
 ### 2026-10 — Files/Grimoire stability (`arutosiod` 0.5.2)
 
 - **Files (1.5.0)** — rename/delete for folders, name validation, duplicate

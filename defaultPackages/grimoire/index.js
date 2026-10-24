@@ -94,6 +94,594 @@ function validName(name) {
     return !!name && name !== '.' && name !== '..' && !/[/\x00-\x1f\x7f]/.test(name);
 }
 
+// ── Small, safe Markdown renderer for the Preview tab ────────────
+function safeMarkdownURL(raw) {
+    const url = String(raw || '').trim();
+    if (!/^(https?:|mailto:)/i.test(url)) return '';
+    try {
+        const u = new URL(url);
+        return u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'mailto:' ? u.href : '';
+    } catch { return ''; }
+}
+
+function renderMarkdownInline(raw) {
+    const codes = [];
+    let s = escapeHTML(raw);
+    s = s.replace(/`([^`]+)`/g, (_, code) => {
+        codes.push(code);
+        return '\u0000' + (codes.length - 1) + '\u0000';
+    });
+    // shortcut: URLs containing ")" stop the match, fine for a small preview
+    s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (match, alt, url) => {
+        const safe = safeMarkdownURL(url.replace(/&amp;/g, '&'));
+        return safe ? `<img src="${escapeHTML(safe)}" alt="${alt}" loading="lazy">` : match;
+    });
+    s = s.replace(/(^|[^!])\[([^\]]+)\]\(([^)\s]+)\)/g, (match, pre, label, url) => {
+        const safe = safeMarkdownURL(url.replace(/&amp;/g, '&'));
+        return safe ? pre + `<a href="${escapeHTML(safe)}" target="_blank" rel="noopener noreferrer">${label}</a>` : match;
+    });
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
+    s = s.replace(/(^|[^_])_([^_]+)_/g, '$1<em>$2</em>');
+    s = s.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${codes[Number(i)] ?? ''}</code>`);
+    return s;
+}
+
+function renderMarkdown(raw) {
+    const lines = String(raw || '').replace(/\r\n?/g, '\n').split('\n');
+    const out = [];
+    const para = [];
+    let listType = '';
+    let inCode = false;
+    let codeLang = '';
+    let code = [];
+    let inQuote = false;
+
+    const flushPara = () => {
+        if (para.length) { out.push(`<p>${renderMarkdownInline(para.join(' '))}</p>`); para.length = 0; }
+    };
+    const flushList = () => {
+        if (listType) { out.push(`</${listType}>`); listType = ''; }
+    };
+    const flushQuote = () => {
+        if (inQuote) { out.push('</blockquote>'); inQuote = false; }
+    };
+
+    for (const line of lines) {
+        if (inCode) {
+            if (/^```/.test(line)) {
+                out.push(`<pre><code${codeLang ? ` class="language-${escapeHTML(codeLang)}"` : ''}>${escapeHTML(code.join('\n'))}</code></pre>`);
+                inCode = false; code = []; codeLang = '';
+            } else code.push(line);
+            continue;
+        }
+        const fence = /^```\s*([\w-]*)\s*$/.exec(line);
+        if (fence) {
+            flushPara(); flushList(); flushQuote();
+            inCode = true; codeLang = fence[1]; code = [];
+            continue;
+        }
+        if (!line.trim()) { flushPara(); flushList(); flushQuote(); continue; }
+        const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+        if (heading) {
+            flushPara(); flushList(); flushQuote();
+            const n = heading[1].length;
+            out.push(`<h${n}>${renderMarkdownInline(heading[2])}</h${n}>`);
+            continue;
+        }
+        if (/^\s*(---|\*\*\*|___)\s*$/.test(line)) {
+            flushPara(); flushList(); flushQuote();
+            out.push('<hr>');
+            continue;
+        }
+        const quote = /^>\s?(.*)$/.exec(line);
+        if (quote) {
+            flushPara(); flushList();
+            if (!inQuote) { out.push('<blockquote>'); inQuote = true; }
+            out.push(`<p>${renderMarkdownInline(quote[1])}</p>`);
+            continue;
+        }
+        const ul = /^\s*[-*+]\s+(.*)$/.exec(line);
+        const ol = /^\s*\d+[.)]\s+(.*)$/.exec(line);
+        if (ul || ol) {
+            flushPara(); flushQuote();
+            const type = ul ? 'ul' : 'ol';
+            if (listType !== type) {
+                flushList();
+                out.push(`<${type}>`);
+                listType = type;
+            }
+            out.push(`<li>${renderMarkdownInline((ul || ol)[1])}</li>`);
+            continue;
+        }
+        flushList(); flushQuote();
+        para.push(line);
+    }
+    if (inCode) out.push(`<pre><code>${escapeHTML(code.join('\n'))}</code></pre>`);
+    flushPara(); flushList(); flushQuote();
+    return out.join('\n');
+}
+
+// ── File icons (curated vscode-icons subset, MIT) ────────────────
+// Sources are loaded from the package (icons/<id>.svg); fall back to
+// the legacy emoji when an asset is unavailable.
+const ICON_EXT = {
+    "js": "js",
+    "mjs": "js",
+    "cjs": "js",
+    "jsx": "reactjs",
+    "ts": "typescript",
+    "tsx": "reactts",
+    "mts": "typescript",
+    "cts": "typescript",
+    "json": "json",
+    "json5": "json",
+    "jsonc": "json",
+    "jsonl": "json",
+    "ndjson": "json",
+    "html": "html",
+    "htm": "html",
+    "xhtml": "html",
+    "css": "css",
+    "pcss": "css",
+    "postcss": "css",
+    "scss": "scss",
+    "sass": "sass",
+    "less": "less",
+    "yaml": "yaml",
+    "yml": "yaml",
+    "toml": "toml",
+    "xml": "xml",
+    "svg": "svg",
+    "png": "image",
+    "jpg": "image",
+    "jpeg": "image",
+    "gif": "image",
+    "webp": "image",
+    "ico": "image",
+    "bmp": "image",
+    "avif": "image",
+    "tif": "image",
+    "tiff": "image",
+    "mp4": "video",
+    "webm": "video",
+    "mov": "video",
+    "mkv": "video",
+    "avi": "video",
+    "m4v": "video",
+    "mp3": "audio",
+    "wav": "audio",
+    "ogg": "audio",
+    "flac": "audio",
+    "m4a": "audio",
+    "aac": "audio",
+    "pdf": "pdf",
+    "zip": "zip",
+    "tar": "zip",
+    "gz": "zip",
+    "tgz": "zip",
+    "bz2": "zip",
+    "xz": "zip",
+    "rar": "zip",
+    "7z": "zip",
+    "zst": "zip",
+    "woff": "font",
+    "woff2": "font",
+    "ttf": "font",
+    "otf": "font",
+    "eot": "font",
+    "csv": "csv",
+    "xls": "excel",
+    "xlsx": "excel",
+    "ods": "excel",
+    "doc": "word",
+    "docx": "word",
+    "odt": "word",
+    "rtf": "word",
+    "ppt": "powerpoint",
+    "pptx": "powerpoint",
+    "odp": "powerpoint",
+    "py": "python",
+    "pyw": "python",
+    "pyi": "python",
+    "rb": "ruby",
+    "rake": "ruby",
+    "gemspec": "ruby",
+    "go": "go",
+    "rs": "rust",
+    "java": "java",
+    "kt": "kotlin",
+    "kts": "kotlin",
+    "swift": "swift",
+    "cs": "csharp",
+    "fs": "csharp",
+    "vb": "csharp",
+    "c": "cpp",
+    "cc": "cpp",
+    "cpp": "cpp",
+    "cxx": "cpp",
+    "hpp": "cppheader",
+    "h": "cppheader",
+    "php": "php",
+    "phtml": "php",
+    "sql": "sql",
+    "sqlite": "sqlite",
+    "sqlite3": "sqlite",
+    "db": "db",
+    "sh": "shell",
+    "bash": "shell",
+    "zsh": "shell",
+    "fish": "shell",
+    "ksh": "shell",
+    "ps1": "shell",
+    "psm1": "shell",
+    "bat": "shell",
+    "cmd": "shell",
+    "dockerfile": "docker",
+    "dockerignore": "docker",
+    "gitignore": "git",
+    "gitattributes": "git",
+    "gitmodules": "git",
+    "gitkeep": "git",
+    "npmrc": "npm",
+    "npmignore": "npm",
+    "nvmrc": "node",
+    "lock": "config",
+    "cfg": "ini",
+    "conf": "config",
+    "config": "config",
+    "ini": "ini",
+    "md": "markdown",
+    "markdown": "markdown",
+    "mdown": "markdown",
+    "mdx": "markdown",
+    "rst": "text",
+    "txt": "text",
+    "log": "log",
+    "env": "env",
+    "editorconfig": "editorconfig",
+    "graphql": "graphql",
+    "gql": "graphql",
+    "prisma": "prisma",
+    "wasm": "wasm",
+    "tf": "terraform",
+    "tfvars": "terraform",
+    "tfstate": "terraform",
+    "vue": "vue",
+    "svelte": "svelte",
+    "astro": "astro",
+    "cmake": "cmake",
+    "gradle": "gradle",
+    "pom": "maven",
+    "mysql": "mysql",
+    "pgsql": "pgsql",
+};
+const ICON_COMPOUND = {
+    "d.ts": "typescriptdef",
+    "d.mts": "typescriptdef",
+    "d.cts": "typescriptdef",
+    "tar.gz": "zip",
+    "tar.bz2": "zip",
+    "tar.xz": "zip",
+    "tar.zst": "zip",
+    "min.js": "js",
+    "min.css": "css",
+    "min.mjs": "js",
+};
+const ICON_NAMES = {
+    "package.json": "npm",
+    "package-lock.json": "npm",
+    "npm-shrinkwrap.json": "npm",
+    "yarn.lock": "yarn",
+    "pnpm-lock.yaml": "pnpm",
+    "pnpm-workspace.yaml": "pnpm",
+    "tsconfig.json": "tsconfig",
+    "jsconfig.json": "jsconfig",
+    "dockerfile": "docker",
+    "docker-compose.yml": "docker",
+    "docker-compose.yaml": "docker",
+    "compose.yml": "docker",
+    "compose.yaml": "docker",
+    ".dockerignore": "docker",
+    "makefile": "cmake",
+    "gnumakefile": "cmake",
+    "cmakelists.txt": "cmake",
+    "go.mod": "go",
+    "go.sum": "go",
+    "go.work": "go",
+    "cargo.toml": "rust",
+    "cargo.lock": "rust",
+    "requirements.txt": "python",
+    "pyproject.toml": "python",
+    "pipfile": "python",
+    "pipfile.lock": "python",
+    "setup.py": "python",
+    "setup.cfg": "python",
+    "tox.ini": "python",
+    "gemfile": "ruby",
+    "gemfile.lock": "ruby",
+    "rakefile": "ruby",
+    "composer.json": "php",
+    "composer.lock": "php",
+    "pom.xml": "maven",
+    "build.gradle": "gradle",
+    "settings.gradle": "gradle",
+    "gradlew": "gradle",
+    "readme": "readme",
+    "readme.md": "readme",
+    "readme.txt": "readme",
+    "readme.rst": "readme",
+    "license": "license",
+    "license.md": "license",
+    "license.txt": "license",
+    "copying": "license",
+    "copying.md": "license",
+    "notice": "license",
+    ".editorconfig": "editorconfig",
+    ".gitignore": "git",
+    ".gitattributes": "git",
+    ".gitmodules": "git",
+    ".gitkeep": "git",
+    ".npmrc": "npm",
+    ".nvmrc": "node",
+    ".bashrc": "shell",
+    ".zshrc": "shell",
+    ".bash_profile": "shell",
+    ".profile": "shell",
+    ".zprofile": "shell",
+    ".htaccess": "config",
+    "nginx.conf": "config",
+    "vite.config.js": "config",
+    "vite.config.ts": "config",
+    "vite.config.mjs": "config",
+    "webpack.config.js": "config",
+    "webpack.config.ts": "config",
+    "rollup.config.js": "config",
+    "rollup.config.ts": "config",
+    "next.config.js": "config",
+    "next.config.ts": "config",
+    "next.config.mjs": "config",
+    "nuxt.config.ts": "config",
+    "svelte.config.js": "config",
+    "astro.config.mjs": "config",
+    "tailwind.config.js": "config",
+    "tailwind.config.ts": "config",
+    "postcss.config.js": "config",
+    "postcss.config.cjs": "config",
+    "babel.config.js": "config",
+    ".babelrc": "config",
+    "jest.config.js": "config",
+    "jest.config.ts": "config",
+    "vitest.config.ts": "config",
+    "playwright.config.ts": "config",
+    "eslint.config.js": "config",
+    "eslint.config.mjs": "config",
+    ".eslintrc": "config",
+    ".prettierrc": "config",
+    "prettier.config.js": "config",
+};
+const ICON_PREFIXES = [
+    [
+        "dockerfile",
+        "docker"
+    ],
+    [
+        "docker-compose",
+        "docker"
+    ],
+    [
+        ".env",
+        "env"
+    ],
+    [
+        "tsconfig.",
+        "tsconfig"
+    ],
+    [
+        "jsconfig.",
+        "jsconfig"
+    ],
+    [
+        "eslint.config.",
+        "config"
+    ],
+    [
+        ".eslintrc",
+        "config"
+    ],
+    [
+        "prettier.config.",
+        "config"
+    ],
+    [
+        ".prettierrc",
+        "config"
+    ],
+    [
+        "vite.config.",
+        "config"
+    ],
+    [
+        "webpack.config.",
+        "config"
+    ],
+    [
+        "rollup.config.",
+        "config"
+    ],
+    [
+        "next.config.",
+        "config"
+    ],
+    [
+        "nuxt.config.",
+        "config"
+    ],
+    [
+        "svelte.config.",
+        "config"
+    ],
+    [
+        "astro.config.",
+        "config"
+    ],
+    [
+        "tailwind.config.",
+        "config"
+    ],
+    [
+        "postcss.config.",
+        "config"
+    ],
+    [
+        "babel.config.",
+        "config"
+    ],
+    [
+        "jest.config.",
+        "config"
+    ],
+    [
+        "vitest.config.",
+        "config"
+    ],
+    [
+        "playwright.config.",
+        "config"
+    ],
+    [
+        "gemfile",
+        "ruby"
+    ],
+    [
+        "cargo.",
+        "rust"
+    ],
+    [
+        "go.",
+        "go"
+    ]
+];
+const ICON_FOLDERS = {
+    "src": "folder-src",
+    "source": "folder-src",
+    "node_modules": "folder-node",
+    "node": "folder-node",
+    ".git": "folder-git",
+    "git": "folder-git",
+    ".github": "folder-github",
+    "github": "folder-github",
+    "config": "folder-config",
+    "configs": "folder-config",
+    ".config": "folder-config",
+    "test": "folder-test",
+    "tests": "folder-test",
+    "__tests__": "folder-test",
+    "spec": "folder-test",
+    "specs": "folder-test",
+    "docs": "folder-docs",
+    "doc": "folder-docs",
+    "documentation": "folder-docs",
+    "public": "folder-public",
+    "static": "folder-public",
+    "assets": "folder-asset",
+    "asset": "folder-asset",
+    "images": "folder-images",
+    "image": "folder-images",
+    "img": "folder-images",
+    "media": "folder-images",
+    "css": "folder-css",
+    "styles": "folder-style",
+    "style": "folder-style",
+    "scss": "folder-sass",
+    "sass": "folder-sass",
+    "js": "folder-js",
+    "json": "folder-json",
+    "scripts": "folder-script",
+    "script": "folder-script",
+    "dist": "folder-dist",
+    "build": "folder-dist",
+    "out": "folder-dist",
+    "coverage": "folder-dist",
+    "components": "folder-component",
+    "component": "folder-component",
+    "hooks": "folder-hook",
+    "hook": "folder-hook",
+    "lib": "folder-library",
+    "libs": "folder-library",
+    "library": "folder-library",
+    "packages": "folder-package",
+    "package": "folder-package",
+    "packages-local": "folder-package",
+    "server": "folder-server",
+    "backend": "folder-server",
+    "api": "folder-server",
+    "video": "folder-video",
+    "videos": "folder-video",
+    "audio": "folder-audio",
+    "sounds": "folder-audio",
+    "music": "folder-audio",
+    "bin": "folder-binary",
+    "binary": "folder-binary",
+};
+const ICON_FOLDER_OPEN = new Set([
+    "folder",
+    "folder-asset",
+    "folder-audio",
+    "folder-binary",
+    "folder-component",
+    "folder-config",
+    "folder-css",
+    "folder-dist",
+    "folder-docs",
+    "folder-git",
+    "folder-github",
+    "folder-hook",
+    "folder-images",
+    "folder-js",
+    "folder-json",
+    "folder-library",
+    "folder-node",
+    "folder-package",
+    "folder-public",
+    "folder-sass",
+    "folder-script",
+    "folder-server",
+    "folder-src",
+    "folder-style",
+    "folder-test",
+    "folder-video"
+]);
+
+function fileIconId(name, opts = {}) {
+    if (opts.symlink) return 'link';
+    const lower = String(name || '').toLowerCase();
+    if (ICON_NAMES[lower]) return ICON_NAMES[lower];
+    for (const [prefix, id] of ICON_PREFIXES) {
+        if (lower.startsWith(prefix)) return id;
+    }
+    const parts = lower.split('.');
+    for (let n = Math.min(3, parts.length - 1); n >= 1; n--) {
+        const suffix = parts.slice(-n).join('.');
+        if (ICON_COMPOUND[suffix]) return ICON_COMPOUND[suffix];
+        if (ICON_EXT[suffix]) return ICON_EXT[suffix];
+    }
+    return 'file';
+}
+
+function folderIconId(name, open, root) {
+    if (root) return open ? 'folder-root-open' : 'folder-root';
+    const base = ICON_FOLDERS[String(name || '').toLowerCase()] || 'folder';
+    return open && ICON_FOLDER_OPEN.has(base) ? base + '-open' : base;
+}
+
+function iconHTML(ctx, id, cls, fallback = '') {
+    const url = ctx?.asset?.('icons/' + id + '.svg');
+    if (!url) return fallback;
+    return `<img class="${cls}" src="${url}" alt="" aria-hidden="true" loading="lazy" decoding="async">`;
+}
+
 // ── CRC32 (precomputed table) ────────────────────
 const _CRC32_TABLE = (() => {
     const t = new Uint32Array(256);
@@ -871,13 +1459,18 @@ export default {
             } else if (view === 'preview') {
                 const content = d.content || '';
                 const lang = d.lang || 'plaintext';
-                await hljsReady;
-                $body.innerHTML = '<div class="preview"><pre><code></code></pre></div>';
-                const codeEl = $body.querySelector('code');
-                codeEl.textContent = content;
-                if (window.hljs && lang !== 'plaintext') {
-                    codeEl.className = 'language-' + lang;
-                    try { window.hljs.highlightElement(codeEl); } catch {}
+                if (lang === 'markdown') {
+                    $body.innerHTML = '<div class="preview preview-md"></div>';
+                    $body.querySelector('.preview').innerHTML = renderMarkdown(content);
+                } else {
+                    await hljsReady;
+                    $body.innerHTML = '<div class="preview"><pre><code></code></pre></div>';
+                    const codeEl = $body.querySelector('code');
+                    codeEl.textContent = content;
+                    if (window.hljs && lang !== 'plaintext') {
+                        codeEl.className = 'language-' + lang;
+                        try { window.hljs.highlightElement(codeEl); } catch {}
+                    }
                 }
             } else if (view === 'settings') {
                 $body.innerHTML = `
@@ -1291,11 +1884,12 @@ export default {
                     <button class="ftree-act" data-action="new-file" data-path="${escapeHTML(node.path)}" title="New file here">📄＋</button>
                     <button class="ftree-act" data-action="new-dir"  data-path="${escapeHTML(node.path)}" title="New folder here">📁＋</button>
                 ` : '';
+                const icon = iconHTML(ctx, folderIconId(node.name, !collapsed, isRoot), 'ftree-icon-img', isRoot ? '📂' : '📁');
                 return `
                     <div class="ftree-dir ${collapsed ? 'is-collapsed' : ''}" data-path="${escapeHTML(node.path)}">
                         <div class="ftree-item ftree-drop" data-kind="dir" data-path="${escapeHTML(node.path)}">
                             <span class="ftree-chev">▾</span>
-                            <span class="ftree-icon">${isRoot ? '📂' : '📁'}</span>
+                            <span class="ftree-icon">${icon}</span>
                             <span class="ftree-name">${escapeHTML(node.name)}</span>
                             ${actions}
                         </div>
@@ -1304,11 +1898,12 @@ export default {
                 `;
             } else {
                 const isActive = activeId === 'file:' + node.path;
+                const icon = iconHTML(ctx, fileIconId(node.name), 'ftree-icon-img', '📄');
                 return `
                     <div class="ftree-file" data-path="${escapeHTML(node.path)}">
                         <div class="ftree-item ${isActive ? 'ftree-active' : ''}" data-kind="file" data-path="${escapeHTML(node.path)}" ${canWrite ? 'draggable="true"' : ''}>
                             <span class="ftree-chev"></span>
-                            <span class="ftree-icon">📄</span>
+                            <span class="ftree-icon">${icon}</span>
                             <span class="ftree-name">${escapeHTML(node.name)}</span>
                         </div>
                     </div>
@@ -1360,6 +1955,7 @@ export default {
                         const srcPath = e.dataTransfer.getData('text/grimoire-path');
                         if (!srcPath) return;
                         e.preventDefault();
+                        e.stopPropagation();
                         await doMove(srcPath, el.dataset.path);
                     });
                 }
@@ -1596,6 +2192,93 @@ export default {
         document.addEventListener('arutosio:handoff', (e) => {
             handleHandoff(e.detail).catch((err) => console.warn('[grimoire] handoff failed', err));
         });
+
+        function isEditableFile(name, mime) {
+            const ext = String(name || '').split('.').pop().toLowerCase();
+            return Object.prototype.hasOwnProperty.call(EXT_TO_LANG, ext) || /^text\//.test(mime || '');
+        }
+
+        async function importDroppedFiles(files) {
+            if (!files.length) {
+                Promise.resolve(ctx.toast?.('Drop files, not folders', 'warning')).catch(() => {});
+                return;
+            }
+            if (!backend) {
+                if (!(await openVirtualWorkspace())) return;
+            }
+            if (backend.kind === 'machine') {
+                Promise.resolve(ctx.toast?.('Use Files to add files on this machine', 'warning')).catch(() => {});
+                return;
+            }
+            let imported = 0;
+            let lastPath = null;
+            for (const f of files) {
+                if (!isEditableFile(f.name, f.type)) {
+                    Promise.resolve(ctx.toast?.(f.name + ' is not a text file', 'warning')).catch(() => {});
+                    continue;
+                }
+                if (f.size > 2 * 1024 * 1024) {
+                    Promise.resolve(ctx.toast?.(f.name + ' is too large (max 2 MB)', 'warning')).catch(() => {});
+                    continue;
+                }
+                let name = f.name;
+                const dot = name.lastIndexOf('.');
+                const base = dot > 0 ? name.slice(0, dot) : name;
+                const ext = dot > 0 ? name.slice(dot) : '';
+                let n = 1;
+                while ((tree?.children || []).some(c => c.name === name)) {
+                    name = base + '-' + n + ext;
+                    n++;
+                }
+                const text = await f.text();
+                const path = await backend.createFile('', name);
+                await backend.writeFile(path, text);
+                tree = await backend.list();
+                lastPath = path;
+                imported++;
+            }
+            if (imported) {
+                renderFolderTree();
+                if (lastPath) await openFileFromTree(lastPath);
+                Promise.resolve(ctx.toast?.('Imported ' + imported + ' file' + (imported === 1 ? '' : 's'), 'success')).catch(() => {});
+            }
+        }
+
+        const dropZone = root.querySelector('.wrap') || root;
+        const hasInternalDrop = (ev) => Array.from(ev.dataTransfer?.types || []).includes('application/x-arutosio-file');
+        const hasFilesDrop = (ev) => Array.from(ev.dataTransfer?.types || []).includes('Files');
+        dropZone.addEventListener('dragover', (ev) => {
+            if (!hasInternalDrop(ev) && !hasFilesDrop(ev)) return;
+            ev.preventDefault();
+            ev.dataTransfer.dropEffect = 'copy';
+            dropZone.classList.add('grimoire-drop');
+        });
+        dropZone.addEventListener('dragleave', (ev) => {
+            if (ev.target === dropZone) dropZone.classList.remove('grimoire-drop');
+        });
+        dropZone.addEventListener('drop', async (ev) => {
+            if (!hasInternalDrop(ev) && !hasFilesDrop(ev)) return;
+            ev.preventDefault();
+            dropZone.classList.remove('grimoire-drop');
+            const raw = ev.dataTransfer.getData('application/x-arutosio-file');
+            if (raw) {
+                try {
+                    const p = JSON.parse(raw);
+                    if (p?.source === 'machine' && ctx.local && p.path) {
+                        await handleHandoff({ type: 'machineFile', path: p.path, name: p.name || p.path.split('/').pop(), mime: '' });
+                    } else {
+                        Promise.resolve(ctx.toast?.('Use Files → Open in Grimoire for this source', 'warning')).catch(() => {});
+                    }
+                } catch (e) { console.warn('[grimoire] drop payload', e); }
+                return;
+            }
+            await importDroppedFiles(Array.from(ev.dataTransfer.files || []));
+        });
+        const preventBrowserFileDrop = (ev) => {
+            if (hasFilesDrop(ev)) ev.preventDefault();
+        };
+        window.addEventListener('dragover', preventBrowserFileDrop);
+        window.addEventListener('drop', preventBrowserFileDrop);
 
         const flushOnHide = () => {
             flushPendingSave().catch(() => {});

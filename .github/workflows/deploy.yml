@@ -23,8 +23,8 @@ jobs:
         uses: actions/checkout@v4
 
       # The daemon source is not part of the static site artifact.
-      - name: Drop server sources
-        run: rm -rf server
+      - name: Drop developer files
+        run: rm -rf server tests
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
