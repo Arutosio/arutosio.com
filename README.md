@@ -92,7 +92,10 @@ no checkout. If a dependency is missing (`curl`, `tar`, `gzip`, `openssl`,
 `coreutils`, `gawk`) it prints the package-manager command and stops without
 installing anything.
 
-Useful options: `--port 7777`, `--prefix DIR`, `--version v0.4.1`,
+The installer asks for confirmation, whether to expose the daemon on the LAN,
+and whether to open the port in `ufw`/`firewalld`. Use `--yes` for a
+non-interactive install. Useful options: `--port 7777`, `--prefix DIR`,
+`--version v0.5.0`, `--lan`, `--open-firewall`, `--no-firewall`,
 `--no-service`.
 
 From a checkout (development only):
@@ -132,6 +135,38 @@ and the System app manages processes, user services, terminal sessions and
 trash. When the site is hosted on GitHub Pages, everything stays browser-local
 as before.
 
+By default the daemon listens only on `127.0.0.1`; reach it through an SSH
+tunnel. To use it from another machine on the same network, enable LAN mode:
+
+```bash
+arutosiod lan on
+```
+
+This binds `0.0.0.0`, offers to open the port in `ufw`/`firewalld`, and prints
+the LAN URLs. LAN traffic is plain HTTP, so use it only on a trusted network;
+SSH remains the recommended path over untrusted networks.
+
+### Manage the daemon
+
+```bash
+arutosiod status          # service, health, paths, port, firewall, LAN URLs
+arutosiod start
+arutosiod stop
+arutosiod restart
+arutosiod logs -f
+arutosiod url --lan --token
+arutosiod doctor
+arutosiod lan on|off
+arutosiod update [--check]
+arutosiod rollback
+arutosiod uninstall [--purge]
+```
+
+`status` also has `--json`. `uninstall` stops the service, removes the binary
+and site, and closes the firewall rule it added; the token/profile/trash are
+kept unless you pass `--purge`. The same data directory is shared with the
+installer, so re-installing after an uninstall keeps your data.
+
 ### Updates
 
 `arutosiod` checks the GitHub release feed every six hours. When a newer
@@ -146,8 +181,8 @@ Releases are built by [`.github/workflows/release.yml`](./.github/workflows/rele
 when a `v*` tag is pushed:
 
 ```bash
-git tag v0.4.1
-git push origin v0.4.1
+git tag v0.5.0
+git push origin v0.5.0
 ```
 
 Disable checks with `-update-url ""`, or point them at a mirror returning the
@@ -158,6 +193,7 @@ matching public key is embedded in the daemon.
 ## Project layout
 
 ```
+install.sh          # one-command installer (served at arutosio.com/install.sh)
 index.html          # OS shell
 JavaScript/         # window manager, settings, terminal, sandbox, profile, local mode
 Style/              # desktop, windows, terminal and section styling

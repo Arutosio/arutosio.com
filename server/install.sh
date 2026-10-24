@@ -7,6 +7,7 @@ set -eu
 
 PORT="${ARUTOSIO_PORT:-7777}"
 PREFIX="${ARUTOSIO_HOME:-$HOME/.arutosio}"
+LISTEN="127.0.0.1:$PORT"
 NO_SERVICE=0
 
 usage() {
@@ -52,6 +53,10 @@ if [ "$(id -u)" -eq 0 ]; then
     echo "Run this as your normal user, not root: the daemon keeps your files." >&2
     exit 1
 fi
+if ! command -v curl >/dev/null 2>&1; then
+    echo "curl is required for the installer health check." >&2
+    exit 1
+fi
 
 mkdir -p "$PREFIX/bin" "$PREFIX/current"
 chmod 700 "$PREFIX" 2>/dev/null || true
@@ -93,7 +98,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=$PREFIX/bin/arutosiod -listen 127.0.0.1:$PORT -web $PREFIX/current/web -root %h -data $PREFIX
+ExecStart="$PREFIX/bin/arutosiod" -listen "$LISTEN" -web "$PREFIX/current/web" -root %h -data "$PREFIX"
 Restart=on-failure
 RestartSec=2
 WorkingDirectory=%h
@@ -112,7 +117,7 @@ fi
 if [ "$SERVICE_OK" -eq 0 ]; then
     echo "Starting arutosiod in the background (no user systemd)."
     nohup "$PREFIX/bin/arutosiod" \
-        -listen "127.0.0.1:$PORT" \
+        -listen "$LISTEN" \
         -web "$PREFIX/current/web" \
         -root "$HOME" \
         -data "$PREFIX" \
@@ -121,11 +126,36 @@ if [ "$SERVICE_OK" -eq 0 ]; then
 fi
 
 i=0
-while [ ! -s "$PREFIX/token" ] && [ "$i" -lt 20 ]; do
+while [ ! -s "$PREFIX/token" ] && [ "$i" -lt 40 ]; do
     sleep 0.25
     i=$((i + 1))
 done
 TOKEN="$(cat "$PREFIX/token" 2>/dev/null || true)"
+
+i=0
+while [ "$i" -lt 40 ]; do
+    if curl -fsS --max-time 1 "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
+        break
+    fi
+    sleep 0.25
+    i=$((i + 1))
+done
+
+VERSION="$("$PREFIX/bin/arutosiod" -version 2>/dev/null || echo unknown)"
+SERVICE_NAME="background"
+[ "$SERVICE_OK" -eq 1 ] && SERVICE_NAME="systemd"
+cat > "$PREFIX/config.json" <<EOF
+{
+  "version": "$VERSION",
+  "listen": "$LISTEN",
+  "binary": "$PREFIX/bin/arutosiod",
+  "root": "$HOME",
+  "data": "$PREFIX",
+  "web": "$PREFIX/current/web",
+  "service": "$SERVICE_NAME"
+}
+EOF
+chmod 600 "$PREFIX/config.json"
 
 echo
 echo "arutosiod installed"

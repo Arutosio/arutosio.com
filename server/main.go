@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"flag"
@@ -15,15 +16,18 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
-var version = "0.4.1"
+var version = "0.5.0"
 
 //go:embed web/*
 var termFS embed.FS
@@ -49,16 +53,33 @@ type server struct {
 }
 
 func main() {
-	listen := flag.String("listen", "127.0.0.1:7777", "listen address")
-	web := flag.String("web", "..", "directory containing the static site")
-	root := flag.String("root", "", "filesystem root (default: $HOME)")
-	data := flag.String("data", "", "data directory (default: ~/.arutosio)")
-	token := flag.String("token", "", "access token (default: persisted in the data dir)")
-	termIdle := flag.Duration("term-idle", 24*time.Hour, "kill detached terminal sessions after this idle time (0 = never)")
-	updateURL := flag.String("update-url", defaultUpdateURL, "latest-release JSON URL for update checks (blank disables)")
-	updatePubkey := flag.String("update-pubkey", embeddedUpdatePubkey, "hex Ed25519 key required to verify release checksums (blank disables signatures)")
-	showVersion := flag.Bool("version", false, "print the version and exit")
-	flag.Parse()
+	// Subcommands are CLI actions; flags alone still start the daemon for
+	// backwards compatibility with existing units and scripts.
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "-h", "--help":
+			printCLIHelp()
+			return
+		}
+		if !strings.HasPrefix(os.Args[1], "-") {
+			os.Exit(runCommand(os.Args[1], os.Args[2:]))
+		}
+	}
+	runServe(os.Args[1:])
+}
+
+func runServe(args []string) {
+	flags := flag.NewFlagSet("arutosiod serve", flag.ExitOnError)
+	listen := flags.String("listen", "127.0.0.1:7777", "listen address")
+	web := flags.String("web", "..", "directory containing the static site")
+	root := flags.String("root", "", "filesystem root (default: $HOME)")
+	data := flags.String("data", "", "data directory (default: ~/.arutosio)")
+	token := flags.String("token", "", "access token (default: persisted in the data dir)")
+	termIdle := flags.Duration("term-idle", 24*time.Hour, "kill detached terminal sessions after this idle time (0 = never)")
+	updateURL := flags.String("update-url", defaultUpdateURL, "latest-release JSON URL for update checks (blank disables)")
+	updatePubkey := flags.String("update-pubkey", embeddedUpdatePubkey, "hex Ed25519 key required to verify release checksums (blank disables signatures)")
+	showVersion := flags.Bool("version", false, "print the version and exit")
+	_ = flags.Parse(args)
 	if *showVersion {
 		fmt.Println(version)
 		return
@@ -164,18 +185,48 @@ func main() {
 
 	addr := displayAddr(*listen)
 	log.Printf("arutosiod %s", version)
+	log.Printf("listen: %s", *listen)
 	log.Printf("root: %s", rootAbs)
 	log.Printf("web:  %s", webAbs)
 	log.Printf("data: %s", dataAbs)
 	log.Printf("open: http://%s/?token=%s", addr, tokenValue)
 	log.Printf("term: http://%s/term?token=%s", addr, tokenValue)
-
-	srv := &http.Server{
-		Addr:              *listen,
-		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second,
+	if isLANListen(*listen) {
+		port := listenPort(*listen)
+		for _, ip := range lanIPs() {
+			log.Printf("lan:  http://%s/?token=%s", net.JoinHostPort(ip, strconv.Itoa(port)), tokenValue)
+		}
 	}
-	log.Fatal(srv.ListenAndServe())
+
+	_ = saveRuntime(dataAbs, runtimeInfo{
+		PID:       os.Getpid(),
+		Version:   version,
+		Listen:    *listen,
+		Web:       webAbs,
+		Root:      rootAbs,
+		Data:      dataAbs,
+		StartedAt: time.Now(),
+	})
+
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+	ln, err := net.Listen("tcp", *listen)
+	if err != nil {
+		removeRuntime(dataAbs)
+		log.Fatalf("listen: %v", err)
+	}
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		_ = srv.Shutdown(ctx)
+		cancel()
+	}()
+	err = srv.Serve(ln)
+	removeRuntime(dataAbs)
+	if err != nil && err != http.ErrServerClosed {
+		log.Fatalf("serve: %v", err)
+	}
 }
 
 func resolveRoot(p string) (string, error) {

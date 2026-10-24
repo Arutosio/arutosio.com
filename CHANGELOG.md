@@ -9,6 +9,24 @@ either git commit SHAs or the `version` field inside a package's
 
 ## Site
 
+### 2026-10 — Machine manager CLI (`arutosiod` 0.5.0)
+
+- **`arutosiod` CLI** — `status`, `start`, `stop`, `restart`, `logs`, `url`,
+  `token`, `version`, `doctor`, `lan`, `firewall`, `update`, `rollback`,
+  `uninstall` and shell completions. `--json` on status/doctor/LAN/update.
+  Legacy flags still start the daemon; `serve` is the explicit form.
+- **LAN mode** — `arutosiod lan on` binds `0.0.0.0`, prints the LAN URLs,
+  detects `ufw`/`firewalld` and asks before opening the port. `lan off`
+  restores loopback and closes the rule it added. `status` and `doctor` show
+  bind address, LAN URLs, firewall state and service state.
+- **Installer prompts** — the one-liner now asks for confirmation, LAN
+  exposure and firewall changes. `--yes`, `--lan`, `--open-firewall` and
+  `--no-firewall` support automation. The installer writes `config.json` so
+  the CLI knows the install paths and port.
+- **Clean uninstall** — `arutosiod uninstall` stops the service, removes the
+  unit, binary and site, closes the recorded firewall rule, and keeps
+  token/profile/trash unless `--purge` is passed.
+
 ### 2026-10 — Local mode (`arutosiod` 0.4.1) + rebrand
 
 - **One-command install** — `curl -fsSL https://arutosio.com/install.sh | bash`

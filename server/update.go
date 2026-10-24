@@ -29,7 +29,8 @@ const (
 	updateMaxUnpacked = 256 << 20
 	// GitHub's "latest release" endpoint for this repository. Blank disables
 	// the check (-update-url "").
-	defaultUpdateURL = "https://api.github.com/repos/Arutosio/arutosio.com/releases/latest"
+	defaultUpdateURL        = "https://api.github.com/repos/Arutosio/arutosio.com/releases/latest"
+	defaultLatestVersionURL = "https://github.com/Arutosio/arutosio.com/releases/latest/download/version.txt"
 )
 
 type releaseAsset struct {
@@ -250,49 +251,17 @@ func (s *server) getUpdate(ctx context.Context, force bool) updateResult {
 	return res
 }
 
-func (s *server) fetchUpdate(ctx context.Context) updateResult {
+func (s *server) newUpdateResult() updateResult {
 	res := updateResult{Status: updateStatus{Current: version, CheckedAt: time.Now().UTC()}}
 	if v, ok := s.rollbackInfo(); ok {
 		res.Status.CanRollback = true
 		res.Status.RollbackVersion = v
 	}
-	if s.updateURL == "" {
-		res.Status.Reason = "update checks are disabled"
-		return res
-	}
-	if s.updateClient == nil {
-		s.updateClient = &http.Client{}
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.updateURL, nil)
-	if err != nil {
-		res.Status.Error = err.Error()
-		return res
-	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "arutosiod/"+version)
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	return res
+}
 
-	resp, err := s.updateClient.Do(req)
-	if err != nil {
-		res.Status.Error = "release check: " + err.Error()
-		return res
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		res.Status.Reason = "no releases published"
-		return res
-	}
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		res.Status.Error = fmt.Sprintf("release check: %s %s", resp.Status, strings.TrimSpace(string(body)))
-		return res
-	}
-
-	var rel releasePayload
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&rel); err != nil {
-		res.Status.Error = "release check: " + err.Error()
-		return res
-	}
+func (s *server) evaluateRelease(ctx context.Context, rel releasePayload) updateResult {
+	res := s.newUpdateResult()
 	res.Status.Latest = normalizeVersion(rel.Tag)
 	res.Status.Notes = strings.TrimSpace(rel.Body)
 	res.Status.URL = safeReleaseURL(rel.URL)
@@ -351,6 +320,81 @@ func (s *server) fetchUpdate(ctx context.Context) updateResult {
 		}
 	}
 	return res
+}
+
+func (s *server) fetchUpdate(ctx context.Context) updateResult {
+	res := s.newUpdateResult()
+	if s.updateURL == "" {
+		res.Status.Reason = "update checks are disabled"
+		return res
+	}
+	if s.updateClient == nil {
+		s.updateClient = &http.Client{}
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.updateURL, nil)
+	if err != nil {
+		res.Status.Error = err.Error()
+		return res
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "arutosiod/"+version)
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	resp, err := s.updateClient.Do(req)
+	if err != nil {
+		res.Status.Error = "release check: " + err.Error()
+		return res
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		res.Status.Reason = "no releases published"
+		return res
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		res.Status.Error = fmt.Sprintf("release check: %s %s", resp.Status, strings.TrimSpace(string(body)))
+		// GitHub's anonymous API is rate-limited; fall back to the signed
+		// release feed for the latest tag instead of losing updates.
+		if s.updateURL == defaultUpdateURL && (resp.StatusCode == http.StatusForbidden ||
+			resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500) {
+			if fb, ok := s.fetchUpdateFromVersionFile(ctx); ok {
+				return fb
+			}
+		}
+		return res
+	}
+
+	var rel releasePayload
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&rel); err != nil {
+		res.Status.Error = "release check: " + err.Error()
+		return res
+	}
+	return s.evaluateRelease(ctx, rel)
+}
+
+// fetchUpdateFromVersionFile is the rate-limit fallback: version.txt is
+// published next to the bundles, so the tag and the predictable asset URLs
+// are enough to verify and install a release without the GitHub API.
+func (s *server) fetchUpdateFromVersionFile(ctx context.Context) (updateResult, bool) {
+	raw, err := s.fetchSmallAsset(ctx, defaultLatestVersionURL, 128)
+	if err != nil {
+		return updateResult{}, false
+	}
+	tag := normalizeVersion(string(raw))
+	if tag == "" {
+		return updateResult{}, false
+	}
+	base := fmt.Sprintf("https://github.com/Arutosio/arutosio.com/releases/download/%s/", tag)
+	rel := releasePayload{
+		Tag: "v" + tag,
+		URL: "https://github.com/Arutosio/arutosio.com/releases/tag/" + tag,
+		Assets: []releaseAsset{
+			{Name: updateAssetName(), URL: base + updateAssetName()},
+			{Name: "checksums.txt", URL: base + "checksums.txt"},
+			{Name: "checksums.txt.sig", URL: base + "checksums.txt.sig"},
+		},
+	}
+	return s.evaluateRelease(ctx, rel), true
 }
 
 type stagedUpdate struct {

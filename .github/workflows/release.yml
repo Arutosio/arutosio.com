@@ -44,6 +44,7 @@ jobs:
             tar -C "$stage" -czf "$(pwd)/dist/arutosio-linux-$target.tar.gz" arutosiod web
             rm -rf "$stage" "dist/arutosiod-$target"
           done
+          echo "$VERSION" > dist/version.txt
           cd dist
           sha256sum arutosio-linux-*.tar.gz > checksums.txt
           cat checksums.txt

@@ -455,6 +455,12 @@ Local mode changes these boundaries:
   shell stays available as a second mode.
 - **System** — `system.js` drives the System window: overview, processes,
   user services, terminal sessions and trash, backed by `/api/system/*`.
+- **CLI** — the same `arutosiod` binary dispatches `status`, `start`, `stop`,
+  `restart`, `logs`, `url`, `token`, `doctor`, `lan`, `firewall`, `update`,
+  `rollback` and `uninstall` before falling back to the legacy server flags.
+  `config.json`/`runtime.json`/`firewall.json` under `~/.arutosio` connect the
+  CLI to the installed instance; `lan on` binds `0.0.0.0` and manages the
+  ufw/firewalld rule, `uninstall` removes it again.
 - **Updates** — the same window checks `/api/update` and can apply a release.
   The daemon fetches the GitHub release feed, verifies the Ed25519 signature
   on `checksums.txt` and the bundle SHA-256, swaps the binary and (for an

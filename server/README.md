@@ -25,7 +25,9 @@ signature on `checksums.txt` and the SHA-256 of the bundle, then:
 It never installs packages. If `curl`, `tar`, `gzip`, `openssl`, `coreutils`
 or `gawk` are missing it prints the package-manager command and stops.
 
-Options: `--port PORT`, `--prefix DIR`, `--version TAG`, `--no-service`.
+Options: `--port PORT`, `--prefix DIR`, `--version TAG`, `--lan`,
+`--open-firewall`, `--no-firewall`, `--no-service`, `--yes`. Without `--yes`
+the installer asks for confirmation, LAN exposure, and firewall changes.
 
 From a checkout (development only):
 
@@ -68,7 +70,7 @@ Open the URL printed at startup. The token is persisted in
 
 ## Access from another machine
 
-Use an SSH local forward; do not expose the port:
+The recommended path is an SSH local forward:
 
 ```bash
 ssh -N -L 7777:127.0.0.1:7777 user@host
@@ -78,8 +80,46 @@ Then open `http://localhost:7777/?token=...` on the local machine.
 `localhost` is a secure context, so clipboard, service workers and PWA
 install work, and the traffic is encrypted by SSH.
 
-This is the supported remote path. No Tailscale, Cloudflare Tunnel or other
-third-party tunnel is used.
+For a trusted local network you can expose the daemon instead:
+
+```bash
+arutosiod lan on     # bind 0.0.0.0, offer to open ufw/firewalld
+arutosiod lan off    # back to loopback, close the rule we added
+```
+
+LAN mode prints URLs such as `http://192.168.1.50:7777/`. Traffic is plain
+HTTP; the token is the only authentication and is visible to anyone who can
+sniff the network. Do not use LAN mode on public Wi-Fi or untrusted networks,
+and do not expose the port to the internet. No Tailscale, Cloudflare Tunnel or
+other relay is used.
+
+## Daily commands
+
+```bash
+arutosiod status [--json]       # service, health, paths, port, firewall, LAN URLs
+arutosiod start|stop|restart
+arutosiod logs [-n 50] [-f]
+arutosiod url [--lan] [--token] [--json]
+arutosiod token
+arutosiod version
+arutosiod doctor [--json]
+arutosiod lan on|off|status
+arutosiod firewall status|open|close
+arutosiod update [--check] [--yes] [--json]
+arutosiod rollback [--yes] [--json]
+arutosiod uninstall [--purge] [--yes]
+arutosiod completion fish|bash|zsh
+arutosiod serve [flags]         # explicit foreground server
+```
+
+`start` and `stop` use the systemd user unit when available, otherwise a
+background process with `arutosiod.pid`. `status` exits 0 when running and
+healthy, 1 when stopped, 2 when the service is active but unhealthy.
+
+`uninstall` stops the service, removes the unit, binary and site, and closes
+the firewall rule recorded in `firewall.json`. It keeps `token`, `profile`,
+`trash` and `sessions.json`; `--purge` also deletes them. A non-interactive
+run needs `--yes`.
 
 ## What it does
 
@@ -116,8 +156,10 @@ third-party tunnel is used.
 
 ## Security
 
-- Binds `127.0.0.1:7777` by default. Do not use `0.0.0.0` without a TLS
-  reverse proxy and a real auth layer.
+- Binds `127.0.0.1:7777` by default. `arutosiod lan on` binds `0.0.0.0`;
+  do that only on a trusted network. LAN traffic is HTTP, so the token and
+  file contents are not encrypted. Use an SSH tunnel or a TLS reverse proxy
+  on untrusted networks.
 - The token is an SSH-equivalent secret: anyone with it gets a shell.
 - `-root` limits the **Files API only**; the PTY is a full user shell and can
   `cd` anywhere the user can.
@@ -163,6 +205,20 @@ third-party tunnel is used.
 | `POST /api/update/rollback` | restart into the previous saved build |
 | `GET /ws/term` | PTY WebSocket (`session=` to attach) |
 | `GET /term` | embedded xterm.js page |
+
+## Files
+
+| Path | Purpose |
+|---|---|
+| `~/.arutosio/config.json` | install paths, port, service type (0600) |
+| `~/.arutosio/runtime.json` | live pid/version/listen (written by the daemon) |
+| `~/.arutosio/firewall.json` | rule added by the installer/CLI, if any |
+| `~/.arutosio/token` | access token (0600) |
+| `~/.arutosio/sessions.json` | persisted browser sessions (0600) |
+| `~/.arutosio/profile/` | settings, app data, appearance, window sessions |
+| `~/.arutosio/current/web/` | installed site snapshot |
+| `~/.arutosio/bin/arutosiod` | installed binary |
+| `~/.arutosio/arutosiod.log` | background-mode log |
 
 ## Flags
 
