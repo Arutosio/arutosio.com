@@ -9,6 +9,13 @@ either git commit SHAs or the `version` field inside a package's
 
 ## Site
 
+### 2026-10 — Update fallback fix (`arutosiod` 0.5.4)
+
+- Fixed the rate-limit update fallback: it built
+  `releases/download/<version>/` instead of `.../v<version>/`, so a check
+  made while the GitHub API was throttled reported a 404 and could not
+  install. Added a unit test for the URL.
+
 ### 2026-10 — File icons, drag & drop (`arutosiod` 0.5.3)
 
 - **Files (1.6.0)** — colored file-type and folder icons from a curated

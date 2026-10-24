@@ -260,6 +260,14 @@ func TestRollbackInfo(t *testing.T) {
 	}
 }
 
+func TestReleaseDownloadBase(t *testing.T) {
+	got := releaseDownloadBase("0.5.3")
+	want := "https://github.com/Arutosio/arutosio.com/releases/download/v0.5.3/"
+	if got != want {
+		t.Fatalf("releaseDownloadBase = %q, want %q", got, want)
+	}
+}
+
 func TestFetchUpdateNoRelease(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)

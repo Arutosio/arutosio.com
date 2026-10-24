@@ -384,10 +384,10 @@ func (s *server) fetchUpdateFromVersionFile(ctx context.Context) (updateResult, 
 	if tag == "" {
 		return updateResult{}, false
 	}
-	base := fmt.Sprintf("https://github.com/Arutosio/arutosio.com/releases/download/%s/", tag)
+	base := releaseDownloadBase(tag)
 	rel := releasePayload{
 		Tag: "v" + tag,
-		URL: "https://github.com/Arutosio/arutosio.com/releases/tag/" + tag,
+		URL: "https://github.com/Arutosio/arutosio.com/releases/tag/v" + tag,
 		Assets: []releaseAsset{
 			{Name: updateAssetName(), URL: base + updateAssetName()},
 			{Name: "checksums.txt", URL: base + "checksums.txt"},
@@ -395,6 +395,12 @@ func (s *server) fetchUpdateFromVersionFile(ctx context.Context) (updateResult, 
 		},
 	}
 	return s.evaluateRelease(ctx, rel), true
+}
+
+// releaseDownloadBase keeps the "v" from the tag: GitHub paths use v0.5.3,
+// while normalizeVersion stores the bare 0.5.3.
+func releaseDownloadBase(tag string) string {
+	return fmt.Sprintf("https://github.com/Arutosio/arutosio.com/releases/download/v%s/", tag)
 }
 
 type stagedUpdate struct {

@@ -3,8 +3,9 @@
 //   npm i playwright-core        (once)
 //   node tests/e2e.mjs
 //
-// Set ARUTOSIOD to a built binary (default: server/arutosiod) and CHROME_PATH
-// to a Chrome/Chromium binary (default: the Playwright download cache).
+// Set ARUTOSIOD to a built binary (default: server/arutosiod), ARUTOSIO_WEB to
+// serve another asset tree, and CHROME_PATH to a Chrome/Chromium binary
+// (default: the Playwright download cache).
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, readFile, symlink, rm } from 'node:fs/promises';
 import { existsSync, readdirSync } from 'node:fs';
@@ -17,6 +18,7 @@ import { createRequire } from 'node:module';
 const { chromium } = createRequire(import.meta.url)('playwright-core');
 
 const repo = path.resolve(import.meta.dirname, '..');
+const web = process.env.ARUTOSIO_WEB || repo;
 const bin = process.env.ARUTOSIOD || path.join(repo, 'server', 'arutosiod');
 const token = 'e2e-token';
 const port = 18000 + Math.floor(Math.random() * 2000);
@@ -67,7 +69,7 @@ await writeFile(path.join(root, 'src', 'main.js'), 'console.log(1)\n');
 await symlink('README.md', path.join(root, 'link.md'));
 
 const daemon = spawn(bin, [
-    '-web', repo, '-root', root, '-data', data,
+    '-web', web, '-root', root, '-data', data,
     '-token', token, '-listen', `127.0.0.1:${port}`,
 ], { stdio: ['ignore', 'pipe', 'pipe'] });
 let daemonLog = '';

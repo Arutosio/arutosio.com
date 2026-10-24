@@ -16,6 +16,8 @@ node tests/e2e.mjs
 Environment:
 
 - `ARUTOSIOD` — daemon binary (default `server/arutosiod`).
+- `ARUTOSIO_WEB` — asset tree to serve (default: the repo root). Point it at
+  an extracted release `web/` to test the shipped packages.
 - `CHROME_PATH` — Chrome/Chromium binary. Defaults to the newest
   `~/.cache/ms-playwright/chromium-*` download; run `npx playwright install
   chromium` if none is present.
