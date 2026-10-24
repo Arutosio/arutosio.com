@@ -177,6 +177,19 @@ and site, and closes the firewall rule it added; the token/profile/trash are
 kept unless you pass `--purge`. The same data directory is shared with the
 installer, so re-installing after an uninstall keeps your data.
 
+If you installed a version that predates the `arutosiod` CLI, use the
+standalone uninstaller instead — it works on the old layout too:
+
+```bash
+curl -fsSL https://arutosio.com/uninstall.sh | bash
+```
+
+You do not need to uninstall before upgrading: re-running the installer stops
+the old service, replaces the binary and site, and keeps the data. The
+standalone uninstaller is for a clean removal (`--purge` to delete the data
+too). It also removes the `~/.local/bin/arutosiod` link and closes the
+firewall rule the installer added.
+
 ### Updates
 
 `arutosiod` checks the GitHub release feed every six hours. When a newer

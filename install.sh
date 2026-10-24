@@ -50,8 +50,7 @@ ask_yes_no() {
     # $1 prompt, $2 default (y/n)
     local prompt="$1" default="$2" answer=""
     if [ "$ASSUME_YES" -eq 1 ]; then
-        [ "$default" = "y" ]
-        return
+        return 0
     fi
     if [ "$TTY_AVAILABLE" -ne 1 ]; then
         return 1
@@ -138,6 +137,7 @@ need rm
 need tail
 need head
 need tr
+need readlink
 need sleep
 need nohup
 if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
@@ -183,13 +183,18 @@ fi
 if [ -f "$PREFIX/arutosiod.pid" ]; then
     OLD_PID="$(cat "$PREFIX/arutosiod.pid" 2>/dev/null || true)"
     if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
-        echo "Stopping arutosiod (pid $OLD_PID)…"
-        kill "$OLD_PID" 2>/dev/null || true
-        i=0
-        while kill -0 "$OLD_PID" 2>/dev/null && [ "$i" -lt 20 ]; do
-            sleep 0.25
-            i=$((i + 1))
-        done
+        OLD_EXE="$(readlink -f "/proc/$OLD_PID/exe" 2>/dev/null || true)"
+        if [ "$OLD_EXE" = "$PREFIX/bin/arutosiod" ]; then
+            echo "Stopping arutosiod (pid $OLD_PID)…"
+            kill "$OLD_PID" 2>/dev/null || true
+            i=0
+            while kill -0 "$OLD_PID" 2>/dev/null && [ "$i" -lt 20 ]; do
+                sleep 0.25
+                i=$((i + 1))
+            done
+        else
+            warn "pid $OLD_PID does not belong to $PREFIX/bin/arutosiod; not killing it"
+        fi
     fi
     rm -f "$PREFIX/arutosiod.pid"
 fi

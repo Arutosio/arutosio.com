@@ -128,6 +128,17 @@ the firewall rule recorded in `firewall.json`. It keeps `token`, `profile`,
 `trash` and `sessions.json`; `--purge` also deletes them. A non-interactive
 run needs `--yes`.
 
+Installations older than the CLI can use the standalone uninstaller:
+
+```bash
+curl -fsSL https://arutosio.com/uninstall.sh | bash
+```
+
+It detects the old layout, stops systemd/pidfile, removes the unit, binary,
+site, `~/.local/bin/arutosiod` link and the recorded firewall rule, and keeps
+the data unless `--purge` is passed. Upgrading does not require an uninstall
+first: the installer replaces the old version in place.
+
 ## What it does
 
 - **Auth**: one-time token → HttpOnly `SameSite=Strict` session cookie +

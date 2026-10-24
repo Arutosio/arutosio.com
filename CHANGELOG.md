@@ -13,6 +13,10 @@ either git commit SHAs or the `version` field inside a package's
 
 - **PATH link** — the installer links `~/.local/bin/arutosiod`; `uninstall`
   removes the link only when it points at that installation.
+- **Standalone uninstaller** — `curl -fsSL https://arutosio.com/uninstall.sh
+  | bash` removes old pre-CLI installations too: systemd/pidfile, unit,
+  binary, site, PATH link and the firewall rule it added. Data is kept unless
+  `--purge` is passed.
 
 ### 2026-10 — Machine manager CLI (`arutosiod` 0.5.0)
 
