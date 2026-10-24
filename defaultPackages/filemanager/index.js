@@ -548,7 +548,7 @@ class VirtualBackend {
     }
     async list(path) {
         const node = this._find(path || '');
-        if (!node || !node.isDir) return [];
+        if (!node || !node.isDir) throw new Error('not_found');
         return sortEntries(node.children.map(c => ({
             name: c.name, kind: c.isDir ? 'dir' : 'file',
             size: c.isDir ? 0 : ((c.content && c.content.byteLength) || (typeof c.content === 'string' ? c.content.length : 0)),
@@ -882,7 +882,9 @@ export default {
         root.innerHTML = `
             <div class="fm-shell">
                 <div class="fm-toolbar">
-                    <button class="fm-btn" data-act="up" title="Up">↑</button>
+                    <button class="fm-btn" data-act="back" title="Back (Alt+←)" aria-label="Back">←</button>
+                    <button class="fm-btn" data-act="forward" title="Forward (Alt+→)" aria-label="Forward">→</button>
+                    <button class="fm-btn" data-act="up" title="Up (Backspace)">↑</button>
                     <button class="fm-btn" data-act="newfile">＋ File</button>
                     <button class="fm-btn" data-act="newdir">＋ Folder</button>
                     <button class="fm-btn" data-act="upload">Upload</button>
@@ -896,6 +898,7 @@ export default {
                     </select>
                     <span class="fm-spacer"></span>
                     <span class="fm-breadcrumb" id="fm-crumb">/</span>
+                    <button class="fm-btn" data-act="view" title="Grid view" aria-label="Toggle grid view">▦</button>
                     <button class="fm-btn fm-toggle-preview" data-act="togglePreview" title="Toggle preview">👁</button>
                     <button class="fm-btn" data-act="settings" title="Files settings" aria-label="Files settings">⚙</button>
                 </div>
@@ -919,6 +922,22 @@ export default {
                         <input type="checkbox" id="fm-set-hidden">
                     </label>
                     <small>Names starting with a dot, like .gitignore.</small>
+                    <label class="fm-set-row">
+                        <span>Grid view</span>
+                        <input type="checkbox" id="fm-set-grid">
+                    </label>
+                    <label class="fm-set-row" for="fm-set-thumb"><span>Thumbnail size</span></label>
+                    <select id="fm-set-thumb" class="fm-set-input">
+                        <option value="s">Small</option>
+                        <option value="m">Medium</option>
+                        <option value="l">Large</option>
+                    </select>
+                    <label class="fm-set-row">
+                        <span>Favorites</span>
+                        <button class="fm-btn" data-act="pin">📌 Pin current</button>
+                    </label>
+                    <div id="fm-favs" class="fm-favs"></div>
+                    <small>Pinned folders for the current source. Click to open.</small>
                     <label class="fm-set-row" for="fm-set-start"><span>Start folder</span></label>
                     <input id="fm-set-start" class="fm-set-input" placeholder="e.g. projects/site" spellcheck="false">
                     <small>Opened when you switch source. Relative to the source root.</small>
@@ -941,19 +960,29 @@ export default {
         let backend = null;
         let currentSource = null;
         let cwd = '';
-        let selected = null;  // { name, kind, size, mime } relative to cwd
+        let selected = null;  // primary item ({ name, kind, size, mime }) relative to cwd
+        let selection = new Set();  // names of every selected entry in cwd
+        let anchorIdx = -1;         // shift-click anchor in visibleItems
+        let visibleItems = [];      // last rendered order
         let previewURL = null;
         let previewToken = 0;
         let currentItems = [];
         let filterText = '';
         let sortMode = 'name';
+        let history = [];
+        let historyIdx = -1;
+        let clipboard = null;       // { mode, source, items }
+        let thumbToken = 0;
+        let thumbURLs = [];
 
-        const DEFAULT_SETTINGS = { preview: true, hidden: false, startPath: '' };
+        const THUMB_PX = { s: 64, m: 88, l: 128 };
+        const DEFAULT_SETTINGS = { preview: true, hidden: false, startPath: '', view: 'list', thumbSize: 'm', favorites: {} };
         let settings = { ...DEFAULT_SETTINGS };
         try {
             const saved = await ctx.storage.get('settings');
             if (saved && typeof saved === 'object') settings = { ...DEFAULT_SETTINGS, ...saved };
         } catch (e) { console.warn('[filemanager] settings', e); }
+        if (!settings.favorites || typeof settings.favorites !== 'object') settings.favorites = {};
 
         function saveSettings() {
             Promise.resolve(ctx.storage.set('settings', settings)).catch((e) => console.warn('[filemanager] settings', e));
@@ -967,8 +996,24 @@ export default {
             }
             const $p = root.querySelector('#fm-set-preview');
             const $h = root.querySelector('#fm-set-hidden');
+            const $g = root.querySelector('#fm-set-grid');
+            const $t = root.querySelector('#fm-set-thumb');
             if ($p) $p.checked = !!settings.preview;
             if ($h) $h.checked = !!settings.hidden;
+            if ($g) $g.checked = settings.view === 'grid';
+            if ($t) $t.value = settings.thumbSize;
+            applyView();
+        }
+
+        function applyView() {
+            $tree.classList.toggle('fm-grid', settings.view === 'grid');
+            $tree.style.setProperty('--fm-thumb-size', (THUMB_PX[settings.thumbSize] || THUMB_PX.m) + 'px');
+            const btn = root.querySelector('[data-act="view"]');
+            if (btn) {
+                const grid = settings.view === 'grid';
+                btn.textContent = grid ? '☰' : '▦';
+                btn.title = grid ? 'List view' : 'Grid view';
+            }
         }
 
         // Paths are source-root relative; ".." would escape the root.
@@ -978,23 +1023,273 @@ export default {
             return parts.join('/');
         }
 
-        async function goToPath(raw) {
+        function joinPath(dir, name) { return dir ? dir + '/' + name : name; }
+        function parentPath(p) { return p.split('/').slice(0, -1).join('/'); }
+        function itemPath(it) { return joinPath(cwd, it.name); }
+
+        function favoritesFor(source) {
+            const all = settings.favorites || {};
+            return Array.isArray(all[source]) ? all[source] : [];
+        }
+
+        function renderFavorites() {
+            const $favs = root.querySelector('#fm-favs');
+            if (!$favs) return;
+            const list = favoritesFor(currentSource);
+            $favs.innerHTML = list.length ? list.map(p => `
+                <div class="fm-fav">
+                    <button class="fm-fav-go" data-fav="${escapeHTML(p)}" title="${escapeHTML(p || '/')}">📌 ${escapeHTML(p || '/')}</button>
+                    <button class="fm-fav-del" data-fav-del="${escapeHTML(p)}" title="Remove">✕</button>
+                </div>`).join('') : `<div class="fm-fav-empty">No favorites in this source yet.</div>`;
+            $favs.querySelectorAll('[data-fav]').forEach(el => {
+                el.addEventListener('click', async () => { if (await navigate(el.dataset.fav)) closeSettings(); });
+            });
+            $favs.querySelectorAll('[data-fav-del]').forEach(el => {
+                el.addEventListener('click', () => {
+                    const p = el.dataset.favDel;
+                    settings.favorites[currentSource] = favoritesFor(currentSource).filter(x => x !== p);
+                    saveSettings();
+                    renderFavorites();
+                });
+            });
+        }
+
+        function pinCurrent() {
+            if (!currentSource) return;
+            const list = favoritesFor(currentSource).slice();
+            if (list.includes(cwd)) { ctx.toast?.('Already in favorites', 'info'); return; }
+            list.push(cwd);
+            settings.favorites[currentSource] = list;
+            saveSettings();
+            renderFavorites();
+            ctx.toast?.('Folder pinned', 'success');
+        }
+
+        async function navigate(path, push = true) {
             if (!backend) return false;
-            const path = normalizePath(raw);
-            if (path === null) {
-                ctx.toast?.('Path cannot contain ".."', 'error');
-                return false;
+            const p = normalizePath(path);
+            if (p === null) { ctx.toast?.('Path cannot contain ".."', 'error'); return false; }
+            try { await backend.list(p); }
+            catch (e) { ctx.toast?.('Cannot open "' + (p || '/') + '": ' + (e.message || e), 'error'); return false; }
+            cwd = p;
+            if (push) {
+                history = history.slice(0, historyIdx + 1);
+                if (history[historyIdx] !== cwd) history.push(cwd);
+                historyIdx = history.length - 1;
             }
-            try {
-                await backend.list(path);
-            } catch (e) {
-                ctx.toast?.('Cannot open "' + (path || '/') + '": ' + (e.message || e), 'error');
-                return false;
-            }
-            cwd = path;
-            selected = null;
-            resetPreview();
             await refresh();
+            updateToolbar();
+            const $path = root.querySelector('#fm-set-path');
+            if ($path && !$settings.hidden) $path.value = cwd;
+            return true;
+        }
+
+        async function goBack() {
+            if (historyIdx <= 0) return;
+            historyIdx -= 1;
+            await navigate(history[historyIdx], false);
+        }
+
+        async function goForward() {
+            if (historyIdx >= history.length - 1) return;
+            historyIdx += 1;
+            await navigate(history[historyIdx], false);
+        }
+
+        function selectedItems() { return visibleItems.filter(v => selection.has(v.name)); }
+        function singleSelected() { return selection.size === 1 ? (selectedItems()[0] || null) : null; }
+
+        function clearSelection() {
+            selection.clear();
+            selected = null;
+            anchorIdx = -1;
+            resetPreview();
+        }
+
+        function paintSelection() {
+            $tree.querySelectorAll('.fm-entry').forEach(el => {
+                const it = visibleItems[Number(el.dataset.idx)];
+                if (!it) return;
+                el.classList.toggle('fm-selected', selection.has(it.name));
+                el.classList.toggle('active', !!selected && it.name === selected.name);
+                const cut = !!(clipboard && clipboard.mode === 'cut' && clipboard.source === currentSource
+                    && clipboard.items.some(x => x.name === it.name));
+                el.classList.toggle('fm-cut', cut);
+            });
+        }
+
+        function selectAll() {
+            if (!visibleItems.length) return;
+            selection = new Set(visibleItems.map(v => v.name));
+            selected = visibleItems.find(v => v.kind === 'file') || visibleItems[0];
+            anchorIdx = 0;
+            paintSelection();
+            if (selected?.kind === 'file') renderPreview();
+        }
+
+        function handleEntryClick(it, ev) {
+            const idx = visibleItems.indexOf(it);
+            if (ev.shiftKey && anchorIdx >= 0) {
+                const a = Math.min(anchorIdx, idx), b = Math.max(anchorIdx, idx);
+                selection = new Set(visibleItems.slice(a, b + 1).map(v => v.name));
+            } else if (ev.ctrlKey || ev.metaKey) {
+                if (selection.has(it.name)) selection.delete(it.name);
+                else selection.add(it.name);
+                anchorIdx = idx;
+            } else {
+                selection = new Set([it.name]);
+                anchorIdx = idx;
+            }
+            selected = selection.has(it.name) ? it : (visibleItems.find(v => selection.has(v.name)) || null);
+            paintSelection();
+            if (selected?.kind === 'file') {
+                renderPreview();
+                if (settings.preview && $shell.classList.contains('fm-narrow')) $shell.classList.add('fm-preview-open');
+            } else {
+                resetPreview();
+            }
+        }
+
+        function movePrimary(delta) {
+            if (!visibleItems.length) return;
+            let idx = selected ? visibleItems.findIndex(v => v.name === selected.name) : -1;
+            idx = Math.max(0, Math.min(visibleItems.length - 1, idx + delta));
+            const it = visibleItems[idx];
+            selection = new Set([it.name]);
+            selected = it;
+            anchorIdx = idx;
+            paintSelection();
+            $tree.querySelector(`.fm-entry[data-idx="${idx}"]`)?.scrollIntoView({ block: 'nearest' });
+            if (it.kind === 'file') renderPreview();
+            else resetPreview();
+        }
+
+        async function uniqueName(name, b, dir) {
+            const dot = name.lastIndexOf('.');
+            const base = dot > 0 ? name.slice(0, dot) : name;
+            const ext = dot > 0 ? name.slice(dot) : '';
+            let n = 1;
+            let candidate = `${base} (${n})${ext}`;
+            while (await nameExists(b, dir, candidate)) {
+                n += 1;
+                candidate = `${base} (${n})${ext}`;
+                if (n > 500) break;
+            }
+            return candidate;
+        }
+
+        async function deleteSelection() {
+            const items = selectedItems();
+            if (!items.length) return;
+            if (!backend?.isWritable?.() || currentSource === 'packages') { ctx.toast?.('This source is read-only', 'warning'); return; }
+            const msg = items.length === 1
+                ? (items[0].kind === 'dir' ? `Delete folder "${items[0].name}" and its contents?` : `Delete "${items[0].name}"?`)
+                : `Delete ${items.length} selected items?`;
+            if (!confirm(msg)) return;
+            let done = 0;
+            const errors = [];
+            for (const it of items) {
+                try { await backend.deleteNode(itemPath(it)); done++; }
+                catch (e) { errors.push(it.name + ': ' + (e.message || e)); }
+            }
+            await refresh();
+            if (errors.length) ctx.toast?.(`${done} deleted, ${errors.length} failed: ${errors[0]}`, 'error');
+            else ctx.toast?.(`Deleted ${done} item${done === 1 ? '' : 's'}`, 'success');
+        }
+
+        function setClipboard(mode) {
+            const items = selectedItems();
+            if (!items.length) return;
+            clipboard = {
+                mode,
+                source: currentSource,
+                items: items.map(it => ({ path: itemPath(it), name: it.name, kind: it.kind })),
+            };
+            paintSelection();
+            ctx.toast?.((mode === 'cut' ? 'Cut ' : 'Copied ') + items.length + ' item' + (items.length === 1 ? '' : 's'), 'info');
+        }
+
+        async function pasteClipboard() {
+            if (!clipboard?.items?.length) return;
+            if (!backend?.isWritable?.() || currentSource === 'packages') { ctx.toast?.('This source is read-only', 'warning'); return; }
+            const src = clipboard.source;
+            const srcBackend = src === currentSource ? backend : await backendForSource(src);
+            if (!srcBackend) { ctx.toast?.('The original source is not available', 'warning'); return; }
+            const clip = clipboard;
+            let done = 0;
+            const errors = [];
+            for (const item of clip.items) {
+                const sameSource = src === currentSource;
+                if (item.kind === 'dir' && !(clip.mode === 'cut' && sameSource)) {
+                    errors.push(item.name + ': copy a folder with drag & drop between sources, or cut it');
+                    continue;
+                }
+                if (clip.mode === 'cut' && sameSource) {
+                    if (parentPath(item.path) === cwd) continue; // already here
+                    try { await backend.move(item.path, cwd); done++; }
+                    catch (e) { errors.push(item.name + ': ' + (e.message || e)); }
+                    continue;
+                }
+                try {
+                    let name = item.name;
+                    let exists = await nameExists(backend, cwd, name);
+                    if (exists && clip.mode === 'copy' && sameSource && parentPath(item.path) === cwd) {
+                        name = await uniqueName(name, backend, cwd);
+                        exists = false;
+                    } else if (exists && !confirm(`Overwrite "${name}"?`)) {
+                        continue;
+                    }
+                    const data = await srcBackend.readFile(item.path);
+                    const bytes = data.bytes instanceof Uint8Array ? data.bytes : new Uint8Array(data.bytes || []);
+                    const mime = data.mime || mimeFromName(name);
+                    if (exists) await backend.writeFile(joinPath(cwd, name), bytes, mime);
+                    else await backend.createFile(cwd, name, bytes);
+                    if (clip.mode === 'cut') await srcBackend.deleteNode(item.path);
+                    done++;
+                } catch (e) { errors.push(item.name + ': ' + (e.message || e)); }
+            }
+            clipboard = null;
+            await refresh();
+            if (errors.length) ctx.toast?.(`${done} done, ${errors.length} failed: ${errors[0]}`, 'error');
+            else if (done) ctx.toast?.(`${clip.mode === 'cut' ? 'Moved' : 'Pasted'} ${done} item${done === 1 ? '' : 's'}`, 'success');
+        }
+
+        function resetThumbs() {
+            thumbToken++;
+            for (const u of thumbURLs) { try { URL.revokeObjectURL(u); } catch {} }
+            thumbURLs = [];
+        }
+
+        async function loadThumbs(items) {
+            if (settings.view !== 'grid') return;
+            resetThumbs();
+            const token = thumbToken;
+            let loaded = 0;
+            for (let i = 0; i < items.length; i++) {
+                if (token !== thumbToken) return;
+                const it = items[i];
+                if (it.kind !== 'file' || !/^image\//.test(mimeFromName(it.name)) || it.size > 8 * 1024 * 1024) continue;
+                if (loaded >= 120) break;
+                try {
+                    const data = await backend.readFile(itemPath(it), 8 * 1024 * 1024);
+                    if (token !== thumbToken) return;
+                    const url = URL.createObjectURL(new Blob([data.bytes], { type: data.mime || mimeFromName(it.name) }));
+                    // Skip files the browser cannot decode; the file icon stays.
+                    const probe = new Image();
+                    probe.src = url;
+                    await probe.decode().catch(() => {});
+                    if (!probe.naturalWidth) { URL.revokeObjectURL(url); continue; }
+                    if (token !== thumbToken) { URL.revokeObjectURL(url); return; }
+                    thumbURLs.push(url);
+                    const icon = $tree.querySelector(`.fm-entry[data-idx="${i}"] .fm-entry-icon`);
+                    if (icon) icon.innerHTML = `<img class="fm-thumb" src="${url}" alt="">`;
+                    loaded++;
+                } catch {}
+            }
+        }
+
+        async function goToPath(raw) {
+            if (!(await navigate(raw))) return false;
             const $path = root.querySelector('#fm-set-path');
             if ($path) $path.value = cwd;
             return true;
@@ -1006,7 +1301,9 @@ export default {
                 try { await backend.flush(); } catch (e) { console.warn('[filemanager] flush', e); }
             }
             currentSource = id; cwd = ''; selected = null;
+            selection.clear(); anchorIdx = -1;
             filterText = '';
+            history = []; historyIdx = -1;
             const search = root.querySelector('#fm-search');
             if (search) search.value = '';
             resetPreview();
@@ -1038,11 +1335,13 @@ export default {
                 if (settings.startPath) {
                     try { await backend.list(settings.startPath); cwd = settings.startPath; } catch {}
                 }
+                history = [cwd]; historyIdx = 0;
                 await refresh();
             } catch (e) {
                 console.warn('[filemanager]', e);
                 $tree.innerHTML = `<div class="fm-empty">Failed to open source: ${escapeHTML(e.message || e)}</div>`;
             }
+            if (!$settings.hidden) renderFavorites();
             updateToolbar();
         }
 
@@ -1055,6 +1354,8 @@ export default {
                 const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
                 backend = new ExternalBackend(handle);
                 cwd = ''; selected = null;
+                selection.clear(); anchorIdx = -1;
+                history = ['']; historyIdx = 0;
                 await refresh();
                 updateToolbar();
             } catch (e) { if (e?.name !== 'AbortError') ctx.toast?.('Picker blocked: ' + (e?.message || e), 'error'); }
@@ -1067,6 +1368,8 @@ export default {
                 if (['newfile', 'newdir', 'upload'].includes(act)) b.disabled = !writable;
                 if (act === 'newdir' && backend?.kind === 'profile') b.disabled = true; // FS Access needs file to create dirs
                 if (act === 'up') b.disabled = !cwd;
+                if (act === 'back') b.disabled = historyIdx <= 0;
+                if (act === 'forward') b.disabled = historyIdx >= history.length - 1;
             });
             renderBreadcrumb();
         }
@@ -1081,12 +1384,7 @@ export default {
             });
             $crumb.innerHTML = html;
             $crumb.querySelectorAll('[data-crumb]').forEach(el => {
-                el.addEventListener('click', async () => {
-                    cwd = el.dataset.crumb;
-                    selected = null;
-                    resetPreview();
-                    await refresh();
-                });
+                el.addEventListener('click', async () => { await navigate(el.dataset.crumb); });
                 el.addEventListener('dragover', (ev) => {
                     if (!hasInternalDrag(ev) && !hasFileDrag(ev)) return;
                     ev.preventDefault();
@@ -1225,22 +1523,23 @@ export default {
                 ctx.toast?.('Move is not supported for this source', 'warning');
                 return false;
             }
+            const items = payload.items?.length ? payload.items : [payload];
             const dest = destDir || '';
-            if (payload.kind === 'dir' && (dest === payload.path || dest.startsWith(payload.path + '/'))) {
-                ctx.toast?.('Cannot move a folder into itself', 'error');
-                return false;
+            let moved = 0;
+            const errors = [];
+            for (const item of items) {
+                if (item.kind === 'dir' && (dest === item.path || dest.startsWith(item.path + '/'))) {
+                    errors.push(item.name + ': cannot move a folder into itself');
+                    continue;
+                }
+                if (parentPath(item.path) === dest) continue;
+                try { await backend.move(item.path, dest); moved++; }
+                catch (e) { errors.push(item.name + ': ' + (e.message || e)); }
             }
-            const parent = payload.path.split('/').slice(0, -1).join('/');
-            if (parent === dest) return false;
-            try {
-                await backend.move(payload.path, dest);
-                await refresh();
-                resetPreview();
-                return true;
-            } catch (e) {
-                ctx.toast?.('Move failed: ' + (e.message || e), 'error');
-                return false;
-            }
+            if (moved) await refresh();
+            if (errors.length) ctx.toast?.('Move failed: ' + errors[0] + (errors.length > 1 ? ` (+${errors.length - 1})` : ''), 'error');
+            else if (moved) ctx.toast?.(`Moved ${moved} item${moved === 1 ? '' : 's'}`, 'success');
+            return moved > 0;
         }
 
         async function backendForSource(id) {
@@ -1258,12 +1557,13 @@ export default {
 
         async function copyToSource(payload, targetSource) {
             if (!payload || !backend || payload.source === targetSource) return;
-            if (payload.kind !== 'file') {
+            const items = payload.items?.length ? payload.items : [payload];
+            const files = items.filter(x => x.kind === 'file');
+            if (files.length !== items.length) {
                 ctx.toast?.('Only files can be copied between sources', 'warning');
-                return;
+                if (!files.length) return;
             }
             try {
-                const data = await backend.readFile(payload.path);
                 const target = await backendForSource(targetSource);
                 if (!target) {
                     ctx.toast?.('Open the target source first (External) or choose another source', 'warning');
@@ -1273,14 +1573,23 @@ export default {
                     ctx.toast?.('Target source is read-only', 'warning');
                     return;
                 }
-                const exists = await nameExists(target, '', payload.name);
-                if (exists && !confirm(`Overwrite "${payload.name}"?`)) return;
-                const bytes = data.bytes instanceof Uint8Array ? data.bytes : new Uint8Array(data.bytes || []);
-                if (exists) await target.writeFile(payload.name, bytes, data.mime);
-                else await target.createFile('', payload.name, bytes);
+                let copied = 0;
+                const errors = [];
+                for (const item of files) {
+                    try {
+                        const data = await backend.readFile(item.path);
+                        const exists = await nameExists(target, '', item.name);
+                        if (exists && !confirm(`Overwrite "${item.name}"?`)) continue;
+                        const bytes = data.bytes instanceof Uint8Array ? data.bytes : new Uint8Array(data.bytes || []);
+                        if (exists) await target.writeFile(item.name, bytes, data.mime || mimeFromName(item.name));
+                        else await target.createFile('', item.name, bytes);
+                        copied++;
+                    } catch (e) { errors.push(item.name + ': ' + (e.message || e)); }
+                }
                 if (typeof target.flush === 'function') await target.flush();
                 await selectSource(targetSource);
-                ctx.toast?.(`Copied "${payload.name}" to ${targetSource}`, 'success');
+                if (errors.length) ctx.toast?.(`${copied} copied, ${errors.length} failed: ${errors[0]}`, 'error');
+                else if (copied) ctx.toast?.(`Copied ${copied} item${copied === 1 ? '' : 's'} to ${targetSource}`, 'success');
             } catch (e) {
                 ctx.toast?.('Copy failed: ' + (e.message || e), 'error');
             }
@@ -1304,6 +1613,7 @@ export default {
                 if (!settings.hidden && it.name.startsWith('.')) return false;
                 return !q || it.name.toLowerCase().includes(q);
             }));
+            visibleItems = items;
             let html = '';
             if (currentSource === 'profile') {
                 html += `<div class="fm-warn">⚠ Changes sync to your linked folder immediately.</div>`;
@@ -1311,7 +1621,7 @@ export default {
                 html += `<div class="fm-warn">⚠ Changes are written directly to this machine.</div>`;
             }
             if (items.length) {
-                html += renderEntries(items);
+                html += `<div class="fm-list">${renderEntries(items)}</div>`;
             } else if (q) {
                 html += `<div class="fm-empty">No matches for “${escapeHTML(filterText)}”.</div>`;
             } else {
@@ -1319,12 +1629,17 @@ export default {
             }
             $tree.innerHTML = html;
             wireEntries(items);
+            paintSelection();
+            loadThumbs(items);
         }
 
         async function refresh() {
             if (!backend) return;
+            selection.clear();
             selected = null;
+            anchorIdx = -1;
             resetPreview();
+            resetThumbs();
             try {
                 currentItems = await backend.list(cwd);
                 renderList();
@@ -1332,6 +1647,7 @@ export default {
             } catch (e) {
                 console.warn('[filemanager] list', e);
                 currentItems = [];
+                visibleItems = [];
                 $tree.innerHTML = `<div class="fm-empty">Could not list: ${escapeHTML(e.message || e)}</div>`;
             }
         }
@@ -1343,19 +1659,58 @@ export default {
 
         async function openRowMenu(it, x, y) {
             const writable = !!backend && backend.isWritable?.() && currentSource !== 'packages';
-            const canHandoff = it.kind === 'file' && isTextLike(it.name, it.mime) && currentSource !== 'packages';
+            if (!selection.has(it.name)) {
+                selection = new Set([it.name]);
+                selected = it;
+                anchorIdx = visibleItems.indexOf(it);
+                paintSelection();
+            }
+            const multi = selection.size > 1;
+            const count = selection.size;
+            const canHandoff = !multi && it.kind === 'file' && isTextLike(it.name, it.mime) && currentSource !== 'packages';
             const items = [];
-            if (it.kind === 'file') items.push({ id: 'download', label: 'Download', icon: '⬇' });
-            if (canHandoff) items.push({ id: 'openGrimoire', label: 'Open in Grimoire', icon: '📜' });
-            if (writable) {
-                const canRename = it.kind === 'file' || backend.kind === 'virtual' || backend.kind === 'machine';
+            if (multi) {
+                items.push({ id: 'copy', label: `Copy ${count} items`, icon: '⧉' });
+                if (writable) items.push({ id: 'cut', label: `Cut ${count} items`, icon: '✂' });
+                if (writable) items.push({ separator: true });
+                if (writable) items.push({ id: 'delete', label: `Delete ${count} items`, icon: '🗑', danger: true });
+            } else {
+                if (it.kind === 'file') items.push({ id: 'download', label: 'Download', icon: '⬇' });
+                if (canHandoff) items.push({ id: 'openGrimoire', label: 'Open in Grimoire', icon: '📜' });
                 if (items.length) items.push({ separator: true });
-                if (canRename) items.push({ id: 'rename', label: 'Rename', icon: '✎' });
-                items.push({ id: 'delete', label: 'Delete', icon: '🗑', danger: true });
+                items.push({ id: 'copy', label: 'Copy', icon: '⧉' });
+                if (writable) {
+                    const canRename = it.kind === 'file' || backend.kind === 'virtual' || backend.kind === 'machine';
+                    items.push({ id: 'cut', label: 'Cut', icon: '✂' });
+                    if (canRename) items.push({ id: 'rename', label: 'Rename', icon: '✎' });
+                    items.push({ id: 'delete', label: 'Delete', icon: '🗑', danger: true });
+                }
             }
             if (!items.length) return;
             const choice = await ctx.contextMenu.show({ x, y, items });
-            if (choice) await runRowAction(choice, it);
+            if (!choice) return;
+            if (choice === 'copy' || choice === 'cut') { setClipboard(choice); return; }
+            if (choice === 'delete' && multi) { await deleteSelection(); return; }
+            await runRowAction(choice, it);
+        }
+
+        async function openBlankMenu(x, y) {
+            const writable = !!backend?.isWritable?.() && currentSource !== 'packages';
+            const items = [];
+            if (writable) {
+                items.push({ id: 'newfile', label: 'New file', icon: '📄' });
+                items.push({ id: 'newdir', label: 'New folder', icon: '📁' });
+                items.push({ separator: true });
+                items.push({ id: 'paste', label: 'Paste', icon: '📋', disabled: !clipboard?.items?.length });
+            }
+            items.push({ id: 'selectAll', label: 'Select all', icon: '▣' });
+            items.push({ id: 'refresh', label: 'Refresh', icon: '⟳' });
+            const choice = await ctx.contextMenu.show({ x, y, items });
+            if (choice === 'newfile') await createFileHere();
+            else if (choice === 'newdir') await createDirHere();
+            else if (choice === 'paste') await pasteClipboard();
+            else if (choice === 'selectAll') selectAll();
+            else if (choice === 'refresh') { resetPreview(); await refresh(); }
         }
 
         function renderEntries(items) {
@@ -1384,6 +1739,7 @@ export default {
                 el.addEventListener('contextmenu', (ev) => {
                     if (it.kind === 'dir' && !(backend?.isWritable?.() && currentSource !== 'packages')) return;
                     ev.preventDefault();
+                    ev.stopPropagation();
                     openRowMenu(it, ev.clientX, ev.clientY);
                 });
                 el.addEventListener('click', async (ev) => {
@@ -1394,21 +1750,15 @@ export default {
                         openRowMenu(it, r.left, r.bottom);
                         return;
                     }
-                    $tree.querySelectorAll('.fm-entry').forEach(e => e.classList.remove('active'));
-                    el.classList.add('active');
-                    if (it.kind === 'dir') {
-                        filterText = '';
-                        const search = root.querySelector('#fm-search');
-                        if (search) search.value = '';
-                        cwd = cwd ? cwd + '/' + it.name : it.name;
-                        await refresh();
-                    } else {
-                        selected = it;
-                        await renderPreview();
-                        if (settings.preview && $shell.classList.contains('fm-narrow')) {
-                            $shell.classList.add('fm-preview-open');
-                        }
-                    }
+                    handleEntryClick(it, ev);
+                });
+                el.addEventListener('dblclick', async (ev) => {
+                    if (ev.target.closest('[data-row-more]')) return;
+                    if (it.kind !== 'dir') return;
+                    filterText = '';
+                    const search = root.querySelector('#fm-search');
+                    if (search) search.value = '';
+                    await navigate(itemPath(it));
                 });
 
                 const writable = !!backend?.isWritable?.() && currentSource !== 'packages';
@@ -1416,14 +1766,21 @@ export default {
                     el.draggable = true;
                     el.addEventListener('dragstart', (ev) => {
                         if (ev.target.closest('[data-row-more]')) { ev.preventDefault(); return; }
-                        const path = cwd ? cwd + '/' + it.name : it.name;
-                        const payload = { source: currentSource, kind: it.kind, path, name: it.name };
+                        if (!selection.has(it.name)) {
+                            selection = new Set([it.name]);
+                            selected = it;
+                            anchorIdx = visibleItems.indexOf(it);
+                            paintSelection();
+                        }
+                        const picked = selectedItems().map(x => ({ path: itemPath(x), name: x.name, kind: x.kind }));
+                        const first = picked[0] || { path: itemPath(it), name: it.name, kind: it.kind };
+                        const payload = { source: currentSource, items: picked, path: first.path, name: first.name, kind: first.kind };
                         ev.dataTransfer.setData(INTERNAL_MIME, JSON.stringify(payload));
-                        ev.dataTransfer.setData('text/plain', path);
+                        ev.dataTransfer.setData('text/plain', picked.map(x => x.path).join('\n'));
                         ev.dataTransfer.effectAllowed = 'move';
-                        el.classList.add('fm-dragging');
+                        $tree.querySelectorAll('.fm-entry.fm-selected').forEach(x => x.classList.add('fm-dragging'));
                     });
-                    el.addEventListener('dragend', () => el.classList.remove('fm-dragging'));
+                    el.addEventListener('dragend', () => $tree.querySelectorAll('.fm-dragging').forEach(x => x.classList.remove('fm-dragging')));
                 }
                 if (it.kind === 'dir') {
                     el.addEventListener('dragover', (ev) => {
@@ -1592,28 +1949,37 @@ export default {
             sortMode = $sort.value;
             renderList();
         });
+        root.querySelector('[data-act="back"]').addEventListener('click', goBack);
+        root.querySelector('[data-act="forward"]').addEventListener('click', goForward);
         root.querySelector('[data-act="up"]').addEventListener('click', async () => {
             if (!cwd) return;
-            cwd = cwd.split('/').slice(0, -1).join('/');
-            resetPreview();
-            await refresh();
+            await navigate(parentPath(cwd));
         });
         root.querySelector('[data-act="refresh"]').addEventListener('click', async () => { resetPreview(); await refresh(); });
-        root.querySelector('[data-act="newfile"]').addEventListener('click', async () => {
+
+        async function createFileHere() {
             if (!backend?.isWritable?.()) return;
             const name = (prompt('New file name:') || '').trim();
             if (!validName(name)) { if (name) ctx.toast?.('Invalid name', 'error'); return; }
             if (await nameExists(backend, cwd, name)) { ctx.toast?.('A file or folder with that name already exists', 'error'); return; }
             try { await backend.createFile(cwd, name, ''); await refresh(); }
             catch (e) { ctx.toast?.('Create failed: ' + (e.message || e), 'error'); }
-        });
-        root.querySelector('[data-act="newdir"]').addEventListener('click', async () => {
+        }
+        async function createDirHere() {
             if (!backend?.isWritable?.()) return;
             const name = (prompt('New folder name:') || '').trim();
             if (!validName(name)) { if (name) ctx.toast?.('Invalid name', 'error'); return; }
             if (await nameExists(backend, cwd, name)) { ctx.toast?.('A file or folder with that name already exists', 'error'); return; }
             try { await backend.createDir(cwd, name); await refresh(); }
             catch (e) { ctx.toast?.('Create failed: ' + (e.message || e), 'error'); }
+        }
+        root.querySelector('[data-act="newfile"]').addEventListener('click', createFileHere);
+        root.querySelector('[data-act="newdir"]').addEventListener('click', createDirHere);
+        root.querySelector('[data-act="view"]').addEventListener('click', () => {
+            settings.view = settings.view === 'grid' ? 'list' : 'grid';
+            saveSettings();
+            applySettings();
+            renderList();
         });
         root.querySelector('[data-act="upload"]').addEventListener('click', () => $uploadInput.click());
         $uploadInput.addEventListener('change', async () => {
@@ -1640,6 +2006,7 @@ export default {
             if ($path) $path.value = cwd;
             if ($start) $start.value = settings.startPath;
             applySettings();
+            renderFavorites();
         }
         function closeSettings() { $settings.hidden = true; }
         root.querySelector('[data-act="settings"]').addEventListener('click', () => {
@@ -1655,10 +2022,25 @@ export default {
         root.querySelector('#fm-set-hidden').addEventListener('change', (ev) => {
             settings.hidden = ev.target.checked;
             saveSettings();
+            selection.clear();
             selected = null;
+            anchorIdx = -1;
             resetPreview();
             renderList();
         });
+        root.querySelector('#fm-set-grid').addEventListener('change', (ev) => {
+            settings.view = ev.target.checked ? 'grid' : 'list';
+            saveSettings();
+            applySettings();
+            renderList();
+        });
+        root.querySelector('#fm-set-thumb').addEventListener('change', (ev) => {
+            settings.thumbSize = ['s', 'm', 'l'].includes(ev.target.value) ? ev.target.value : 'm';
+            saveSettings();
+            applySettings();
+            if (settings.view === 'grid') renderList();
+        });
+        root.querySelector('[data-act="pin"]').addEventListener('click', pinCurrent);
         root.querySelector('#fm-set-start').addEventListener('change', async (ev) => {
             const path = normalizePath(ev.target.value);
             if (path === null) {
@@ -1682,8 +2064,51 @@ export default {
         root.querySelector('#fm-set-path').addEventListener('keydown', (ev) => {
             if (ev.key === 'Enter') { ev.preventDefault(); goPath(); }
         });
-        root.addEventListener('keydown', (ev) => {
-            if (ev.key === 'Escape' && !$settings.hidden) closeSettings();
+        function isTypingTarget(ev) {
+            const t = ev.target;
+            return !!(t && t.closest && t.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]'));
+        }
+
+        document.addEventListener('keydown', async (ev) => {
+            if (ev.key === 'Escape') {
+                if (!$settings.hidden) closeSettings();
+                else if (selection.size) { clearSelection(); paintSelection(); }
+                return;
+            }
+            if (isTypingTarget(ev)) return;
+            const mod = ev.ctrlKey || ev.metaKey;
+            if (mod && ev.key.toLowerCase() === 'a') { ev.preventDefault(); selectAll(); return; }
+            if (mod && ev.key.toLowerCase() === 'c') { ev.preventDefault(); setClipboard('copy'); return; }
+            if (mod && ev.key.toLowerCase() === 'x') { ev.preventDefault(); setClipboard('cut'); return; }
+            if (mod && ev.key.toLowerCase() === 'v') { ev.preventDefault(); await pasteClipboard(); return; }
+            if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); await goBack(); return; }
+            if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); await goForward(); return; }
+            if (ev.key === 'F2') {
+                ev.preventDefault();
+                const it = singleSelected();
+                if (it) await runRowAction('rename', it);
+                return;
+            }
+            if (ev.key === 'Delete') { ev.preventDefault(); await deleteSelection(); return; }
+            if (ev.key === 'Backspace') { ev.preventDefault(); if (cwd) await navigate(parentPath(cwd)); return; }
+            if (ev.key === 'Enter') {
+                const it = singleSelected();
+                if (it?.kind === 'dir') await navigate(itemPath(it));
+                return;
+            }
+            if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+                ev.preventDefault();
+                movePrimary(ev.key === 'ArrowDown' ? 1 : -1);
+                return;
+            }
+            if (!mod && !ev.altKey && ev.key.length === 1 && /\S/.test(ev.key)) {
+                // Type anywhere to filter.
+                ev.preventDefault();
+                $search.value = $search.value + ev.key;
+                filterText = $search.value;
+                renderList();
+                $search.focus();
+            }
         });
         // Click the ✕ pseudo-element area at the top-right of the overlay preview.
         root.querySelector('#fm-preview').addEventListener('click', (ev) => {
@@ -1754,6 +2179,11 @@ export default {
             const payload = readDragPayload(ev);
             if (payload) { await moveEntry(payload, cwd); return; }
             if (hasFileDrag(ev)) await uploadDataTransfer(ev.dataTransfer, cwd);
+        });
+        $tree.addEventListener('contextmenu', (ev) => {
+            if (ev.target.closest('.fm-entry')) return;
+            ev.preventDefault();
+            openBlankMenu(ev.clientX, ev.clientY);
         });
 
         const preventFileDrop = (ev) => {

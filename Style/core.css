@@ -490,7 +490,8 @@ html.magic-cursor-active, html.magic-cursor-active * { cursor: none !important; 
     transform: translateX(120%);
     opacity: 0;
     transition: transform 0.4s var(--ease-bounce), opacity var(--dur-mellow);
-    pointer-events: auto;
+    /* Click-through: a toast must never block the app window under it. */
+    pointer-events: none;
 }
 .toast.toast-show { transform: translateX(0); opacity: 1; }
 .toast.toast-hide { transform: translateX(120%); opacity: 0; }
@@ -503,6 +504,7 @@ html.magic-cursor-active, html.magic-cursor-active * { cursor: none !important; 
     background: none; border: none; color: var(--text-dim);
     cursor: pointer; font-size: var(--text-md); padding: 2px 4px;
     transition: color var(--dur-fast);
+    pointer-events: auto;
 }
 .toast-close:hover { color: var(--gold); }
 .toast::after {

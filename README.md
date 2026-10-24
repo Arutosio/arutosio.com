@@ -40,9 +40,13 @@ mode stores everything on your machine.
 - **Files** — browse the virtual profile in hosted mode, or the real
   filesystem in local mode, with upload, rename, trash and restore. Colored
   file-type icons, filter and sort, drag to move entries, drop files/folders
-  from the OS, and drop a file on another source to copy it. Its ⚙ settings
-  turn the preview pane off, show dotfiles, set the folder opened on switch,
-  and jump to any path.
+  from the OS, and drop a file on another source to copy it. Multi-selection
+  (Ctrl/Shift+click, Ctrl+A), keyboard shortcuts (F2, Del, Enter, Backspace,
+  arrows, type to filter), copy/cut/paste across sources, back/forward
+  history, pinned favorites, a grid view with image thumbnails. Its ⚙ settings
+  turn the preview pane off, show dotfiles, choose the view and thumbnail
+  size, manage favorites, set the folder opened on switch, and jump to any
+  path.
 - **Grimoire** — a writing/notes editor with file-type icons and a Markdown
   preview. In local mode it opens and saves real files with conflict detection
   and restore. Drop a machine file from Files to open it, or drop text files
@@ -101,7 +105,7 @@ installing anything.
 The installer asks for confirmation, whether to expose the daemon on the LAN,
 and whether to open the port in `ufw`/`firewalld`. Use `--yes` for a
 non-interactive install. Useful options: `--port 7777`, `--prefix DIR`,
-`--version v0.5.6`, `--lan`, `--open-firewall`, `--no-firewall`,
+`--version v0.5.7`, `--lan`, `--open-firewall`, `--no-firewall`,
 `--no-service`.
 
 It links `~/.local/bin/arutosiod` to the installed binary. If that directory
@@ -210,8 +214,8 @@ Releases are built by [`.github/workflows/release.yml`](./.github/workflows/rele
 when a `v*` tag is pushed:
 
 ```bash
-git tag v0.5.6
-git push origin v0.5.6
+git tag v0.5.7
+git push origin v0.5.7
 ```
 
 Disable checks with `-update-url ""`, or point them at a mirror returning the

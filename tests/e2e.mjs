@@ -67,6 +67,7 @@ await writeFile(path.join(root, 'package.json'), '{}\n');
 await writeFile(path.join(root, 'style.css'), 'body{}\n');
 await writeFile(path.join(root, 'src', 'main.js'), 'console.log(1)\n');
 await writeFile(path.join(root, '.hidden.txt'), 'dotfile\n');
+await writeFile(path.join(root, 'pixel.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'));
 await symlink('README.md', path.join(root, 'link.md'));
 
 const daemon = spawn(bin, [
@@ -87,8 +88,9 @@ try {
     });
     const page = await (await browser.newContext()).newPage();
     const errors = [];
+    let promptText = '';
     page.on('pageerror', e => errors.push(e.message));
-    page.on('dialog', d => d.accept());
+    page.on('dialog', d => d.accept(d.type() === 'prompt' ? promptText : undefined));
     await page.addInitScript(() => {
         sessionStorage.setItem('arutosio_summoned', '1');
         const perms = { storage: 'granted', notifications: 'granted', windows: 'granted', install: 'granted', 'fs.read': 'granted', 'fs.write': 'granted', 'fs.delete': 'granted' };
@@ -187,7 +189,7 @@ try {
 
     await fm.locator('#fm-set-path').fill('src');
     await fm.locator('[data-act="goPath"]').click();
-    await sleep(600);
+    await sleep(700);
     ok((await fm.locator('#fm-crumb').innerText()).includes('src'), 'go-to-path navigates');
 
     // Start folder applies on the next source switch.
@@ -202,6 +204,129 @@ try {
     const crumbAfter = await fm.locator('#fm-crumb').innerText();
     const namesAfter = await fm.locator('.fm-entry-name').allInnerTexts();
     ok(crumbAfter.includes('src') && namesAfter.includes('main.js'), 'start folder is applied when switching source');
+
+    // ── View, selection, keyboard, clipboard, favorites ───
+    await fm.locator('[data-act="closeSettings"]').click().catch(() => {});
+    await fm.locator('#fm-crumb [data-crumb=""]').click();
+    await sleep(600);
+
+    // Grid view loads an image thumbnail.
+    await fm.locator('[data-act="view"]').click();
+    await sleep(300);
+    ok(await fm.locator('.fm-tree.fm-grid').count() === 1, 'grid view toggles');
+    const thumb = await fm.locator('.fm-entry img.fm-thumb').first().evaluate(img => ({ w: img.naturalWidth, h: img.naturalHeight })).catch(() => null);
+    ok(thumb && thumb.w > 0, 'grid shows image thumbnails');
+    await fm.locator('[data-act="view"]').click();
+    await sleep(300);
+
+    // Ctrl+click adds to the selection, Ctrl+A selects everything.
+    await fm.locator('.fm-entry', { hasText: 'package.json' }).click();
+    await fm.locator('.fm-entry', { hasText: 'style.css' }).click({ modifiers: ['Control'] });
+    await sleep(200);
+    ok(await fm.locator('.fm-entry.fm-selected').count() === 2, 'ctrl+click adds to the selection');
+    await page.keyboard.press('Control+a');
+    const rowCount = await fm.locator('.fm-entry').count();
+    ok(await fm.locator('.fm-entry.fm-selected').count() === rowCount, 'ctrl+a selects every visible entry');
+    await page.keyboard.press('Escape');
+    ok(await fm.locator('.fm-entry.fm-selected').count() === 0, 'escape clears the selection');
+
+    // Drag two selected files at once.
+    await fm.locator('.fm-entry', { hasText: 'package.json' }).click();
+    await fm.locator('.fm-entry', { hasText: 'notes.md' }).click({ modifiers: ['Control'] });
+    await fm.locator('.fm-entry', { hasText: 'package.json' }).evaluate((row) => {
+        const dir = Array.from(document.querySelectorAll('.fm-entry')).find(el => el.querySelector('.fm-entry-name')?.textContent === 'src');
+        const dt = new DataTransfer();
+        row.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dt }));
+        dir.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+        dir.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    });
+    await sleep(1000);
+    ok(existsSync(path.join(root, 'src', 'package.json')) && existsSync(path.join(root, 'src', 'notes.md')), 'drag moves the whole selection');
+
+    // Copy and paste into a folder.
+    await fm.locator('.fm-entry', { hasText: 'src' }).dblclick();
+    await sleep(700);
+    await fm.locator('.fm-entry', { hasText: 'main.js' }).click();
+    await page.keyboard.press('Control+c');
+    await page.keyboard.press('Backspace');
+    await sleep(700);
+    await page.keyboard.press('Control+v');
+    await sleep(900);
+    ok(existsSync(path.join(root, 'main.js')) && existsSync(path.join(root, 'src', 'main.js')), 'copy + paste duplicates a file');
+
+    // Cut and paste moves it.
+    await fm.locator('.fm-entry', { hasText: 'dropped.txt' }).click();
+    await page.keyboard.press('Control+x');
+    await fm.locator('.fm-entry', { hasText: 'src' }).dblclick();
+    await sleep(700);
+    await page.keyboard.press('Control+v');
+    await sleep(900);
+    ok(!existsSync(path.join(root, 'dropped.txt')) && existsSync(path.join(root, 'src', 'dropped.txt')), 'cut + paste moves a file');
+
+    // Copy to another source with the clipboard.
+    await page.keyboard.press('Backspace');
+    await sleep(700);
+    await fm.locator('.fm-entry', { hasText: 'pixel.png' }).click();
+    await page.keyboard.press('Control+c');
+    await fm.locator('.fm-source[data-source="virtual"]').click();
+    await sleep(700);
+    await page.keyboard.press('Control+v');
+    await sleep(900);
+    ok((await fm.locator('.fm-entry-name').allInnerTexts()).includes('pixel.png'), 'paste copies between sources');
+    await fm.locator('.fm-source[data-source="machine"]').click();
+    await sleep(800);
+
+    // Favorites: pin src, go up, reopen it from the panel.
+    await fm.locator('[data-act="settings"]').click();
+    await fm.locator('[data-act="pin"]').click();
+    await sleep(200);
+    await fm.locator('[data-act="closeSettings"]').click();
+    await page.keyboard.press('Backspace');
+    await sleep(700);
+    await fm.locator('[data-act="settings"]').click();
+    await fm.locator('.fm-fav-go').first().click();
+    await sleep(700);
+    ok((await fm.locator('#fm-crumb').innerText()).includes('src'), 'favorite navigates back to the pinned folder');
+
+    // History: back then forward.
+    await fm.locator('[data-act="back"]').click();
+    await sleep(600);
+    const crumbRoot = await fm.locator('#fm-crumb').innerText();
+    await fm.locator('[data-act="forward"]').click();
+    await sleep(600);
+    const crumbSrc = await fm.locator('#fm-crumb').innerText();
+    ok(!crumbRoot.includes('src') && crumbSrc.includes('src'), 'back and forward walk the history');
+
+    // Type-to-filter and Delete key.
+    await page.keyboard.press('Backspace');
+    await sleep(600);
+    await fm.locator('.fm-entry').first().click();
+    await page.keyboard.press('p');
+    await sleep(300);
+    ok((await fm.locator('#fm-search').inputValue()) === 'p', 'typing starts a filter');
+    await fm.locator('#fm-search').fill('');
+    await sleep(300);
+
+    // F2 rename.
+    await fm.locator('.fm-entry', { hasText: 'style.css' }).click();
+    promptText = 'style2.css';
+    await page.keyboard.press('F2');
+    await sleep(700);
+    promptText = '';
+    ok(existsSync(path.join(root, 'style2.css')) && !existsSync(path.join(root, 'style.css')), 'F2 renames the selected entry');
+
+    // Delete key with a multi-selection.
+    await fm.locator('.fm-entry', { hasText: 'style2.css' }).click();
+    await fm.locator('.fm-entry', { hasText: 'link.md' }).click({ modifiers: ['Control'] });
+    await page.keyboard.press('Delete');
+    await sleep(800);
+    ok(!existsSync(path.join(root, 'style2.css')) && !existsSync(path.join(root, 'link.md')), 'delete removes every selected entry');
+
+    // Enter opens the selected folder.
+    await fm.locator('.fm-entry', { hasText: 'src' }).click();
+    await page.keyboard.press('Enter');
+    await sleep(700);
+    ok((await fm.locator('#fm-crumb').innerText()).includes('src'), 'enter opens the selected folder');
 
     // Settings survive closing and reopening the app.
     await page.evaluate(() => window.closeWindow('filemanager'));
@@ -218,14 +343,14 @@ try {
     await sleep(2500);
     await gr.locator('.wrap').evaluate((wrap) => {
         const dt = new DataTransfer();
-        dt.setData('application/x-arutosio-file', JSON.stringify({ source: 'machine', kind: 'file', path: 'notes.md', name: 'notes.md' }));
+        dt.setData('application/x-arutosio-file', JSON.stringify({ source: 'machine', kind: 'file', path: 'src/notes.md', name: 'notes.md' }));
         wrap.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
     });
-    await gr.locator('.ftree-item', { hasText: 'notes.md' }).first().waitFor({ timeout: 15000 });
+    await gr.locator('textarea').waitFor({ timeout: 15000 });
     await sleep(600);
     ok((await gr.locator('textarea').inputValue()).startsWith('# Heading'), 'dropping a machine file opens it');
 
-    const treeIcons = await gr.locator('.ftree-icon img').evaluateAll(imgs => imgs.map(i => i.naturalWidth));
+    const treeIcons = await gr.locator('.ftree-icon img').evaluateAll(imgs => imgs.filter(i => i.offsetParent !== null).map(i => i.naturalWidth));
     ok(treeIcons.length >= 1 && treeIcons.every(w => w > 0), `tree icons rendered (${treeIcons.length})`);
 
     await gr.locator('.tab-preview').click();

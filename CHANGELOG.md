@@ -9,6 +9,27 @@ either git commit SHAs or the `version` field inside a package's
 
 ## Site
 
+### 2026-10 — Files explorer upgrade (`arutosiod` 0.5.7)
+
+- **Files (1.8.0)**
+  - Multi-selection: Ctrl/Shift+click, Ctrl+A, Escape to clear; the ⋯/right-click
+    menu and drag & drop act on the whole selection, and Delete removes it
+    after one confirmation. Folders now open on double-click or Enter, so a
+    single click can select them.
+  - Keyboard: F2 rename, Del delete, Enter open folder, Backspace up, arrow
+    keys move the selection, Alt+←/→ history, type anywhere to filter. Ctrl+C,
+    Ctrl+X and Ctrl+V copy, cut and paste, including between sources.
+  - Back/forward buttons with per-source history.
+  - Favorites: pin the current folder per source from settings and reopen it
+    with one click.
+  - Grid view with image thumbnails (small/medium/large) and a toolbar toggle.
+  - Blank-area context menu: new file, new folder, paste, select all, refresh.
+  - Settings now include grid view, thumbnail size and favorites.
+  - Virtual folders that do not exist are reported instead of silently
+    showing an empty list, so a start folder can fall back per source.
+- Toasts are click-through except their close button, so they no longer block
+  buttons underneath.
+
 ### 2026-10 — Dimmed dotfiles (`arutosiod` 0.5.6)
 
 - **Files (1.7.1)** — hidden files and folders stay dimmed (55% opacity,
