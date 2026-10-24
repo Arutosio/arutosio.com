@@ -72,7 +72,8 @@ as before.
 release exists, the UI shows a toast and **System › Updates** offers
 **Update now**: the daemon downloads the bundle for its architecture (daemon
 plus site snapshot), verifies the SHA-256 published by GitHub, replaces both
-and restarts. Login sessions survive the restart.
+and restarts. Login sessions survive the restart, and the previous build is
+kept so **System › Updates** can roll back to it.
 
 Releases are built by [`.github/workflows/release.yml`](./.github/workflows/release.yml)
 when a `v*` tag is pushed:

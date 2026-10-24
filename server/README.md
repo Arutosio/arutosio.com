@@ -94,7 +94,8 @@ third-party tunnel is used.
   SHA-256, replaces the binary and — for an installer-managed `-web` — the
   site snapshot, then re-execs. Sessions are persisted in
   `~/.arutosio/sessions.json` (mode 0600) so the browser stays signed in
-  across the restart. Set `-update-url ""` to disable checks.
+  across the restart. The previous binary/site stay as `*.old`, and
+  **Roll back** restores them. Set `-update-url ""` to disable checks.
 - **Static site**: serves the Arutosio site; blocks dotfiles and `/server/`.
 
 ## Security
@@ -141,8 +142,9 @@ third-party tunnel is used.
 | `POST /api/system/trash/empty` | empty the trash |
 | `GET /api/system/terms` | attached/detached terminal sessions |
 | `POST /api/system/terms/kill` | kill a terminal session |
-| `GET /api/update` | current/latest version, notes, apply capability |
+| `GET /api/update` | current/latest version, notes, apply/rollback capability |
 | `POST /api/update/apply` | download, verify and restart into the new build |
+| `POST /api/update/rollback` | restart into the previous saved build |
 | `GET /ws/term` | PTY WebSocket (`session=` to attach) |
 | `GET /term` | embedded xterm.js page |
 
@@ -157,6 +159,7 @@ third-party tunnel is used.
 | `-token` | from data dir | override the access token |
 | `-term-idle` | `24h` | kill detached PTYs after this idle time (`0` = never) |
 | `-update-url` | GitHub latest release | release feed; `""` disables checks |
+| `-version` | — | print the version and exit |
 
 ## Still missing
 

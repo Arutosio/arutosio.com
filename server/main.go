@@ -56,7 +56,12 @@ func main() {
 	token := flag.String("token", "", "access token (default: persisted in the data dir)")
 	termIdle := flag.Duration("term-idle", 24*time.Hour, "kill detached terminal sessions after this idle time (0 = never)")
 	updateURL := flag.String("update-url", defaultUpdateURL, "latest-release JSON URL for update checks (blank disables)")
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
+	if *showVersion {
+		fmt.Println(version)
+		return
+	}
 
 	rootAbs, err := resolveRoot(*root)
 	if err != nil {
@@ -108,6 +113,7 @@ func main() {
 		},
 	}
 	s.loadSessions()
+	s.cleanupUpdateLeftovers()
 	go s.cleanupTerms()
 
 	mux := http.NewServeMux()
@@ -147,6 +153,7 @@ func main() {
 
 	mux.HandleFunc("/api/update", s.withAuth(s.handleUpdateCheck))
 	mux.HandleFunc("/api/update/apply", s.withAuth(s.handleUpdateApply))
+	mux.HandleFunc("/api/update/rollback", s.withAuth(s.handleUpdateRollback))
 
 	mux.HandleFunc("/ws/term", s.withAuth(s.handleTerm))
 	mux.HandleFunc("/term", s.handleTermPage)

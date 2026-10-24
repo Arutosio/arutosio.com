@@ -26,6 +26,9 @@
         updateUnavailable: 'Aggiornamento automatico non disponibile.', updateManual: 'Aggiorna manualmente:',
         confirmUpdate: 'Scaricare e installare {version}? arutosiod si riavvierà.', releasePage: 'Pagina release',
         checkedAt: 'Controllato', noRelease: 'Nessuna release pubblicata.', errorLabel: 'Errore',
+        rollback: 'Torna indietro', rollbackHint: 'Ripristina la versione precedente salvata.',
+        confirmRollback: 'Tornare alla versione {version}? arutosiod si riavvierà.',
+        rollbackRestarting: 'Ripristino della versione precedente…', rollbackFailed: 'Rollback non disponibile.',
         unit: 'Unità', active: 'Stato', idle: 'Inattivo', clients: 'Client', created: 'Creata',
         confirmKill: 'Terminare il processo {pid}?', confirmStop: 'Fermare {name}?',
         confirmRestart: 'Riavviare {name}?', confirmEmpty: 'Svuotare definitivamente il cestino?',
@@ -55,6 +58,9 @@
         updateUnavailable: 'Automatic update unavailable.', updateManual: 'Update manually:',
         confirmUpdate: 'Download and install {version}? arutosiod will restart.', releasePage: 'Release page',
         checkedAt: 'Checked', noRelease: 'No releases published.', errorLabel: 'Error',
+        rollback: 'Roll back', rollbackHint: 'Restore the previous saved version.',
+        confirmRollback: 'Roll back to {version}? arutosiod will restart.',
+        rollbackRestarting: 'Restoring the previous version…', rollbackFailed: 'Rollback unavailable.',
         unit: 'Unit', active: 'State', idle: 'Idle', clients: 'Clients', created: 'Created',
         confirmKill: 'Kill process {pid}?', confirmStop: 'Stop {name}?',
         confirmRestart: 'Restart {name}?', confirmEmpty: 'Permanently empty the trash?',
@@ -338,15 +344,25 @@
         const checked = st.checkedAt ? new Date(st.checkedAt).toLocaleString() : '';
         const notes = st.notes ? `<div class="sys-update-notes"><strong>${esc(L.releaseNotes)}</strong><pre>${esc(st.notes)}</pre></div>` : '';
         const link = st.url ? `<a class="sys-link" href="${esc(st.url)}" target="_blank" rel="noopener">${esc(L.releasePage)} ↗</a>` : '';
+        const rollback = st.canRollback
+            ? `<button class="sys-btn" data-update-rollback title="${esc(L.rollbackHint)}">${esc(L.rollback)}${st.rollbackVersion ? ' → v' + esc(st.rollbackVersion) : ''}</button>`
+            : '';
         let body;
         if (st.error) {
-            body = `<div class="sys-notice">${esc(L.checkFailed)}: ${esc(st.error)}</div>`;
+            body = `
+                <div class="sys-notice">${esc(L.checkFailed)}: ${esc(st.error)}</div>
+                <div class="sys-actions sys-update-actions">
+                    ${rollback}
+                    <button class="sys-btn" data-update-check>${esc(L.checkNow)}</button>
+                </div>
+            `;
         } else if (st.available) {
             body = `
                 <p class="sys-update-title">${esc(L.updateAvailable.replace('{version}', latest))}</p>
                 ${notes}
                 <div class="sys-actions sys-update-actions">
                     ${st.canApply ? `<button class="sys-btn sys-primary" data-update-apply>${esc(L.applyUpdate)}</button>` : ''}
+                    ${rollback}
                     <button class="sys-btn" data-update-check>${esc(L.checkNow)}</button>
                     ${link}
                 </div>
@@ -362,6 +378,7 @@
             body = `
                 <p class="sys-update-title">${esc(st.reason === 'no releases published' ? L.noRelease : L.upToDate)}</p>
                 <div class="sys-actions sys-update-actions">
+                    ${rollback}
                     <button class="sys-btn" data-update-check>${esc(L.checkNow)}</button>
                     ${link}
                 </div>
@@ -378,11 +395,12 @@
         `;
         pane.querySelector('[data-update-check]')?.addEventListener('click', () => refreshUpdates(true));
         pane.querySelector('[data-update-apply]')?.addEventListener('click', async (ev) => {
-            const btn = ev.currentTarget;
-            if (!(await confirmDialog(L.confirmUpdate.replace('{version}', latest), L.applyUpdate))) return;
-            btn.disabled = true;
+            ev.currentTarget.disabled = true;
+            if (!(await confirmDialog(L.confirmUpdate.replace('{version}', latest), L.applyUpdate))) {
+                ev.currentTarget.disabled = false;
+                return;
+            }
             pane.innerHTML = `<div class="sys-notice">${esc(L.updateApplying)}</div>`;
-            const before = current;
             try {
                 await window.arutosioLocal.updates.apply();
             } catch (e) {
@@ -391,21 +409,42 @@
                 return;
             }
             pane.innerHTML = `<div class="sys-notice">${esc(L.updateRestarting)}</div>`;
-            for (let i = 0; i < 60; i++) {
-                await new Promise(resolve => setTimeout(resolve, 750));
-                try {
-                    const res = await fetch('/api/health', { cache: 'no-store' });
-                    if (!res.ok) continue;
-                    const health = await res.json();
-                    if (health.version && health.version !== before) {
-                        location.reload();
-                        return;
-                    }
-                } catch (_) {}
-            }
-            toast(L.updateTimeout, 'error', 10000);
-            refreshUpdates(true);
+            await waitForRestart(pane, current);
         });
+        pane.querySelector('[data-update-rollback]')?.addEventListener('click', async (ev) => {
+            ev.currentTarget.disabled = true;
+            const target = st.rollbackVersion || '?';
+            if (!(await confirmDialog(L.confirmRollback.replace('{version}', target), L.rollback))) {
+                ev.currentTarget.disabled = false;
+                return;
+            }
+            pane.innerHTML = `<div class="sys-notice">${esc(L.rollbackRestarting)}</div>`;
+            try {
+                await window.arutosioLocal.updates.rollback();
+            } catch (e) {
+                toast(e.message || e, 'error');
+                refreshUpdates(true);
+                return;
+            }
+            await waitForRestart(pane, current);
+        });
+    }
+
+    async function waitForRestart(pane, before) {
+        for (let i = 0; i < 60; i++) {
+            await new Promise(resolve => setTimeout(resolve, 750));
+            try {
+                const res = await fetch('/api/health', { cache: 'no-store' });
+                if (!res.ok) continue;
+                const health = await res.json();
+                if (health.version && health.version !== before) {
+                    location.reload();
+                    return;
+                }
+            } catch (_) {}
+        }
+        toast(L.updateTimeout, 'error', 10000);
+        refreshUpdates(true);
     }
 
     async function refreshTrash() {

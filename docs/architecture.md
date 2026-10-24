@@ -459,7 +459,8 @@ Local mode changes these boundaries:
   The daemon fetches the GitHub release feed, verifies the bundle SHA-256,
   swaps the binary and (for an installer-managed website) the site snapshot,
   then re-execs. Sessions move to `~/.arutosio/sessions.json` first, so the
-  browser stays signed in.
+  browser stays signed in. The previous build stays as `*.old` and can be
+  restored from the same window.
 - **Server** — the Go daemon lives in `server/` and is excluded from the
   GitHub Pages artifact by `.github/workflows/deploy.yml`.
 

@@ -46,15 +46,17 @@ type releasePayload struct {
 }
 
 type updateStatus struct {
-	Current   string    `json:"current"`
-	Latest    string    `json:"latest,omitempty"`
-	Available bool      `json:"available"`
-	CanApply  bool      `json:"canApply"`
-	Reason    string    `json:"reason,omitempty"`
-	Error     string    `json:"error,omitempty"`
-	Notes     string    `json:"notes,omitempty"`
-	URL       string    `json:"url,omitempty"`
-	CheckedAt time.Time `json:"checkedAt"`
+	Current         string    `json:"current"`
+	Latest          string    `json:"latest,omitempty"`
+	Available       bool      `json:"available"`
+	CanApply        bool      `json:"canApply"`
+	CanRollback     bool      `json:"canRollback"`
+	RollbackVersion string    `json:"rollbackVersion,omitempty"`
+	Reason          string    `json:"reason,omitempty"`
+	Error           string    `json:"error,omitempty"`
+	Notes           string    `json:"notes,omitempty"`
+	URL             string    `json:"url,omitempty"`
+	CheckedAt       time.Time `json:"checkedAt"`
 }
 
 type updateResult struct {
@@ -174,6 +176,10 @@ func (s *server) getUpdate(ctx context.Context, force bool) updateResult {
 
 func (s *server) fetchUpdate(ctx context.Context) updateResult {
 	res := updateResult{Status: updateStatus{Current: version, CheckedAt: time.Now().UTC()}}
+	if v, ok := s.rollbackInfo(); ok {
+		res.Status.CanRollback = true
+		res.Status.RollbackVersion = v
+	}
 	if s.updateURL == "" {
 		res.Status.Reason = "update checks are disabled"
 		return res
@@ -258,6 +264,93 @@ type stagedUpdate struct {
 	WorkDir string
 	Binary  string
 	Web     string
+}
+
+// backupFile keeps the running binary available without moving it away: a
+// hard link when possible, a copy otherwise. The replacement rename is then
+// atomic, so a crash can never leave the install without a binary.
+func backupFile(src, dst string) error {
+	if err := os.Link(src, dst); err == nil {
+		return nil
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	info, err := in.Stat()
+	if err != nil {
+		return err
+	}
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode().Perm())
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		_ = os.Remove(dst)
+		return err
+	}
+	if err := out.Sync(); err != nil {
+		_ = out.Close()
+		_ = os.Remove(dst)
+		return err
+	}
+	if err := out.Close(); err != nil {
+		_ = os.Remove(dst)
+		return err
+	}
+	return nil
+}
+
+func binaryVersion(path string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, path, "-version").Output()
+	if err != nil {
+		return ""
+	}
+	v := strings.TrimSpace(string(out))
+	if v == "" || len(v) > 64 || strings.ContainsAny(v, "\r\n") {
+		return ""
+	}
+	return v
+}
+
+func (s *server) rollbackInfoFor(exe string) (string, bool) {
+	backup := exe + ".old"
+	if st, err := os.Stat(backup); err != nil || !st.Mode().IsRegular() {
+		return "", false
+	}
+	if s.managedWebDir() {
+		if st, err := os.Stat(s.web + ".old"); err != nil || !st.IsDir() {
+			return "", false
+		}
+	}
+	v := binaryVersion(backup)
+	if v == "" {
+		return "", false
+	}
+	return v, true
+}
+
+func (s *server) rollbackInfo() (string, bool) {
+	exe, err := updateExecutable()
+	if err != nil {
+		return "", false
+	}
+	return s.rollbackInfoFor(exe)
+}
+
+// cleanupUpdateLeftovers removes the failed build kept after a rollback. It
+// runs at startup, once the rolled-back build is actually serving.
+func (s *server) cleanupUpdateLeftovers() {
+	if exe, err := updateExecutable(); err == nil {
+		_ = os.Remove(exe + ".rollback")
+	}
+	if s.managedWebDir() {
+		_ = os.RemoveAll(s.web + ".rollback")
+	}
 }
 
 func (s *server) managedWebDir() bool {
@@ -525,13 +618,13 @@ func (s *server) handleUpdateApply(w http.ResponseWriter, r *http.Request) {
 
 	backup := exe + ".old"
 	_ = os.Remove(backup)
-	if err := os.Rename(exe, backup); err != nil {
+	if err := backupFile(exe, backup); err != nil {
 		rollbackWeb()
-		fsError(w, http.StatusInternalServerError, "replace binary: "+err.Error())
+		fsError(w, http.StatusInternalServerError, "backup binary: "+err.Error())
 		return
 	}
 	if err := os.Rename(staged.Binary, exe); err != nil {
-		_ = os.Rename(backup, exe)
+		_ = os.Remove(backup)
 		rollbackWeb()
 		fsError(w, http.StatusInternalServerError, "replace binary: "+err.Error())
 		return
@@ -547,6 +640,79 @@ func (s *server) handleUpdateApply(w http.ResponseWriter, r *http.Request) {
 			log.Printf("update: restart failed: %v", err)
 			_ = os.Rename(backup, exe)
 			rollbackWeb()
+		}
+	}()
+}
+
+func (s *server) handleUpdateRollback(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", "POST")
+		fsError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	s.updateApply.Lock()
+	defer s.updateApply.Unlock()
+
+	exe, err := updateExecutable()
+	if err != nil {
+		fsError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	targetVersion, ok := s.rollbackInfoFor(exe)
+	if !ok {
+		fsError(w, http.StatusConflict, "no rollback available")
+		return
+	}
+
+	managedWeb := s.managedWebDir()
+	webRollback := s.web + ".rollback"
+	if managedWeb {
+		_ = os.RemoveAll(webRollback)
+		if err := os.Rename(s.web, webRollback); err != nil {
+			fsError(w, http.StatusInternalServerError, "restore site: "+err.Error())
+			return
+		}
+		if err := os.Rename(s.web+".old", s.web); err != nil {
+			_ = os.Rename(webRollback, s.web)
+			fsError(w, http.StatusInternalServerError, "restore site: "+err.Error())
+			return
+		}
+	}
+	restoreWeb := func() {
+		if !managedWeb {
+			return
+		}
+		_ = os.RemoveAll(s.web)
+		_ = os.Rename(webRollback, s.web)
+	}
+
+	failed := exe + ".rollback"
+	_ = os.Remove(failed)
+	if err := backupFile(exe, failed); err != nil {
+		restoreWeb()
+		fsError(w, http.StatusInternalServerError, "backup binary: "+err.Error())
+		return
+	}
+	if err := os.Rename(exe+".old", exe); err != nil {
+		_ = os.Remove(failed)
+		restoreWeb()
+		fsError(w, http.StatusInternalServerError, "restore binary: "+err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "version": targetVersion, "restarting": true})
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
+	go func() {
+		time.Sleep(400 * time.Millisecond)
+		if err := syscall.Exec(exe, os.Args, os.Environ()); err != nil {
+			log.Printf("rollback: restart failed: %v", err)
+			// Put the failed build back so disk and process agree again.
+			_ = os.Remove(exe + ".old")
+			_ = backupFile(exe, exe+".old")
+			_ = os.Rename(failed, exe)
+			restoreWeb()
 		}
 	}()
 }

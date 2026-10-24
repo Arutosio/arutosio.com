@@ -158,6 +158,53 @@ func writeTemp(t *testing.T, data []byte) string {
 	return p
 }
 
+func TestBackupFile(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "arutosiod")
+	if err := os.WriteFile(src, []byte("binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dst := src + ".old"
+	if err := backupFile(src, dst); err != nil {
+		t.Fatalf("backup: %v", err)
+	}
+	data, err := os.ReadFile(dst)
+	if err != nil || string(data) != "binary" {
+		t.Fatalf("backup = %q, %v", data, err)
+	}
+}
+
+func TestRollbackInfo(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "arutosiod")
+	if err := os.WriteFile(exe, []byte("current"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(exe+".old", []byte("#!/bin/sh\necho 0.3.0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	data := t.TempDir()
+	web := filepath.Join(data, "current", "web")
+	if err := os.MkdirAll(web, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	managed := &server{dataDir: data, web: web}
+	if _, ok := managed.rollbackInfoFor(exe); ok {
+		t.Fatal("rollback accepted without a web backup")
+	}
+	if err := os.MkdirAll(web+".old", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := managed.rollbackInfoFor(exe); !ok || v != "0.3.0" {
+		t.Fatalf("rollback info = %q, %v", v, ok)
+	}
+
+	unmanaged := &server{dataDir: data, web: filepath.Join(data, "repo")}
+	if v, ok := unmanaged.rollbackInfoFor(exe); !ok || v != "0.3.0" {
+		t.Fatalf("unmanaged rollback info = %q, %v", v, ok)
+	}
+}
+
 func TestFetchUpdateNoRelease(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)

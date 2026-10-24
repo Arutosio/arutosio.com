@@ -506,6 +506,7 @@
     const updates = {
         check: (force) => json('/api/update' + (force ? '?force=1' : '')),
         apply: () => json('/api/update/apply', { method: 'POST' }),
+        rollback: () => json('/api/update/rollback', { method: 'POST' }),
     };
 
     const profile = {

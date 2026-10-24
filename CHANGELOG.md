@@ -33,6 +33,8 @@ either git commit SHAs or the `version` field inside a package's
   download, checksum-verify and install it in place. Sessions are persisted so
   the browser stays signed in across the restart. `release.yml` publishes the
   three Linux builds and their checksums on every `v*` tag.
+- **Rollback** — the previous binary and site snapshot stay as `*.old`;
+  System › Updates can restore them without losing the session.
 - **Start menu search** — filter apps by name, Enter opens the first match.
 - **Rebrand** — every user-visible name, storage key, database name, package
   id and P2P namespace is now Arutosio; `migration.js` moves the previous
