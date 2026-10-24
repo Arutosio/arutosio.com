@@ -61,6 +61,16 @@ func cmdUninstall(args []string) int {
 		}
 	}
 
+	// Remove the PATH symlink only when it points at this installation.
+	link := filepath.Join(localBinDir(), "arutosiod")
+	if target, err := os.Readlink(link); err == nil {
+		resolved, _ := filepath.EvalSymlinks(link)
+		installed := filepath.Join(*data, "bin", "arutosiod")
+		if target == installed || resolved == installed {
+			_ = os.Remove(link)
+		}
+	}
+
 	for _, name := range []string{"arutosiod", "arutosiod.old", "arutosiod.rollback", "arutosiod.new"} {
 		_ = os.Remove(filepath.Join(*data, "bin", name))
 	}

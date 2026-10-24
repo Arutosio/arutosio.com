@@ -357,6 +357,18 @@ cp -f "$TMP/bundle/arutosiod" "$PREFIX/bin/arutosiod.new"
 chmod 755 "$PREFIX/bin/arutosiod.new"
 mv -f "$PREFIX/bin/arutosiod.new" "$PREFIX/bin/arutosiod"
 
+LOCAL_BIN="${XDG_BIN_HOME:-$HOME/.local/bin}"
+PATH_NOTE=0
+CLI_CMD="$PREFIX/bin/arutosiod"
+if mkdir -p "$LOCAL_BIN" 2>/dev/null && ln -sfn "$PREFIX/bin/arutosiod" "$LOCAL_BIN/arutosiod" 2>/dev/null; then
+    CLI_CMD="$LOCAL_BIN/arutosiod"
+    if ! printf '%s' ":$PATH:" | grep -Fq ":$LOCAL_BIN:"; then
+        PATH_NOTE=1
+    fi
+else
+    warn "could not create the $LOCAL_BIN/arutosiod symlink"
+fi
+
 rm -rf "$PREFIX/current/web.new"
 cp -a "$TMP/bundle/web" "$PREFIX/current/web.new"
 if [ -d "$PREFIX/current/web" ]; then
@@ -578,6 +590,16 @@ if [ "$LAN" -eq 1 ]; then
 fi
 
 echo "  tunnel: ssh -N -L $PORT:127.0.0.1:$PORT $(id -un)@<this-host>"
+if [ "$PATH_NOTE" -eq 1 ]; then
+    echo "  cli:    $CLI_CMD"
+    echo "          add $LOCAL_BIN to PATH:"
+    echo "            fish:     fish_add_path $LOCAL_BIN"
+    echo "            bash/zsh: export PATH=\"$LOCAL_BIN:\$PATH\""
+elif [ "$CLI_CMD" = "$LOCAL_BIN/arutosiod" ]; then
+    echo "  cli:    arutosiod status"
+else
+    echo "  cli:    $CLI_CMD"
+fi
 if [ "$SERVICE_OK" -eq 1 ]; then
     echo "  logs:   journalctl --user -u arutosiod -f"
     echo

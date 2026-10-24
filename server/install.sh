@@ -77,6 +77,10 @@ cp "$BIN" "$PREFIX/bin/arutosiod.new"
 chmod 755 "$PREFIX/bin/arutosiod.new"
 mv "$PREFIX/bin/arutosiod.new" "$PREFIX/bin/arutosiod"
 
+LOCAL_BIN="${XDG_BIN_HOME:-$HOME/.local/bin}"
+mkdir -p "$LOCAL_BIN" 2>/dev/null && \
+    ln -sfn "$PREFIX/bin/arutosiod" "$LOCAL_BIN/arutosiod" 2>/dev/null || true
+
 rm -rf "$PREFIX/current/web"
 mkdir -p "$PREFIX/current/web"
 tar -C "$SRC_DIR" \

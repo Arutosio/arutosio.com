@@ -65,6 +65,14 @@ func pidPath(data string) string     { return filepath.Join(data, "arutosiod.pid
 func logPath(data string) string     { return filepath.Join(data, "arutosiod.log") }
 func tokenPath(data string) string   { return filepath.Join(data, "token") }
 
+func localBinDir() string {
+	if dir := os.Getenv("XDG_BIN_HOME"); dir != "" {
+		return dir
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".local", "bin")
+}
+
 func loadConfig(data string) (instanceConfig, bool, error) {
 	home, _ := os.UserHomeDir()
 	cfg := instanceConfig{

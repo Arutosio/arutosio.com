@@ -9,6 +9,11 @@ either git commit SHAs or the `version` field inside a package's
 
 ## Site
 
+### 2026-10 — `arutosiod` 0.5.1
+
+- **PATH link** — the installer links `~/.local/bin/arutosiod`; `uninstall`
+  removes the link only when it points at that installation.
+
 ### 2026-10 — Machine manager CLI (`arutosiod` 0.5.0)
 
 - **`arutosiod` CLI** — `status`, `start`, `stop`, `restart`, `logs`, `url`,
@@ -26,6 +31,8 @@ either git commit SHAs or the `version` field inside a package's
 - **Clean uninstall** — `arutosiod uninstall` stops the service, removes the
   unit, binary and site, closes the recorded firewall rule, and keeps
   token/profile/trash unless `--purge` is passed.
+- **Release fallback** — when the GitHub API is rate-limited, update checks
+  fall back to the signed `version.txt`/bundle URLs instead of failing.
 
 ### 2026-10 — Local mode (`arutosiod` 0.4.1) + rebrand
 

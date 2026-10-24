@@ -20,6 +20,7 @@ signature on `checksums.txt` and the SHA-256 of the bundle, then:
 - creates and enables a systemd **user** unit when available, otherwise
   starts a background process and writes `~/.arutosio/arutosiod.log`;
 - keeps `token`, `profile`, `trash` and `sessions.json` across re-installs;
+- links `~/.local/bin/arutosiod` so the CLI is available as `arutosiod`;
 - prints the local URL, the token, and the SSH tunnel command.
 
 It never installs packages. If `curl`, `tar`, `gzip`, `openssl`, `coreutils`
