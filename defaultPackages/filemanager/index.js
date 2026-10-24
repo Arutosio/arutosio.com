@@ -1365,8 +1365,9 @@ export default {
                 const iconId = it.kind === 'dir'
                     ? folderIconId(it.name, false, false)
                     : fileIconId(it.name, { symlink: !!it.symlink });
+                const hiddenCls = it.name.startsWith('.') ? ' fm-hidden-entry' : '';
                 return `
-                <div class="fm-entry" data-idx="${i}">
+                <div class="fm-entry${hiddenCls}" data-idx="${i}">
                     <span class="fm-entry-icon">${iconHTML(ctx, iconId, 'fm-icon', fallback)}</span>
                     <span class="fm-entry-name">${escapeHTML(it.name)}</span>
                     <span class="fm-entry-meta">${it.kind === 'file' ? fmtSize(it.size) : ''}</span>

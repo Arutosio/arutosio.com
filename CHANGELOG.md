@@ -9,6 +9,12 @@ either git commit SHAs or the `version` field inside a package's
 
 ## Site
 
+### 2026-10 — Dimmed dotfiles (`arutosiod` 0.5.6)
+
+- **Files (1.7.1)** — hidden files and folders stay dimmed (55% opacity,
+  full on hover/selection) when the hidden-files setting shows them, as in
+  other file managers.
+
 ### 2026-10 — Files settings, menu and cursor fixes (`arutosiod` 0.5.5)
 
 - **Files (1.7.0)** — new settings panel (⚙) with: a preview on/off switch that

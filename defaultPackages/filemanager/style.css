@@ -187,6 +187,10 @@ body, #root {
 }
 .fm-entry:hover { background: rgba(255, 200, 87, 0.07); }
 .fm-entry.active { background: rgba(255, 200, 87, 0.18); }
+/* Dotfiles are dimmed, like every file manager, even when shown. */
+.fm-entry.fm-hidden-entry { opacity: 0.55; }
+.fm-entry.fm-hidden-entry:hover,
+.fm-entry.fm-hidden-entry.active { opacity: 1; }
 .fm-entry-icon {
     font-size: 14px; width: 18px; min-width: 18px;
     display: flex; align-items: center; justify-content: center;

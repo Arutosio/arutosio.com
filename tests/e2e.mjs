@@ -177,6 +177,8 @@ try {
     await fm.locator('#fm-set-hidden').check();
     await sleep(300);
     ok((await fm.locator('.fm-entry-name').allInnerTexts()).includes('.hidden.txt'), 'hidden files setting shows dotfiles');
+    const hiddenOpacity = await fm.locator('.fm-entry.fm-hidden-entry').first().evaluate(el => Number(getComputedStyle(el).opacity));
+    ok(hiddenOpacity > 0 && hiddenOpacity < 1, 'hidden entries are dimmed');
 
     await fm.locator('#fm-set-preview').uncheck();
     await sleep(300);
