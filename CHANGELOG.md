@@ -9,8 +9,13 @@ either git commit SHAs or the `version` field inside a package's
 
 ## Site
 
-### 2026-10 — Local mode (`arutosiod` 0.4.0) + rebrand
+### 2026-10 — Local mode (`arutosiod` 0.4.1) + rebrand
 
+- **One-command install** — `curl -fsSL https://arutosio.com/install.sh | bash`
+  downloads the latest signed release, verifies its Ed25519 signature and
+  SHA-256, installs the daemon and site under `~/.arutosio`, and starts a
+  systemd user service (or a background process). It reports missing
+  dependencies instead of installing them.
 - **Local mode** — the site is served by the machine itself
   (`http://localhost:7777` over an SSH tunnel, no relay). `server/` adds a Go
   single-binary daemon (linux amd64/arm64/armv7) that serves the static site,

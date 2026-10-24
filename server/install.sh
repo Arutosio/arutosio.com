@@ -1,5 +1,7 @@
 #!/bin/sh
-# Install arutosiod for the current user from this checkout.
+# Development installer: build arutosiod from this checkout.
+# Normal users should run the one-command installer instead:
+#   curl -fsSL https://arutosio.com/install.sh | bash
 # No sudo by default; the service is a systemd user unit when available.
 set -eu
 

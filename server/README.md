@@ -6,21 +6,36 @@ by default; every API call needs a session cookie or the access token.
 
 ## Install on this machine
 
+One command, no checkout and no Go toolchain:
+
+```bash
+curl -fsSL https://arutosio.com/install.sh | bash
+```
+
+The bootstrap downloads the latest signed release, verifies the Ed25519
+signature on `checksums.txt` and the SHA-256 of the bundle, then:
+
+- installs the binary in `~/.arutosio/bin/arutosiod`;
+- installs the site in `~/.arutosio/current/web`;
+- creates and enables a systemd **user** unit when available, otherwise
+  starts a background process and writes `~/.arutosio/arutosiod.log`;
+- keeps `token`, `profile`, `trash` and `sessions.json` across re-installs;
+- prints the local URL, the token, and the SSH tunnel command.
+
+It never installs packages. If `curl`, `tar`, `gzip`, `openssl`, `coreutils`
+or `gawk` are missing it prints the package-manager command and stops.
+
+Options: `--port PORT`, `--prefix DIR`, `--version TAG`, `--no-service`.
+
+From a checkout (development only):
+
 ```bash
 cd server
 ./install.sh
 ```
 
-The installer is per-user and needs no sudo:
-
-- copies the binary to `~/.arutosio/bin/arutosiod`;
-- copies the site to `~/.arutosio/current/web`;
-- creates a systemd **user** unit when available and enables it;
-- leaves your data in `~/.arutosio` untouched on updates;
-- prints the local URL and the SSH tunnel command.
-
-If user systemd is unavailable it starts the daemon in the background and
-writes `~/.arutosio/arutosiod.log`.
+This builds the binary if Go is available and copies the current site; it
+accepts the same `--port`/`--prefix`/`--no-service` options.
 
 For boot without an interactive login:
 

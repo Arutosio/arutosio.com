@@ -79,17 +79,28 @@ python3 -m http.server 8080
 open http://localhost:8080
 ```
 
-Local mode (real files and shell on this machine):
+Local mode (real files and shell on this machine) with one command:
 
 ```bash
-cd server
-./install.sh          # per-user systemd service, no sudo
+curl -fsSL https://arutosio.com/install.sh | bash
 ```
 
-Or from a checkout without installing:
+The script downloads the latest signed release, verifies the Ed25519
+signature and SHA-256, installs the daemon and site under `~/.arutosio`, and
+starts a systemd user service (or a background process). It needs no root and
+no checkout. If a dependency is missing (`curl`, `tar`, `gzip`, `openssl`,
+`coreutils`, `gawk`) it prints the package-manager command and stops without
+installing anything.
+
+Useful options: `--port 7777`, `--prefix DIR`, `--version v0.4.1`,
+`--no-service`.
+
+From a checkout (development only):
 
 ```bash
 cd server
+./install.sh          # build from this checkout
+# or run without installing:
 ./arutosiod -web .. -root "$HOME" -data "$HOME/.arutosio"
 ```
 
@@ -135,8 +146,8 @@ Releases are built by [`.github/workflows/release.yml`](./.github/workflows/rele
 when a `v*` tag is pushed:
 
 ```bash
-git tag v0.4.0
-git push origin v0.4.0
+git tag v0.4.1
+git push origin v0.4.1
 ```
 
 Disable checks with `-update-url ""`, or point them at a mirror returning the

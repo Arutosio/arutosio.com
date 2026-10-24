@@ -12,7 +12,7 @@
         yes: 'sì', no: 'no', kill: 'Termina', start: 'Avvia', stop: 'Ferma',
         restart: 'Riavvia', empty: 'Svuota cestino', restore: 'Ripristina',
         noEntries: 'Nessun elemento nel cestino.', restored: 'Elemento ripristinato',
-        deletedAt: 'Eliminato', notLocal: 'Questa macchina non è collegata. Installa arutosiod con: cd server && ./install.sh',
+        deletedAt: 'Eliminato', notLocal: 'Questa macchina non è collegata. Installa arutosiod con: curl -fsSL https://arutosio.com/install.sh | bash',
         notAuth: 'Accedi per gestire questa macchina.', unavailable: 'Non disponibile',
         noProcesses: 'Nessun processo.', noServices: 'Nessun servizio utente disponibile (systemd --user non attivo).',
         noTerms: 'Nessuna sessione terminale.', noTrash: 'Cestino vuoto.',
@@ -44,7 +44,7 @@
         yes: 'yes', no: 'no', kill: 'Kill', start: 'Start', stop: 'Stop',
         restart: 'Restart', empty: 'Empty trash', restore: 'Restore',
         noEntries: 'No items in the trash.', restored: 'Item restored',
-        deletedAt: 'Deleted', notLocal: 'This machine is not connected. Install arutosiod with: cd server && ./install.sh',
+        deletedAt: 'Deleted', notLocal: 'This machine is not connected. Install arutosiod with: curl -fsSL https://arutosio.com/install.sh | bash',
         notAuth: 'Sign in to manage this machine.', unavailable: 'Unavailable',
         noProcesses: 'No processes.', noServices: 'No user services available (systemd --user not active).',
         noTerms: 'No terminal sessions.', noTrash: 'Trash is empty.',
@@ -371,7 +371,7 @@
                     <strong>${esc(L.updateUnavailable)}</strong>
                     ${st.reason ? `<small>${esc(st.reason)}</small>` : ''}
                     <p>${esc(L.updateManual)}</p>
-                    <code>cd server &amp;&amp; ./install.sh</code>
+                    <code>curl -fsSL https://arutosio.com/install.sh | bash</code>
                 </div>`}
             `;
         } else {
