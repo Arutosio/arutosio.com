@@ -456,11 +456,11 @@ Local mode changes these boundaries:
 - **System** — `system.js` drives the System window: overview, processes,
   user services, terminal sessions and trash, backed by `/api/system/*`.
 - **Updates** — the same window checks `/api/update` and can apply a release.
-  The daemon fetches the GitHub release feed, verifies the bundle SHA-256,
-  swaps the binary and (for an installer-managed website) the site snapshot,
-  then re-execs. Sessions move to `~/.arutosio/sessions.json` first, so the
-  browser stays signed in. The previous build stays as `*.old` and can be
-  restored from the same window.
+  The daemon fetches the GitHub release feed, verifies the Ed25519 signature
+  on `checksums.txt` and the bundle SHA-256, swaps the binary and (for an
+  installer-managed website) the site snapshot, then re-execs. Sessions move
+  to `~/.arutosio/sessions.json` first, so the browser stays signed in. The
+  previous build stays as `*.old` and can be restored from the same window.
 - **Server** — the Go daemon lives in `server/` and is excluded from the
   GitHub Pages artifact by `.github/workflows/deploy.yml`.
 

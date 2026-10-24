@@ -60,8 +60,9 @@ type updateStatus struct {
 }
 
 type updateResult struct {
-	Status updateStatus
-	Asset  releaseAsset
+	Status   updateStatus
+	Asset    releaseAsset
+	Checksum string
 }
 
 func normalizeVersion(v string) string {
@@ -156,6 +157,81 @@ func safeReleaseURL(raw string) string {
 	return u.String()
 }
 
+func findReleaseAsset(rel releasePayload, name string) releaseAsset {
+	for _, a := range rel.Assets {
+		if a.Name == name {
+			a.URL = safeReleaseURL(a.URL)
+			return a
+		}
+	}
+	return releaseAsset{}
+}
+
+func (s *server) fetchSmallAsset(ctx context.Context, rawURL string, limit int64) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "arutosiod/"+version)
+	resp, err := s.updateClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("download: %s", resp.Status)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("release asset is larger than %d KB", limit>>10)
+	}
+	return data, nil
+}
+
+func parseChecksums(data []byte, name string) (string, error) {
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 || fields[1] != name {
+			continue
+		}
+		sum := strings.ToLower(fields[0])
+		if len(sum) != 64 {
+			continue
+		}
+		if _, err := hex.DecodeString(sum); err == nil {
+			return sum, nil
+		}
+	}
+	return "", fmt.Errorf("release checksums do not list %s", name)
+}
+
+func (s *server) signedChecksum(ctx context.Context, rel releasePayload) (string, error) {
+	sumAsset := findReleaseAsset(rel, "checksums.txt")
+	sigAsset := findReleaseAsset(rel, "checksums.txt.sig")
+	if sumAsset.URL == "" || sigAsset.URL == "" {
+		return "", fmt.Errorf("release is not signed")
+	}
+	pub, ok := decodeUpdatePubkey(s.updatePubkey)
+	if !ok {
+		return "", fmt.Errorf("invalid update public key")
+	}
+	sums, err := s.fetchSmallAsset(ctx, sumAsset.URL, 128<<10)
+	if err != nil {
+		return "", err
+	}
+	sig, err := s.fetchSmallAsset(ctx, sigAsset.URL, 4<<10)
+	if err != nil {
+		return "", err
+	}
+	if !verifyReleaseSignature(pub, sums, sig) {
+		return "", fmt.Errorf("release signature is invalid")
+	}
+	return parseChecksums(sums, updateAssetName())
+}
+
 func (s *server) getUpdate(ctx context.Context, force bool) updateResult {
 	s.updateMu.Lock()
 	if !force && s.updateCache != nil && time.Since(s.updateAt) < updateTTL {
@@ -230,11 +306,26 @@ func (s *server) fetchUpdate(ctx context.Context) updateResult {
 		return res
 	}
 
-	for _, a := range rel.Assets {
-		if a.Name == updateAssetName() {
-			a.URL = safeReleaseURL(a.URL)
-			res.Asset = a
-			break
+	res.Asset = findReleaseAsset(rel, updateAssetName())
+
+	checksumErr := ""
+	if res.Asset.Name != "" && res.Asset.URL != "" {
+		if s.updatePubkey != "" {
+			sum, err := s.signedChecksum(ctx, rel)
+			if err != nil {
+				checksumErr = err.Error()
+			} else {
+				res.Checksum = sum
+			}
+		} else {
+			res.Checksum = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(res.Asset.Digest)), "sha256:")
+		}
+		if res.Checksum != "" && res.Asset.Digest != "" {
+			digest := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(res.Asset.Digest)), "sha256:")
+			if digest != res.Checksum {
+				checksumErr = "signed checksum does not match the release digest"
+				res.Checksum = ""
+			}
 		}
 	}
 
@@ -245,8 +336,10 @@ func (s *server) fetchUpdate(ctx context.Context) updateResult {
 		res.Status.Reason = "no build published for " + runtime.GOOS + "/" + runtime.GOARCH
 	case res.Asset.URL == "":
 		res.Status.Reason = "release build has no valid download url"
-	case strings.TrimSpace(res.Asset.Digest) == "":
-		res.Status.Reason = "release build has no sha256 checksum"
+	case checksumErr != "":
+		res.Status.Reason = checksumErr
+	case res.Checksum == "":
+		res.Status.Reason = "release build has no verified sha256 checksum"
 	default:
 		exe, err := updateExecutable()
 		if err != nil {
@@ -366,7 +459,7 @@ func (s *server) managedWebDir() bool {
 
 // stageUpdate downloads the release tarball, verifies its sha256 and unpacks
 // it next to the binary (same filesystem, so the final renames are atomic).
-func (s *server) stageUpdate(ctx context.Context, asset releaseAsset, dir string) (stagedUpdate, error) {
+func (s *server) stageUpdate(ctx context.Context, asset releaseAsset, dir, expected string) (stagedUpdate, error) {
 	if s.updateClient == nil {
 		s.updateClient = &http.Client{}
 	}
@@ -418,7 +511,7 @@ func (s *server) stageUpdate(ctx context.Context, asset releaseAsset, dir string
 		return stagedUpdate{}, err
 	}
 
-	want := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(asset.Digest)), "sha256:")
+	want := strings.ToLower(strings.TrimSpace(expected))
 	got := hex.EncodeToString(h.Sum(nil))
 	if want == "" || got != want {
 		return stagedUpdate{}, fmt.Errorf("checksum mismatch")
@@ -570,7 +663,7 @@ func (s *server) handleUpdateApply(w http.ResponseWriter, r *http.Request) {
 		fsError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	staged, err := s.stageUpdate(ctx, res.Asset, filepath.Dir(exe))
+	staged, err := s.stageUpdate(ctx, res.Asset, filepath.Dir(exe), res.Checksum)
 	if err != nil {
 		fsError(w, http.StatusBadGateway, err.Error())
 		return
@@ -720,6 +813,7 @@ func (s *server) handleUpdateRollback(w http.ResponseWriter, r *http.Request) {
 // Server fields used by the update handlers live here so main.go stays short.
 type updateState struct {
 	updateURL    string
+	updatePubkey string
 	updateMu     sync.Mutex
 	updateCache  *updateResult
 	updateAt     time.Time

@@ -35,6 +35,12 @@ either git commit SHAs or the `version` field inside a package's
   three Linux builds and their checksums on every `v*` tag.
 - **Rollback** — the previous binary and site snapshot stay as `*.old`;
   System › Updates can restore them without losing the session.
+- **Signed releases** — `release.yml` signs `checksums.txt` with Ed25519
+  (`ARUTOSIO_SIGNING_KEY`); the daemon embeds the public key and refuses
+  bundles with a missing or invalid signature.
+- **Profile import in local mode** — importing a `.zip` now pushes settings,
+  app data and appearance to the daemon before reloading, so the import is not
+  overwritten by the machine profile.
 - **Start menu search** — filter apps by name, Enter opens the first match.
 - **Rebrand** — every user-visible name, storage key, database name, package
   id and P2P namespace is now Arutosio; `migration.js` moves the previous

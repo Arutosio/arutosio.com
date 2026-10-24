@@ -56,6 +56,7 @@ func main() {
 	token := flag.String("token", "", "access token (default: persisted in the data dir)")
 	termIdle := flag.Duration("term-idle", 24*time.Hour, "kill detached terminal sessions after this idle time (0 = never)")
 	updateURL := flag.String("update-url", defaultUpdateURL, "latest-release JSON URL for update checks (blank disables)")
+	updatePubkey := flag.String("update-pubkey", embeddedUpdatePubkey, "hex Ed25519 key required to verify release checksums (blank disables signatures)")
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
 	if *showVersion {
@@ -109,6 +110,7 @@ func main() {
 		termIdle:    *termIdle,
 		updateState: updateState{
 			updateURL:    *updateURL,
+			updatePubkey: *updatePubkey,
 			updateClient: &http.Client{},
 		},
 	}

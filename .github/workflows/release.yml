@@ -48,6 +48,13 @@ jobs:
           sha256sum arutosio-linux-*.tar.gz > checksums.txt
           cat checksums.txt
 
+      - name: Sign checksums
+        env:
+          ARUTOSIO_SIGNING_KEY: ${{ secrets.ARUTOSIO_SIGNING_KEY }}
+        run: |
+          test -n "$ARUTOSIO_SIGNING_KEY" || { echo "ARUTOSIO_SIGNING_KEY secret is not set"; exit 1; }
+          (cd server && go run ./cmd/sign-release ../dist/checksums.txt)
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:

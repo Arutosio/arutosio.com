@@ -1,21 +1,74 @@
 # Arutosio
 
-Personal site for [Arutosio](https://github.com/Arutosio) built as a browser-based
-desktop environment. Draggable, resizable, stackable windows over a time-of-day
-wallpaper, a built-in terminal, a package system and an optional local daemon
-that gives the OS real files and a real shell.
+**arutosio.com is the personal website of Arutosio** — a portfolio, a
+playground and a working browser-based desktop, all in one. It is not a SaaS,
+a product or a template: it is one person's home on the web, built as an
+operating system you can open in a tab.
+
+The site has two lives:
+
+- **hosted on [arutosio.com](https://arutosio.com)** it is the public,
+  browser-local showcase: apps, games, notes and settings live in the browser.
+- **served by `arutosiod` on your own machine** it becomes a real local
+  desktop: Files browses your directories, Grimoire saves real files, the
+  Terminal is a real shell and System manages the machine.
 
 > ⚠️ **This is proprietary personal work, not an open-source template.**
 > See [Copyright & Rights](#copyright--rights) below before touching anything.
 
-## Stack
+## What it is for
 
-- **Static site** — vanilla HTML, CSS and JavaScript. No build step.
-- **IndexedDB + localStorage** — packages, app data, settings, sessions.
-- **Go daemon (`server/`)** — optional local mode: static host, filesystem API,
-  server-side profile/session, PTY over WebSocket.
-- **xterm.js** — real terminal rendering for local mode.
-- **Package sandbox** — iframe `ctx` bridge, permissions, zip installer.
+- **A personal homepage.** Projects, interests, links, a CV-like overview and
+  the small experiments that do not deserve a separate site.
+- **A showcase.** The desktop shell itself is the demo: windows, a package
+  system, a sandbox for apps, games and widgets.
+- **A playground.** New UI ideas, package APIs and local-first features are
+  built and tested here first.
+- **A real dashboard, if you want one.** Install the optional Go daemon and
+  the same page manages files, processes, services and terminals on the
+  machine that serves it — including over an SSH tunnel from another device.
+
+It is a personal site, not a hosted service: there is no account, no cloud
+sync and no telemetry. Hosted mode stores everything in your browser; local
+mode stores everything on your machine.
+
+## What you can do
+
+- **Desktop shell** — draggable, resizable, stackable windows, taskbar, start
+  menu with search, widgets, multiple themes, time-of-day wallpapers and five
+  UI languages.
+- **Files** — browse the virtual profile in hosted mode, or the real
+  filesystem in local mode, with upload, rename, trash and restore.
+- **Grimoire** — a writing/notes editor. In local mode it opens and saves real
+  files with conflict detection and restore.
+- **Terminal** — a virtual command shell in hosted mode, a real PTY in local
+  mode. Sessions survive page reloads and replay recent output.
+- **System** — local mode only: host/CPU/memory/disk overview, processes with
+  kill, user systemd services, terminal sessions, trash, updates and rollback.
+- **Packages** — install `.zip` apps and commands, or use the bundled ones:
+  Files, Grimoire, Tavern (P2P chat), Ultima Arutosio, Snake, Arcane Duel,
+  GBA link, dice, oracle, timer, QR and more.
+- **Personal profile** — settings, app data, appearance and per-device window
+  layouts. Export/import a `.zip`, or link a portable folder.
+- **Local machine control** — the optional daemon exposes a confined
+  filesystem API, a profile store, a PTY WebSocket and a system API. It is
+  loopback-only and meant to be reached through `ssh -L`.
+- **Self-update** — the local daemon checks the release feed, shows a toast,
+  installs a signed bundle from **System › Updates** and can roll back.
+
+## Two modes
+
+| | Hosted (`arutosio.com`) | Local (`arutosiod`) |
+|---|---|---|
+| Storage | browser (localStorage/IndexedDB) | machine (`~/.arutosio`) |
+| Files | virtual / portable profile | real filesystem |
+| Terminal | virtual shell | real shell (PTY) |
+| System app | not connected | processes, services, trash |
+| Install | none | per-user Go daemon |
+| Platform | any modern browser | Linux amd64/arm64/armv7 |
+
+The public site always works without installing anything. Local mode is
+optional and per-user; it needs no root and binds to `127.0.0.1` by default.
 
 ## Run
 
@@ -33,29 +86,31 @@ cd server
 ./install.sh          # per-user systemd service, no sudo
 ```
 
-or from a checkout without installing:
+Or from a checkout without installing:
 
 ```bash
 cd server
 ./arutosiod -web .. -root "$HOME" -data "$HOME/.arutosio"
 ```
 
-See [`server/README.md`](./server/README.md) for the daemon, SSH tunnel,
-security model and API.
+Open the URL printed at startup. To use it from another device, keep it on
+loopback and forward the port over SSH:
 
-## Project layout
+```bash
+ssh -N -L 7777:127.0.0.1:7777 user@host
+```
 
-```
-index.html          # OS shell
-JavaScript/         # window manager, settings, terminal, sandbox, profile, local mode
-Style/              # desktop, windows, terminal and section styling
-defaultPackages/    # bundled apps and commands (Files, Grimoire, Terminal, …)
-packages/           # example package repository
-Backgrounds/        # time-of-day wallpaper clips
-Images/  Brand/     # portraits, icons, social images
-docs/               # architecture, ctx API, packages, profile, permissions
-server/             # optional Go daemon for local mode
-```
+See [`server/README.md`](./server/README.md) for the daemon, security model
+and API.
+
+## Stack
+
+- **Static site** — vanilla HTML, CSS and JavaScript. No build step.
+- **IndexedDB + localStorage** — packages, app data, settings, sessions.
+- **Go daemon (`server/`)** — optional local mode: static host, filesystem
+  API, server-side profile/session, PTY over WebSocket.
+- **xterm.js** — real terminal rendering for local mode.
+- **Package sandbox** — iframe `ctx` bridge, permissions, zip installer.
 
 ## Local mode
 
@@ -71,9 +126,10 @@ as before.
 `arutosiod` checks the GitHub release feed every six hours. When a newer
 release exists, the UI shows a toast and **System › Updates** offers
 **Update now**: the daemon downloads the bundle for its architecture (daemon
-plus site snapshot), verifies the SHA-256 published by GitHub, replaces both
-and restarts. Login sessions survive the restart, and the previous build is
-kept so **System › Updates** can roll back to it.
+plus site snapshot), verifies the Ed25519 signature on `checksums.txt`, checks
+the SHA-256 of the bundle, replaces both and restarts. Login sessions survive
+the restart, and the previous build is kept so **System › Updates** can roll
+back to it.
 
 Releases are built by [`.github/workflows/release.yml`](./.github/workflows/release.yml)
 when a `v*` tag is pushed:
@@ -84,7 +140,44 @@ git push origin v0.4.0
 ```
 
 Disable checks with `-update-url ""`, or point them at a mirror returning the
-same JSON shape as GitHub's latest-release endpoint.
+same JSON shape as GitHub's latest-release endpoint. The signing key lives
+outside the repository and is supplied to CI as `ARUTOSIO_SIGNING_KEY`; the
+matching public key is embedded in the daemon.
+
+## Project layout
+
+```
+index.html          # OS shell
+JavaScript/         # window manager, settings, terminal, sandbox, profile, local mode
+Style/              # desktop, windows, terminal and section styling
+defaultPackages/    # bundled apps and commands (Files, Grimoire, Terminal, …)
+packages/           # example package repository
+Backgrounds/        # time-of-day wallpaper clips
+Images/  Brand/     # portraits, icons, social images
+docs/               # architecture, ctx API, packages, profile, permissions
+server/             # optional Go daemon for local mode
+```
+
+More documentation:
+
+- [`docs/architecture.md`](./docs/architecture.md) — how the shell, windows,
+  sandbox and local mode fit together
+- [`docs/packages.md`](./docs/packages.md) — manifest, entries, commands,
+  widgets
+- [`docs/ctx-api.md`](./docs/ctx-api.md) — the API available to packages
+- [`docs/permissions.md`](./docs/permissions.md) — permission model
+- [`docs/profile.md`](./docs/profile.md) — browser and machine profiles
+- [`docs/widgets.md`](./docs/widgets.md) — desktop widgets
+- [`docs/tavern.md`](./docs/tavern.md) — the P2P chat app
+
+## Privacy & security
+
+Hosted mode does not send app data anywhere: packages run in a sandboxed
+iframe and the profile stays in the browser. Local mode is a full shell for
+the user who installs it; treat the access token like an SSH credential. The
+daemon binds to loopback, checks the session cookie and CSRF on mutations,
+confines the Files API to `-root`, and forces package iframes to an opaque
+origin. No Tailscale, Cloudflare Tunnel or other relay is used.
 
 ## Wallpaper
 

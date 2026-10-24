@@ -348,6 +348,31 @@
         }
     }
 
+    // Called after a browser profile import: push the restored state to the
+    // daemon so the next boot does not pull the old server profile back.
+    async function importSnapshot(snap) {
+        if (!state.local || !state.csrf) return;
+        pulling = true;
+        try {
+            await profile.putLocalStorage(snapshotLocalStorage());
+            for (const [appId, kv] of Object.entries(snap.apps || {})) {
+                if (!appId || kv == null) continue;
+                await profile.putApp(appId, kv);
+            }
+            for (const item of snap.appearance || []) {
+                if (!item || !item.key || !item.bytes) continue;
+                const bytes = item.bytes instanceof Uint8Array ? item.bytes : new Uint8Array(item.bytes);
+                await api('/api/profile/appearance/' + encodeURIComponent(item.key), {
+                    method: 'PUT',
+                    headers: { 'Content-Type': item.mime || 'application/octet-stream' },
+                    body: bytes,
+                });
+            }
+        } finally {
+            pulling = false;
+        }
+    }
+
     function scheduleAppearance() {
         if (!state.local) return;
         if (appearanceTimer) clearTimeout(appearanceTimer);
@@ -584,6 +609,7 @@
         system,
         updates,
         checkUpdates,
+        importSnapshot,
         openTerm,
         pullApps,
         syncNow: () => pushLocalStorage(true),

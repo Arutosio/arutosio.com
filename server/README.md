@@ -90,9 +90,10 @@ third-party tunnel is used.
   is protected from self-restart.
 - **Updates**: checks `-update-url` (the GitHub latest-release feed by default)
   every six hours. System › Updates shows current/latest version and release
-  notes. **Update now** downloads `arutosio-linux-<arch>.tar.gz`, verifies its
-  SHA-256, replaces the binary and — for an installer-managed `-web` — the
-  site snapshot, then re-execs. Sessions are persisted in
+  notes. **Update now** downloads `arutosio-linux-<arch>.tar.gz`, verifies the
+  Ed25519 signature on `checksums.txt` and the bundle SHA-256, replaces the
+  binary and — for an installer-managed `-web` — the site snapshot, then
+  re-execs. Sessions are persisted in
   `~/.arutosio/sessions.json` (mode 0600) so the browser stays signed in
   across the restart. The previous binary/site stay as `*.old`, and
   **Roll back** restores them. Set `-update-url ""` to disable checks.
@@ -159,11 +160,34 @@ third-party tunnel is used.
 | `-token` | from data dir | override the access token |
 | `-term-idle` | `24h` | kill detached PTYs after this idle time (`0` = never) |
 | `-update-url` | GitHub latest release | release feed; `""` disables checks |
+| `-update-pubkey` | embedded key | hex Ed25519 key for release checksums; `""` disables signatures |
 | `-version` | — | print the version and exit |
+
+## Release signing
+
+Bundles are signed with Ed25519 before they are published:
+
+1. Generate a keypair outside the repository:
+
+   ```bash
+   cd server
+   go run ./cmd/gen-key ~/.arutosio/release-signing.key
+   ```
+
+2. Put the printed public key in `server/sign.go` (`embeddedUpdatePubkey`) —
+   or pass it to the daemon with `-update-pubkey`.
+3. Store the private seed as the repository secret used by the release
+   workflow:
+
+   ```bash
+   gh secret set ARUTOSIO_SIGNING_KEY < ~/.arutosio/release-signing.key
+   ```
+
+`release.yml` writes `checksums.txt`, signs it into `checksums.txt.sig` and
+publishes both with the bundles. The daemon refuses a release whose signature
+is missing or invalid. To rotate the key, generate a new pair, update the
+embedded public key and the secret, then publish a release.
 
 ## Still missing
 
-- Cryptographic signatures on release assets (SHA-256 checksums are verified,
-  but the feed itself is trusted over HTTPS).
-- Server-side import of a `.zip` profile (`export` exists).
 - Windows/macOS packaging.

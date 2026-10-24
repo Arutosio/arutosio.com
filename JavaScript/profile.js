@@ -504,6 +504,11 @@
         for (const e of entries) map.set(e.path, e.bytes);
         const snap = snapshotFromBinary(map);
         await restore(snap);
+        // Local mode: the daemon owns the profile, so push the imported state
+        // before reloading or the next boot would restore the old one.
+        if (window.arutosioLocal?.isLocal) {
+            await window.arutosioLocal.importSnapshot(snap);
+        }
         location.reload();
     }
 

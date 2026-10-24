@@ -5,7 +5,10 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
@@ -104,7 +107,7 @@ func TestFetchUpdateAndStage(t *testing.T) {
 		t.Fatalf("asset = %q", res.Asset.Name)
 	}
 
-	staged, err := s.stageUpdate(context.Background(), res.Asset, t.TempDir())
+	staged, err := s.stageUpdate(context.Background(), res.Asset, t.TempDir(), res.Checksum)
 	if err != nil {
 		t.Fatalf("stage: %v", err)
 	}
@@ -128,10 +131,62 @@ func TestFetchUpdateAndStage(t *testing.T) {
 		t.Fatalf("web/index.html = %q, %v", raw, err)
 	}
 
-	bad := res.Asset
-	bad.Digest = "sha256:" + hex.EncodeToString(make([]byte, sha256.Size))
-	if _, err := s.stageUpdate(context.Background(), bad, t.TempDir()); err == nil {
+	zero := hex.EncodeToString(make([]byte, sha256.Size))
+	if _, err := s.stageUpdate(context.Background(), res.Asset, t.TempDir(), zero); err == nil {
 		t.Fatal("stage accepted a bad checksum")
+	}
+}
+
+func TestSignedRelease(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	binary := append([]byte("\x7fELF"), []byte("signed daemon")...)
+	bundle := makeBundle(t, binary, map[string]string{"web/index.html": "<html>signed</html>"})
+	sum := sha256.Sum256(bundle)
+	checksums := []byte(hex.EncodeToString(sum[:]) + "  " + updateAssetName() + "\n")
+	sig := []byte(base64.StdEncoding.EncodeToString(ed25519.Sign(priv, checksums)) + "\n")
+
+	var baseURL string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/latest", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(releasePayload{
+			Tag: "v9.9.9",
+			Assets: []releaseAsset{
+				{Name: updateAssetName(), URL: baseURL + "/bundle", Digest: "sha256:" + hex.EncodeToString(sum[:])},
+				{Name: "checksums.txt", URL: baseURL + "/checksums"},
+				{Name: "checksums.txt.sig", URL: baseURL + "/sig"},
+			},
+		})
+	})
+	mux.HandleFunc("/bundle", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(bundle) })
+	mux.HandleFunc("/checksums", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(checksums) })
+	mux.HandleFunc("/sig", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(sig) })
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+	baseURL = ts.URL
+
+	s := &server{updateState: updateState{
+		updateURL:    ts.URL + "/latest",
+		updatePubkey: hex.EncodeToString(pub),
+		updateClient: ts.Client(),
+	}}
+	res := s.fetchUpdate(context.Background())
+	if res.Status.Error != "" || !res.Status.Available {
+		t.Fatalf("fetch: %+v", res.Status)
+	}
+	if res.Checksum != hex.EncodeToString(sum[:]) {
+		t.Fatalf("checksum = %q", res.Checksum)
+	}
+	if _, err := s.stageUpdate(context.Background(), res.Asset, t.TempDir(), res.Checksum); err != nil {
+		t.Fatalf("stage signed bundle: %v", err)
+	}
+
+	sig = []byte(base64.StdEncoding.EncodeToString(make([]byte, ed25519.SignatureSize)) + "\n")
+	res = s.fetchUpdate(context.Background())
+	if res.Checksum != "" || res.Status.CanApply || res.Status.Reason != "release signature is invalid" {
+		t.Fatalf("tampered signature accepted: %+v", res.Status)
 	}
 }
 
