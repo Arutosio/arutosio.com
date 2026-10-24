@@ -13,7 +13,10 @@
         cookie: false,
     };
 
-    const DEVICE_LOCAL = /^arutosio_(device_id|low_power|theme_follow_os|perms_|handoff_|session_|term_session)/;
+    const DEVICE_LOCAL = /^arutosio_(device_id|low_power|theme_follow_os|perms_|handoff_|session_|term_session|update_check|update_seen)/;
+    const UPDATE_CHECK_KEY = 'arutosio_update_check';
+    const UPDATE_SEEN_KEY = 'arutosio_update_seen';
+    const UPDATE_INTERVAL = 6 * 60 * 60 * 1000;
     const SYNC_DEBOUNCE = 900;
     let lastPushed = null;
     let pushTimer = null;
@@ -500,6 +503,11 @@
         }),
     };
 
+    const updates = {
+        check: (force) => json('/api/update' + (force ? '?force=1' : '')),
+        apply: () => json('/api/update/apply', { method: 'POST' }),
+    };
+
     const profile = {
         async getLocalStorage() { return optionalJSON('/api/profile/localStorage'); },
         async putLocalStorage(obj) {
@@ -532,6 +540,36 @@
         return new WebSocket(proto + '//' + location.host + '/ws/term' + q);
     }
 
+    async function checkUpdates(force) {
+        try { await window.__arutosioLocalReady; } catch (_) {}
+        if (!state.local || !state.csrf) return null;
+        if (!force) {
+            let last = 0;
+            try { last = Number(localStorage.getItem(UPDATE_CHECK_KEY)) || 0; } catch (_) {}
+            if (Date.now() - last < UPDATE_INTERVAL) return null;
+        }
+        let status;
+        try {
+            status = await updates.check(!!force);
+        } catch (e) {
+            console.warn('[local] update check failed', e);
+            return null;
+        }
+        try { localStorage.setItem(UPDATE_CHECK_KEY, String(Date.now())); } catch (_) {}
+        if (!status || !status.available || !status.latest) return status;
+        let seen = '';
+        try { seen = localStorage.getItem(UPDATE_SEEN_KEY) || ''; } catch (_) {}
+        if (seen !== status.latest) {
+            try { localStorage.setItem(UPDATE_SEEN_KEY, status.latest); } catch (_) {}
+            const lang = (typeof currentLang !== 'undefined' && currentLang) || 'en';
+            const dict = (typeof i18n !== 'undefined' && i18n[lang]) || {};
+            const msg = (dict.update_available || 'Update {version} available — open System › Updates')
+                .replace('{version}', status.latest);
+            window.showToast?.(msg, 'info', 9000);
+        }
+        return status;
+    }
+
     window.arutosioLocal = {
         get isLocal() { return state.local; },
         get version() { return state.version; },
@@ -543,6 +581,8 @@
         fs,
         profile,
         system,
+        updates,
+        checkUpdates,
         openTerm,
         pullApps,
         syncNow: () => pushLocalStorage(true),

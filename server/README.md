@@ -88,6 +88,13 @@ third-party tunnel is used.
   terminal session list with kill, and trash list/restore/empty. Process and
   service actions require the authenticated cookie + CSRF; `arutosiod.service`
   is protected from self-restart.
+- **Updates**: checks `-update-url` (the GitHub latest-release feed by default)
+  every six hours. System › Updates shows current/latest version and release
+  notes. **Update now** downloads `arutosio-linux-<arch>.tar.gz`, verifies its
+  SHA-256, replaces the binary and — for an installer-managed `-web` — the
+  site snapshot, then re-execs. Sessions are persisted in
+  `~/.arutosio/sessions.json` (mode 0600) so the browser stays signed in
+  across the restart. Set `-update-url ""` to disable checks.
 - **Static site**: serves the Arutosio site; blocks dotfiles and `/server/`.
 
 ## Security
@@ -134,11 +141,26 @@ third-party tunnel is used.
 | `POST /api/system/trash/empty` | empty the trash |
 | `GET /api/system/terms` | attached/detached terminal sessions |
 | `POST /api/system/terms/kill` | kill a terminal session |
+| `GET /api/update` | current/latest version, notes, apply capability |
+| `POST /api/update/apply` | download, verify and restart into the new build |
 | `GET /ws/term` | PTY WebSocket (`session=` to attach) |
 | `GET /term` | embedded xterm.js page |
 
+## Flags
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `-listen` | `127.0.0.1:7777` | bind address |
+| `-web` | `..` | static site root |
+| `-root` | `$HOME` | filesystem API root |
+| `-data` | `~/.arutosio` | token, profile, sessions, trash |
+| `-token` | from data dir | override the access token |
+| `-term-idle` | `24h` | kill detached PTYs after this idle time (`0` = never) |
+| `-update-url` | GitHub latest release | release feed; `""` disables checks |
+
 ## Still missing
 
-- Signed release downloads and `arutosiod update` / `rollback`.
+- Cryptographic signatures on release assets (SHA-256 checksums are verified,
+  but the feed itself is trusted over HTTPS).
 - Server-side import of a `.zip` profile (`export` exists).
 - Windows/macOS packaging.

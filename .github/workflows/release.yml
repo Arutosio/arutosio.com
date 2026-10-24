@@ -1,0 +1,56 @@
+name: Release arutosiod
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+
+      - name: Build bundles and checksums
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${VERSION#v}"
+          mkdir -p dist
+          for target in amd64 arm64 armv7; do
+            case "$target" in
+              amd64) goarch=amd64; goarm= ;;
+              arm64) goarch=arm64; goarm= ;;
+              armv7) goarch=arm; goarm=7 ;;
+            esac
+            (cd server && GOOS=linux GOARCH="$goarch" GOARM="$goarm" CGO_ENABLED=0 \
+              go build -trimpath -ldflags "-s -w -X main.version=$version" \
+              -o "../dist/arutosiod-$target" .)
+            stage="dist/stage-$target"
+            mkdir -p "$stage/web"
+            cp "dist/arutosiod-$target" "$stage/arutosiod"
+            tar -C . --exclude=.git --exclude=server --exclude=dist \
+              --exclude=node_modules -cf - . | tar -C "$stage/web" -xf -
+            tar -C "$stage" -czf "$(pwd)/dist/arutosio-linux-$target.tar.gz" arutosiod web
+            rm -rf "$stage" "dist/arutosiod-$target"
+          done
+          cd dist
+          sha256sum arutosio-linux-*.tar.gz > checksums.txt
+          cat checksums.txt
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

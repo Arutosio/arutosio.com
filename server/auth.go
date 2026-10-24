@@ -5,9 +5,11 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -21,6 +23,60 @@ const (
 type session struct {
 	csrf    string
 	expires time.Time
+}
+
+type persistedSession struct {
+	CSRF    string    `json:"csrf"`
+	Expires time.Time `json:"expires"`
+}
+
+// Sessions are persisted so a self-update (which re-execs the daemon) does not
+// log the browser out. The file lives in the 0700 data dir with mode 0600.
+func (s *server) loadSessions() {
+	if s.sessionFile == "" {
+		return
+	}
+	raw, err := os.ReadFile(s.sessionFile)
+	if err != nil {
+		return
+	}
+	var data map[string]persistedSession
+	if err := json.Unmarshal(raw, &data); err != nil {
+		log.Printf("sessions: ignoring %s: %v", s.sessionFile, err)
+		return
+	}
+	if s.sessions == nil {
+		s.sessions = make(map[string]session)
+	}
+	now := time.Now()
+	for id, p := range data {
+		if id == "" || p.CSRF == "" || now.After(p.Expires) {
+			continue
+		}
+		s.sessions[id] = session{csrf: p.CSRF, expires: p.Expires}
+	}
+}
+
+func (s *server) saveSessionsLocked() {
+	if s.sessionFile == "" {
+		return
+	}
+	data := make(map[string]persistedSession, len(s.sessions))
+	for id, ses := range s.sessions {
+		data[id] = persistedSession{CSRF: ses.csrf, Expires: ses.expires}
+	}
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return
+	}
+	tmp := s.sessionFile + ".tmp"
+	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
+		log.Printf("sessions: write: %v", err)
+		return
+	}
+	if err := os.Rename(tmp, s.sessionFile); err != nil {
+		log.Printf("sessions: rename: %v", err)
+	}
 }
 
 type authInfo struct {
@@ -51,6 +107,7 @@ func (s *server) newSession() (string, session) {
 		}
 	}
 	s.sessions[id] = ses
+	s.saveSessionsLocked()
 	return id, ses
 }
 
@@ -77,6 +134,7 @@ func (s *server) deleteSession(id string) {
 	}
 	s.mu.Lock()
 	delete(s.sessions, id)
+	s.saveSessionsLocked()
 	s.mu.Unlock()
 }
 

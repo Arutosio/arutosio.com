@@ -44,6 +44,9 @@ function showApp() {
     initAmbientSound();
     initAchievements();
     initSysInfo();
+    // Local mode only: check the release feed once every few hours and toast
+    // when a newer arutosiod is available.
+    setTimeout(() => window.arutosioLocal?.checkUpdates?.(), 1500);
 
     // Initialize package registry (loads installed apps + commands from IndexedDB),
     // then install any bundled default packages missing from the registry.

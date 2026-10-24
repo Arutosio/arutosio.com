@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-const version = "0.3.0"
+var version = "0.4.0"
 
 //go:embed web/*
 var termFS embed.FS
@@ -36,13 +36,16 @@ type server struct {
 	trashDir   string
 	token      string
 
-	mu       sync.Mutex
-	sessions map[string]session
-	failures map[string][]time.Time
+	mu          sync.Mutex
+	sessions    map[string]session
+	sessionFile string
+	failures    map[string][]time.Time
 
 	termMu   sync.Mutex
 	terms    map[string]*termSession
 	termIdle time.Duration
+
+	updateState
 }
 
 func main() {
@@ -52,6 +55,7 @@ func main() {
 	data := flag.String("data", "", "data directory (default: ~/.arutosio)")
 	token := flag.String("token", "", "access token (default: persisted in the data dir)")
 	termIdle := flag.Duration("term-idle", 24*time.Hour, "kill detached terminal sessions after this idle time (0 = never)")
+	updateURL := flag.String("update-url", defaultUpdateURL, "latest-release JSON URL for update checks (blank disables)")
 	flag.Parse()
 
 	rootAbs, err := resolveRoot(*root)
@@ -87,17 +91,23 @@ func main() {
 	}
 
 	s := &server{
-		root:       rootAbs,
-		web:        webAbs,
-		dataDir:    dataAbs,
-		profileDir: profileDir,
-		trashDir:   trashDir,
-		token:      tokenValue,
-		sessions:   make(map[string]session),
-		failures:   make(map[string][]time.Time),
-		terms:      make(map[string]*termSession),
-		termIdle:   *termIdle,
+		root:        rootAbs,
+		web:         webAbs,
+		dataDir:     dataAbs,
+		profileDir:  profileDir,
+		trashDir:    trashDir,
+		token:       tokenValue,
+		sessions:    make(map[string]session),
+		sessionFile: filepath.Join(dataAbs, "sessions.json"),
+		failures:    make(map[string][]time.Time),
+		terms:       make(map[string]*termSession),
+		termIdle:    *termIdle,
+		updateState: updateState{
+			updateURL:    *updateURL,
+			updateClient: &http.Client{},
+		},
 	}
+	s.loadSessions()
 	go s.cleanupTerms()
 
 	mux := http.NewServeMux()
@@ -134,6 +144,9 @@ func main() {
 	mux.HandleFunc("/api/system/trash/empty", s.withAuth(s.handleSystemTrashEmpty))
 	mux.HandleFunc("/api/system/terms", s.withAuth(s.handleSystemTerms))
 	mux.HandleFunc("/api/system/terms/kill", s.withAuth(s.handleSystemTermKill))
+
+	mux.HandleFunc("/api/update", s.withAuth(s.handleUpdateCheck))
+	mux.HandleFunc("/api/update/apply", s.withAuth(s.handleUpdateApply))
 
 	mux.HandleFunc("/ws/term", s.withAuth(s.handleTerm))
 	mux.HandleFunc("/term", s.handleTermPage)
@@ -227,7 +240,7 @@ func (s *server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"name":         "arutosiod",
 		"version":      version,
 		"mode":         "local",
-		"capabilities": []string{"fs.list", "fs.read", "fs.write", "fs.upload", "fs.download", "fs.mkdir", "fs.rename", "fs.delete", "profile", "term", "static"},
+		"capabilities": []string{"fs.list", "fs.read", "fs.write", "fs.upload", "fs.download", "fs.mkdir", "fs.rename", "fs.delete", "profile", "system", "update", "term", "static"},
 		"auth":         []string{"cookie", "bearer"},
 		"platform":     runtime.GOOS + "/" + runtime.GOARCH,
 	})

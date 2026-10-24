@@ -18,6 +18,14 @@
         noTerms: 'Nessuna sessione terminale.', noTrash: 'Cestino vuoto.',
         pid: 'PID', user: 'Utente', cpu: 'CPU', mem: 'MEM', rss: 'RSS', command: 'Comando',
         name: 'Nome', size: 'Dimensione', confirmRestore: 'Ripristinare {name}?',
+        updates: 'Aggiornamenti', currentVersion: 'Versione attuale', latestVersion: 'Ultima versione',
+        checkNow: 'Controlla', applyUpdate: 'Aggiorna ora', upToDate: 'Il sistema è aggiornato.',
+        checkFailed: 'Controllo aggiornamenti non riuscito', releaseNotes: 'Note di rilascio',
+        updateAvailable: 'Aggiornamento {version} disponibile', updateApplying: 'Download e verifica…',
+        updateRestarting: 'Riavvio di arutosiod…', updateTimeout: 'Il daemon non ha risposto. Ricarica la pagina o riavvia arutosiod.',
+        updateUnavailable: 'Aggiornamento automatico non disponibile.', updateManual: 'Aggiorna manualmente:',
+        confirmUpdate: 'Scaricare e installare {version}? arutosiod si riavvierà.', releasePage: 'Pagina release',
+        checkedAt: 'Controllato', noRelease: 'Nessuna release pubblicata.', errorLabel: 'Errore',
         unit: 'Unità', active: 'Stato', idle: 'Inattivo', clients: 'Client', created: 'Creata',
         confirmKill: 'Terminare il processo {pid}?', confirmStop: 'Fermare {name}?',
         confirmRestart: 'Riavviare {name}?', confirmEmpty: 'Svuotare definitivamente il cestino?',
@@ -39,6 +47,14 @@
         noTerms: 'No terminal sessions.', noTrash: 'Trash is empty.',
         pid: 'PID', user: 'User', cpu: 'CPU', mem: 'MEM', rss: 'RSS', command: 'Command',
         name: 'Name', size: 'Size', confirmRestore: 'Restore {name}?',
+        updates: 'Updates', currentVersion: 'Current version', latestVersion: 'Latest version',
+        checkNow: 'Check now', applyUpdate: 'Update now', upToDate: 'The system is up to date.',
+        checkFailed: 'Update check failed', releaseNotes: 'Release notes',
+        updateAvailable: 'Update {version} available', updateApplying: 'Downloading and verifying…',
+        updateRestarting: 'Restarting arutosiod…', updateTimeout: 'The daemon did not answer. Reload the page or restart arutosiod.',
+        updateUnavailable: 'Automatic update unavailable.', updateManual: 'Update manually:',
+        confirmUpdate: 'Download and install {version}? arutosiod will restart.', releasePage: 'Release page',
+        checkedAt: 'Checked', noRelease: 'No releases published.', errorLabel: 'Error',
         unit: 'Unit', active: 'State', idle: 'Idle', clients: 'Clients', created: 'Created',
         confirmKill: 'Kill process {pid}?', confirmStop: 'Stop {name}?',
         confirmRestart: 'Restart {name}?', confirmEmpty: 'Permanently empty the trash?',
@@ -92,6 +108,7 @@
                     ${tabButton('processes', L.processes)}
                     ${tabButton('services', L.services)}
                     ${tabButton('terminals', L.terminals)}
+                    ${tabButton('updates', L.updates)}
                     ${tabButton('trash', L.trash)}
                     <button class="sys-refresh" data-sys-refresh title="${esc(L.refresh)}">⟳</button>
                 </div>
@@ -100,6 +117,7 @@
                     <section class="sys-pane" data-sys-pane="processes" hidden></section>
                     <section class="sys-pane" data-sys-pane="services" hidden></section>
                     <section class="sys-pane" data-sys-pane="terminals" hidden></section>
+                    <section class="sys-pane" data-sys-pane="updates" hidden></section>
                     <section class="sys-pane" data-sys-pane="trash" hidden></section>
                 </div>
             </div>
@@ -299,6 +317,97 @@
         }
     }
 
+    async function refreshUpdates(force) {
+        const pane = content.querySelector('[data-sys-pane="updates"]');
+        if (!pane) return;
+        if (!localReady()) {
+            pane.innerHTML = `<div class="sys-notice">${esc(window.arutosioLocal?.isLocal ? L.notAuth : L.notLocal)}</div>`;
+            return;
+        }
+        if (force) pane.innerHTML = `<div class="sys-notice">${esc(L.updateApplying)}</div>`;
+        else if (!pane.querySelector('.sys-update')) pane.innerHTML = `<div class="sys-notice">…</div>`;
+        let st;
+        try {
+            st = await window.arutosioLocal.updates.check(!!force);
+        } catch (e) {
+            pane.innerHTML = `<div class="sys-notice">${esc(L.checkFailed)}: ${esc(e.message || e)}</div>`;
+            return;
+        }
+        const current = st.current || window.arutosioLocal.version || '—';
+        const latest = st.latest || '';
+        const checked = st.checkedAt ? new Date(st.checkedAt).toLocaleString() : '';
+        const notes = st.notes ? `<div class="sys-update-notes"><strong>${esc(L.releaseNotes)}</strong><pre>${esc(st.notes)}</pre></div>` : '';
+        const link = st.url ? `<a class="sys-link" href="${esc(st.url)}" target="_blank" rel="noopener">${esc(L.releasePage)} ↗</a>` : '';
+        let body;
+        if (st.error) {
+            body = `<div class="sys-notice">${esc(L.checkFailed)}: ${esc(st.error)}</div>`;
+        } else if (st.available) {
+            body = `
+                <p class="sys-update-title">${esc(L.updateAvailable.replace('{version}', latest))}</p>
+                ${notes}
+                <div class="sys-actions sys-update-actions">
+                    ${st.canApply ? `<button class="sys-btn sys-primary" data-update-apply>${esc(L.applyUpdate)}</button>` : ''}
+                    <button class="sys-btn" data-update-check>${esc(L.checkNow)}</button>
+                    ${link}
+                </div>
+                ${st.canApply ? '' : `
+                <div class="sys-update-manual">
+                    <strong>${esc(L.updateUnavailable)}</strong>
+                    ${st.reason ? `<small>${esc(st.reason)}</small>` : ''}
+                    <p>${esc(L.updateManual)}</p>
+                    <code>cd server &amp;&amp; ./install.sh</code>
+                </div>`}
+            `;
+        } else {
+            body = `
+                <p class="sys-update-title">${esc(st.reason === 'no releases published' ? L.noRelease : L.upToDate)}</p>
+                <div class="sys-actions sys-update-actions">
+                    <button class="sys-btn" data-update-check>${esc(L.checkNow)}</button>
+                    ${link}
+                </div>
+            `;
+        }
+        pane.innerHTML = `
+            <div class="sys-update">
+                <div class="sys-grid">
+                    <div class="sys-card"><span>${esc(L.currentVersion)}</span><strong>v${esc(current)}</strong></div>
+                    <div class="sys-card"><span>${esc(L.latestVersion)}</span><strong>${latest ? 'v' + esc(latest) : '—'}</strong><small>${esc(L.checkedAt)}: ${esc(checked)}</small></div>
+                </div>
+                ${body}
+            </div>
+        `;
+        pane.querySelector('[data-update-check]')?.addEventListener('click', () => refreshUpdates(true));
+        pane.querySelector('[data-update-apply]')?.addEventListener('click', async (ev) => {
+            const btn = ev.currentTarget;
+            if (!(await confirmDialog(L.confirmUpdate.replace('{version}', latest), L.applyUpdate))) return;
+            btn.disabled = true;
+            pane.innerHTML = `<div class="sys-notice">${esc(L.updateApplying)}</div>`;
+            const before = current;
+            try {
+                await window.arutosioLocal.updates.apply();
+            } catch (e) {
+                toast(e.message || e, 'error');
+                refreshUpdates(true);
+                return;
+            }
+            pane.innerHTML = `<div class="sys-notice">${esc(L.updateRestarting)}</div>`;
+            for (let i = 0; i < 60; i++) {
+                await new Promise(resolve => setTimeout(resolve, 750));
+                try {
+                    const res = await fetch('/api/health', { cache: 'no-store' });
+                    if (!res.ok) continue;
+                    const health = await res.json();
+                    if (health.version && health.version !== before) {
+                        location.reload();
+                        return;
+                    }
+                } catch (_) {}
+            }
+            toast(L.updateTimeout, 'error', 10000);
+            refreshUpdates(true);
+        });
+    }
+
     async function refreshTrash() {
         const pane = content.querySelector('[data-sys-pane="trash"]');
         if (!pane) return;
@@ -357,6 +466,7 @@
         else if (activeTab === 'processes') refreshProcesses();
         else if (activeTab === 'services') refreshServices();
         else if (activeTab === 'terminals') refreshTerms();
+        else if (activeTab === 'updates') refreshUpdates();
         else if (activeTab === 'trash') refreshTrash();
     }
 

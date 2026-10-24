@@ -9,7 +9,7 @@ either git commit SHAs or the `version` field inside a package's
 
 ## Site
 
-### 2026-10 — Local mode (`arutosiod` 0.3.0) + rebrand
+### 2026-10 — Local mode (`arutosiod` 0.4.0) + rebrand
 
 - **Local mode** — the site is served by the machine itself
   (`http://localhost:7777` over an SSH tunnel, no relay). `server/` adds a Go
@@ -28,6 +28,11 @@ either git commit SHAs or the `version` field inside a package's
   size), top processes with kill, user systemd units with
   start/stop/restart, terminal sessions with kill, and trash list/restore/
   empty.
+- **Updates** — `arutosiod` checks the GitHub release feed every six hours,
+  the UI shows a toast when a newer version exists and System › Updates can
+  download, checksum-verify and install it in place. Sessions are persisted so
+  the browser stays signed in across the restart. `release.yml` publishes the
+  three Linux builds and their checksums on every `v*` tag.
 - **Start menu search** — filter apps by name, Enter opens the first match.
 - **Rebrand** — every user-visible name, storage key, database name, package
   id and P2P namespace is now Arutosio; `migration.js` moves the previous

@@ -66,6 +66,25 @@ and the System app manages processes, user services, terminal sessions and
 trash. When the site is hosted on GitHub Pages, everything stays browser-local
 as before.
 
+### Updates
+
+`arutosiod` checks the GitHub release feed every six hours. When a newer
+release exists, the UI shows a toast and **System › Updates** offers
+**Update now**: the daemon downloads the bundle for its architecture (daemon
+plus site snapshot), verifies the SHA-256 published by GitHub, replaces both
+and restarts. Login sessions survive the restart.
+
+Releases are built by [`.github/workflows/release.yml`](./.github/workflows/release.yml)
+when a `v*` tag is pushed:
+
+```bash
+git tag v0.4.0
+git push origin v0.4.0
+```
+
+Disable checks with `-update-url ""`, or point them at a mirror returning the
+same JSON shape as GitHub's latest-release endpoint.
+
 ## Wallpaper
 
 Four `.webm` clips rotate by hour of day (dawn / noon / sunset / night).
