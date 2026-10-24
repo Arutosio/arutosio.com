@@ -64,6 +64,7 @@ const DEFAULT_SETTINGS = {
     liveHighlight: true,
     wrap:          false,
     tabWidth:      4,
+    spellcheck:    true,
 };
 
 const SKIP_DIRS = new Set(['node_modules', '.git', '.svn', '.hg', '.DS_Store', 'dist', 'build', '.next', '.cache', '.idea', '.vscode']);
@@ -1230,9 +1231,23 @@ export default {
                             <button class="tab-preview" data-view="preview">Preview</button>
                             <button class="tab-settings" data-view="settings" title="Editor settings">⚙</button>
                         </div>
+                        <button class="tool-btn outline-btn" title="Outline">☰</button>
+                        <button class="tool-btn focus-btn" title="Focus mode">⛶</button>
                         <span class="save-indicator"></span>
                     </div>
+                    <div class="findbar" hidden>
+                        <input class="find-input" placeholder="Find" aria-label="Find">
+                        <input class="replace-input" placeholder="Replace" aria-label="Replace">
+                        <button class="find-btn" data-find="prev" title="Previous (Shift+Enter)">↑</button>
+                        <button class="find-btn" data-find="next" title="Next (Enter)">↓</button>
+                        <button class="find-btn" data-find="replace" title="Replace">Replace</button>
+                        <button class="find-btn" data-find="replaceAll" title="Replace all">All</button>
+                        <span class="find-count"></span>
+                        <button class="find-btn find-close" data-find="close" title="Close (Esc)">✕</button>
+                    </div>
                     <div class="body"><div class="empty">Open a folder to start editing.</div></div>
+                    <div class="statusbar"></div>
+                    <aside class="outline-panel" hidden></aside>
                 </section>
             </div>
         `;
@@ -1247,6 +1262,15 @@ export default {
             if (d?._conflict) resolveConflict(d).catch(() => {});
             else if (d?._dirty) saveDoc(d).catch(() => {});
         });
+        const $findbar   = root.querySelector('.findbar');
+        const $findInput = root.querySelector('.find-input');
+        const $replaceInput = root.querySelector('.replace-input');
+        const $findCount = root.querySelector('.find-count');
+        const $statusbar = root.querySelector('.statusbar');
+        const $outline   = root.querySelector('.outline-panel');
+        let findState = { q: '', idx: -1, matches: [] };
+        let outlineTimer = null;
+        let statsTimer = null;
         const $folderLabel   = root.querySelector('.folder-label');
         const $folderNewFile = root.querySelector('.folder-new-file');
         const $folderNewDir  = root.querySelector('.folder-new-dir');
@@ -1278,9 +1302,276 @@ export default {
             return null;
         }
 
+        // ── Status bar ────────────────────────────────────────
+        function currentText() {
+            if ($ta) return $ta.value;
+            return active()?.content || '';
+        }
+
+        function updateStats() {
+            if (!$statusbar) return;
+            const text = currentText();
+            const words = (text.match(/\S+/g) || []).length;
+            const chars = text.length;
+            const lines = text ? text.split('\n').length : 0;
+            const mins = words ? Math.max(1, Math.round(words / 200)) : 0;
+            $statusbar.innerHTML = `<span>${words} words</span><span>${chars} chars</span><span>${lines} lines</span><span>${mins} min read</span>`;
+        }
+        function scheduleStats() {
+            if (statsTimer) clearTimeout(statsTimer);
+            statsTimer = setTimeout(updateStats, 250);
+        }
+
+        // ── Find & replace ────────────────────────────────────
+        function findMatchesIn(text, q) {
+            const needle = q.toLowerCase();
+            const hay = text.toLowerCase();
+            const out = [];
+            if (!needle) return out;
+            let i = hay.indexOf(needle);
+            while (i >= 0 && out.length < 5000) {
+                out.push(i);
+                i = hay.indexOf(needle, i + needle.length);
+            }
+            return out;
+        }
+
+        function updateFind(keep) {
+            if (!$ta) return;
+            findState.q = $findInput.value;
+            findState.matches = findMatchesIn($ta.value, findState.q);
+            if (!keep) findState.idx = findState.matches.length ? 0 : -1;
+            if (findState.idx >= findState.matches.length) findState.idx = findState.matches.length - 1;
+            $findCount.textContent = findState.matches.length
+                ? `${findState.idx + 1}/${findState.matches.length}`
+                : '0';
+        }
+
+        function scrollToOffset(pos) {
+            if (!$ta) return;
+            const line = $ta.value.slice(0, pos).split('\n').length - 1;
+            const lh = parseFloat(getComputedStyle($ta).lineHeight) || 20;
+            if (line * lh < $ta.scrollTop || line * lh > $ta.scrollTop + $ta.clientHeight - lh * 2) {
+                $ta.scrollTop = Math.max(0, line * lh - $ta.clientHeight / 3);
+            }
+            try { syncHLScroll(); } catch {}
+        }
+
+        function selectRange(start, end) {
+            if (!$ta) return;
+            $ta.focus();
+            $ta.setSelectionRange(start, end);
+            scrollToOffset(start);
+        }
+
+        async function openFind(withReplace) {
+            if (!active()) return;
+            if (view !== 'edit') {
+                view = 'edit';
+                $tabs.forEach(x => x.classList.toggle('active', x.dataset.view === 'edit'));
+                await renderBody();
+            }
+            $findbar.hidden = false;
+            $replaceInput.style.display = withReplace ? '' : 'none';
+            $findInput.focus();
+            $findInput.select();
+            if (findState.q) updateFind(false);
+        }
+
+        function closeFind() {
+            $findbar.hidden = true;
+            findState.matches = [];
+            findState.idx = -1;
+            $findCount.textContent = '';
+            if ($ta) $ta.focus();
+        }
+
+        function stepFind(delta) {
+            updateFind(true);
+            if (!findState.matches.length) return;
+            findState.idx = findState.idx < 0
+                ? 0
+                : (findState.idx + delta + findState.matches.length) % findState.matches.length;
+            const start = findState.matches[findState.idx];
+            $findCount.textContent = `${findState.idx + 1}/${findState.matches.length}`;
+            selectRange(start, start + findState.q.length);
+        }
+
+        function replaceCurrent() {
+            if (!findState.q || findState.idx < 0 || !$ta) return;
+            const start = findState.matches[findState.idx];
+            const end = start + findState.q.length;
+            $ta.value = $ta.value.slice(0, start) + $replaceInput.value + $ta.value.slice(end);
+            const d = active();
+            if (d) {
+                d.content = $ta.value;
+                d._dirty = true;
+                onContentChange();
+                scheduleHighlight();
+                scheduleFileSave();
+            }
+            const caret = start + $replaceInput.value.length;
+            updateFind(true);
+            const next = findState.matches.findIndex(m => m >= caret);
+            findState.idx = next < 0 ? 0 : next;
+            if (findState.matches.length) {
+                const at = findState.matches[findState.idx];
+                $findCount.textContent = `${findState.idx + 1}/${findState.matches.length}`;
+                selectRange(at, at + findState.q.length);
+            } else {
+                $findCount.textContent = '0';
+            }
+        }
+
+        function replaceAll() {
+            const q = $findInput.value;
+            if (!q || !$ta) return;
+            const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+            const count = ($ta.value.match(re) || []).length;
+            if (!count) return;
+            $ta.value = $ta.value.replace(re, $replaceInput.value);
+            const d = active();
+            if (d) {
+                d.content = $ta.value;
+                d._dirty = true;
+                onContentChange();
+                scheduleHighlight();
+                scheduleFileSave();
+            }
+            updateFind(false);
+            Promise.resolve(ctx.toast?.(`Replaced ${count} occurrence${count === 1 ? '' : 's'}`, 'success')).catch(() => {});
+        }
+
+        $findbar.addEventListener('click', (ev) => {
+            const btn = ev.target.closest('[data-find]');
+            if (!btn) return;
+            const act = btn.dataset.find;
+            if (act === 'close') closeFind();
+            else if (act === 'next') stepFind(1);
+            else if (act === 'prev') stepFind(-1);
+            else if (act === 'replace') replaceCurrent();
+            else if (act === 'replaceAll') replaceAll();
+        });
+        $findInput.addEventListener('input', () => updateFind(false));
+        $findInput.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') { ev.preventDefault(); stepFind(ev.shiftKey ? -1 : 1); }
+            else if (ev.key === 'Escape') { ev.preventDefault(); closeFind(); }
+        });
+        $replaceInput.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') { ev.preventDefault(); replaceCurrent(); }
+        });
+        document.addEventListener('keydown', (ev) => {
+            const mod = ev.ctrlKey || ev.metaKey;
+            if (mod && ev.key.toLowerCase() === 'f') { ev.preventDefault(); openFind(false); return; }
+            if (mod && ev.key.toLowerCase() === 'h') { ev.preventDefault(); openFind(true); return; }
+            if (ev.key === 'Escape' && !$findbar.hidden) { ev.preventDefault(); closeFind(); }
+        });
+
+        // ── Outline ───────────────────────────────────────────
+        function outlineHeadings() {
+            const text = active()?.content || '';
+            const heads = [];
+            text.split('\n').forEach((line, i) => {
+                const m = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
+                if (m) heads.push({ level: m[1].length, text: m[2], line: i });
+            });
+            return heads;
+        }
+
+        function renderOutlinePanel() {
+            if ($outline.hidden) return;
+            const heads = outlineHeadings();
+            $outline.innerHTML = '<div class="outline-head"><span>Outline</span><button class="outline-close" data-outline-close title="Close">✕</button></div>' + (heads.length
+                ? heads.map(h => `<button class="outline-item lv${h.level}" data-line="${h.line}">${escapeHTML(h.text)}</button>`).join('')
+                : '<div class="outline-empty">No headings in this file.</div>');
+            $outline.querySelector('[data-outline-close]')?.addEventListener('click', () => {
+                $outline.hidden = true;
+                root.querySelector('.outline-btn').classList.remove('active');
+            });
+            $outline.querySelectorAll('[data-line]').forEach(el => {
+                el.addEventListener('click', async () => {
+                    const line = Number(el.dataset.line);
+                    if (view !== 'edit') {
+                        view = 'edit';
+                        $tabs.forEach(x => x.classList.toggle('active', x.dataset.view === 'edit'));
+                        await renderBody();
+                    }
+                    const lines = ($ta?.value || '').split('\n');
+                    let pos = 0;
+                    for (let i = 0; i < line && i < lines.length; i++) pos += lines[i].length + 1;
+                    selectRange(pos, pos + (lines[line] || '').length);
+                });
+            });
+        }
+
+        function scheduleOutline() {
+            if ($outline.hidden) return;
+            if (outlineTimer) clearTimeout(outlineTimer);
+            outlineTimer = setTimeout(renderOutlinePanel, 400);
+        }
+
+        root.querySelector('.outline-btn').addEventListener('click', () => {
+            $outline.hidden = !$outline.hidden;
+            root.querySelector('.outline-btn').classList.toggle('active', !$outline.hidden);
+            renderOutlinePanel();
+        });
+
+        root.querySelector('.focus-btn').addEventListener('click', () => {
+            const wrap = root.querySelector('.wrap');
+            const on = wrap.classList.toggle('focus-mode');
+            root.querySelector('.focus-btn').classList.toggle('active', on);
+            if ($ta) { updateGutter(); syncHLScroll(); }
+        });
+
+        // ── Templates / save a copy ───────────────────────────
+        async function newFromTemplate(kind) {
+            if (!backend?.isWritable?.() || backend.kind === 'machine') {
+                Promise.resolve(ctx.toast?.('Open a writable workspace first', 'warning')).catch(() => {});
+                return;
+            }
+            const today = new Date().toISOString().slice(0, 10);
+            const tpls = {
+                daily: { name: `daily-${today}.md`, content: `# ${today}\n\n## Tasks\n- [ ] \n\n## Notes\n\n` },
+                meeting: { name: `meeting-${today}.md`, content: `# Meeting ${today}\n\n**Attendees:** \n\n## Agenda\n- \n\n## Decisions\n- \n\n## Actions\n- [ ] \n` },
+                draft: { name: `draft-${today}.md`, content: '# Untitled\n\n' },
+            };
+            const tpl = tpls[kind];
+            if (!tpl) return;
+            let name = tpl.name;
+            const dot = name.lastIndexOf('.');
+            const base = dot > 0 ? name.slice(0, dot) : name;
+            const ext = dot > 0 ? name.slice(dot) : '';
+            let n = 2;
+            while ((tree?.children || []).some(c => c.name === name)) name = `${base}-${n++}${ext}`;
+            try {
+                const path = await backend.createFile('', name);
+                await backend.writeFile(path, tpl.content);
+                tree = await backend.list();
+                renderFolderTree();
+                await openFileFromTree(path);
+                Promise.resolve(ctx.toast?.('Created ' + name, 'success')).catch(() => {});
+            } catch (e) {
+                Promise.resolve(ctx.toast?.('Template failed: ' + (e.message || e), 'error')).catch(() => {});
+            }
+        }
+
+        function saveCopy() {
+            const d = active();
+            if (!d) return;
+            const ext = d.lang === 'markdown' ? '.md' : d.lang === 'json' ? '.json' : '.txt';
+            const blob = new Blob([d.content || ''], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = (d.displayTitle || d.title || 'note') + ext;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 2000);
+        }
+
         // ── Editor helpers (unchanged) ──────────────────────────
         function applyEditorSettings() {
             if (!$editor) return;
+            if ($ta) $ta.spellcheck = settings.spellcheck !== false;
             $editor.classList.toggle('opt-activeline', settings.activeLine);
             $editor.classList.toggle('opt-linenums',   settings.lineNumbers);
             $editor.classList.toggle('opt-hl-live',    settings.liveHighlight);
@@ -1388,7 +1679,7 @@ export default {
             }
             $activeLine.style.transform = `translateY(${padY + visualRow * lineH - $ta.scrollTop}px)`;
         }
-        function onContentChange() { updateGutter(); updateActiveLine(); syncHLScroll(); }
+        function onContentChange() { updateGutter(); updateActiveLine(); syncHLScroll(); scheduleStats(); scheduleOutline(); }
         function onCaretChange()   { updateActiveLine(); syncHLScroll(); }
 
         // ── Body rendering ──────────────────────────
@@ -1396,6 +1687,7 @@ export default {
             const d = active();
             $title.disabled = !d || view === 'settings';
             $lang.disabled  = !d || view === 'settings';
+            if (view !== 'edit') { $ta = null; $editor = null; }
             if (!d) {
                 $body.innerHTML = tree
                     ? '<div class="empty">Select a file from the tree…</div>'
@@ -1424,6 +1716,7 @@ export default {
                 $hlLayer    = $body.querySelector('.hl-layer');
                 $hlCode     = $hlLayer.querySelector('code');
                 $ta.value = d.content || '';
+                $ta.spellcheck = settings.spellcheck !== false;
                 applyEditorSettings();
                 updateGutter();
                 updateActiveLine();
@@ -1483,6 +1776,7 @@ export default {
                         <div class="settings-row"><div class="label"><strong>Live syntax highlighting</strong><small>Colors the code as you type.</small></div><button class="toggle" data-opt="liveHighlight" type="button"></button></div>
                         <div class="settings-row"><div class="label"><strong>Wrap long lines</strong><small>Off: horizontal scroll. On: visual wrap.</small></div><button class="toggle" data-opt="wrap" type="button"></button></div>
                         <div class="settings-row"><div class="label"><strong>Tab width</strong><small>Spaces inserted by the Tab key.</small></div><input type="number" min="2" max="8" step="1" data-opt="tabWidth"></div>
+                        <div class="settings-row"><div class="label"><strong>Spellcheck</strong><small>Underline misspelled words with the browser dictionary.</small></div><button class="toggle" data-opt="spellcheck" type="button"></button></div>
                     </div>
                 `;
                 const pane = $body.querySelector('.settings-pane');
@@ -1503,6 +1797,8 @@ export default {
                     await ctx.storage.set('settings', settings);
                 });
             }
+            updateStats();
+            renderOutlinePanel();
         }
 
         function setSaveIndicator(d) {
@@ -1617,6 +1913,12 @@ export default {
                 items.push({ label: '⬇ Export as .zip', action: 'export-zip' });
                 items.push({ label: '⬆ Import .zip',   action: 'import-zip' });
             }
+            if (backend?.isWritable?.() && backend.kind !== 'machine') {
+                items.push({ label: '🗒 New daily note', action: 'tpl-daily' });
+                items.push({ label: '🗓 New meeting note', action: 'tpl-meeting' });
+                items.push({ label: '✍ New draft', action: 'tpl-draft' });
+            }
+            if (active()) items.push({ label: '⬇ Save a copy', action: 'save-copy' });
             if (backend) items.push({ label: '✕ Close folder', action: 'close-folder' });
             $menuPop.innerHTML = items.length
                 ? items.map(it => `<button class="menu-item" data-action="${it.action}">${escapeHTML(it.label)}</button>`).join('')
@@ -1638,6 +1940,10 @@ export default {
             if (action === 'close-folder') await closeFolder();
             else if (action === 'export-zip') await exportZip();
             else if (action === 'import-zip') await importZip();
+            else if (action === 'tpl-daily') await newFromTemplate('daily');
+            else if (action === 'tpl-meeting') await newFromTemplate('meeting');
+            else if (action === 'tpl-draft') await newFromTemplate('draft');
+            else if (action === 'save-copy') saveCopy();
         });
 
         async function exportZip() {
@@ -2094,6 +2400,8 @@ export default {
             $tabs.forEach(x => x.classList.remove('active'));
             t.classList.add('active');
             view = t.dataset.view;
+            $outline.hidden = true;
+            root.querySelector('.outline-btn').classList.remove('active');
             await renderBody();
         }));
 

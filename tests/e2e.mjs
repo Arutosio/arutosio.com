@@ -320,13 +320,103 @@ try {
     await fm.locator('.fm-entry', { hasText: 'link.md' }).click({ modifiers: ['Control'] });
     await page.keyboard.press('Delete');
     await sleep(800);
-    ok(!existsSync(path.join(root, 'style2.css')) && !existsSync(path.join(root, 'link.md')), 'delete removes every selected entry');
+    const afterDelete = readdirSync(root);
+    ok(!afterDelete.includes('style2.css') && !afterDelete.includes('link.md'), 'delete removes every selected entry');
 
     // Enter opens the selected folder.
     await fm.locator('.fm-entry', { hasText: 'src' }).click();
     await page.keyboard.press('Enter');
     await sleep(700);
     ok((await fm.locator('#fm-crumb').innerText()).includes('src'), 'enter opens the selected folder');
+
+    // ── Search, filters, properties, bulk rename, copy, conflicts ──
+    await fm.locator('#fm-crumb [data-crumb=""]').click();
+    await sleep(700);
+
+    // Deep search finds content in subfolders and reveals the file.
+    await fm.locator('[data-act="deep"]').click();
+    await fm.locator('#fm-search').fill('console');
+    await page.waitForTimeout(1600);
+    const hits = await fm.locator('.fm-search-result .fm-entry-name').allInnerTexts();
+    ok(hits.includes('main.js'), 'deep search finds content in subfolders');
+    await fm.locator('.fm-search-result').evaluateAll((els) => {
+        const hit = els.find(el => el.querySelector('.fm-search-where')?.getAttribute('title') === 'src/main.js');
+        hit?.click();
+    });
+    await sleep(900);
+    const deepSel = await fm.locator('.fm-entry.fm-selected .fm-entry-name').allInnerTexts();
+    ok((await fm.locator('#fm-crumb').innerText()).includes('src') && deepSel.includes('main.js'), 'deep search result opens its folder');
+    await fm.locator('#fm-search').fill('');
+    await fm.locator('#fm-crumb [data-crumb=""]').click();
+    await sleep(600);
+
+    // Type filter.
+    await fm.locator('#fm-type').selectOption('folders');
+    await sleep(300);
+    const onlyDirs = await fm.locator('.fm-entry-name').allInnerTexts();
+    ok(onlyDirs.length && onlyDirs.every(n => n === 'src'), 'type filter shows only folders');
+    await fm.locator('#fm-type').selectOption('all');
+    await sleep(300);
+
+    // Properties dialog.
+    await fm.locator('.fm-entry', { hasText: 'main.js' }).click({ button: 'right' });
+    // Menus live in the host: dispatch the click so Playwright's scroll-into-view
+    // cannot trigger the menu's scroll-to-dismiss.
+    await page.locator('.ctx-menu .ctx-item', { hasText: 'Properties' }).dispatchEvent('click');
+    await fm.locator('.fm-modal').waitFor({ timeout: 5000 });
+    const props = await fm.locator('.fm-props').innerText();
+    ok(props.includes('main.js') && props.includes('Modified') && props.includes('Mode'), 'properties show metadata');
+    await fm.locator('.fm-modal [data-modal-close]').click();
+    await sleep(200);
+
+    // Bulk rename with a pattern.
+    await fm.locator('.fm-entry', { hasText: 'main.js' }).click();
+    await fm.locator('.fm-entry', { hasText: 'pixel.png' }).click({ modifiers: ['Control'] });
+    promptText = '{name}-r{ext}';
+    await fm.locator('.fm-entry.fm-selected').first().click({ button: 'right' });
+    await page.locator('.ctx-menu .ctx-item', { hasText: 'Rename 2 items' }).dispatchEvent('click');
+    for (let i = 0; i < 25 && !(existsSync(path.join(root, 'main-r.js')) && existsSync(path.join(root, 'pixel-r.png'))); i++) {
+        await sleep(200);
+    }
+    promptText = '';
+    ok(existsSync(path.join(root, 'main-r.js')) && existsSync(path.join(root, 'pixel-r.png')), 'bulk rename applies a pattern');
+
+    // Folder copy inside the same folder keeps both.
+    await fm.locator('.fm-entry', { hasText: 'src' }).click();
+    await page.keyboard.press('Control+c');
+    await page.keyboard.press('Control+v');
+    await page.waitForTimeout(1500);
+    ok(existsSync(path.join(root, 'src (1)', 'main.js')) && existsSync(path.join(root, 'src (1)', 'package.json')), 'folder copy duplicates the tree');
+
+    // Conflict modal: keep both.
+    await fm.locator('.fm-entry-name').filter({ hasText: /^src$/ }).dblclick();
+    await sleep(700);
+    await fm.locator('.fm-entry', { hasText: 'package.json' }).click();
+    await page.keyboard.press('Control+c');
+    await fm.locator('#fm-crumb [data-crumb=""]').click();
+    await sleep(600);
+    await page.keyboard.press('Control+v');
+    await sleep(900);
+    await fm.locator('.fm-entry-name').filter({ hasText: /^src$/ }).dblclick();
+    await sleep(700);
+    await fm.locator('.fm-entry', { hasText: 'package.json' }).click();
+    await page.keyboard.press('Control+c');
+    await fm.locator('#fm-crumb [data-crumb=""]').click();
+    await sleep(600);
+    await page.keyboard.press('Control+v');
+    await fm.locator('.fm-modal').waitFor({ timeout: 5000 });
+    await fm.locator('.fm-modal .fm-btn', { hasText: 'Keep both' }).click();
+    await sleep(1000);
+    ok(existsSync(path.join(root, 'package.json')) && existsSync(path.join(root, 'package (1).json')), 'conflict dialog can keep both copies');
+
+    // Icon style toggle.
+    await fm.locator('[data-act="settings"]').click();
+    await fm.locator('#fm-set-icons').uncheck();
+    await sleep(400);
+    ok(await fm.locator('.fm-entry .fm-emoji').count() > 0, 'icons can switch to emoji');
+    await fm.locator('#fm-set-icons').check();
+    await fm.locator('[data-act="closeSettings"]').click();
+    await sleep(300);
 
     // Settings survive closing and reopening the app.
     await page.evaluate(() => window.closeWindow('filemanager'));
@@ -362,6 +452,53 @@ try {
         scripts: el.querySelectorAll('script').length,
     }));
     ok(md.h1 === 'Heading' && md.strong === 'bold' && md.items === 2 && md.scripts === 0, 'markdown preview renders safely');
+
+    // Find, replace, outline, stats, spellcheck, focus mode.
+    await page.keyboard.press('Control+f');
+    await gr.locator('.findbar').waitFor({ timeout: 5000 });
+    await gr.locator('.find-input').fill('Heading');
+    await page.waitForTimeout(200);
+    ok((await gr.locator('.find-count').innerText()) === '1/1', 'find counts matches');
+    await page.keyboard.press('Enter');
+    const selected = await gr.locator('textarea').evaluate(ta => ta.value.slice(ta.selectionStart, ta.selectionEnd));
+    ok(selected === 'Heading', 'find selects the match');
+
+    await page.keyboard.press('Control+h');
+    await gr.locator('.replace-input').fill('strong');
+    await gr.locator('.find-input').fill('bold');
+    await gr.locator('[data-find="replaceAll"]').click();
+    await sleep(400);
+    ok((await gr.locator('textarea').inputValue()).includes('**strong**'), 'replace all rewrites the document');
+    await page.keyboard.press('Escape');
+
+    await gr.locator('.outline-btn').click();
+    await gr.locator('.outline-item').first().waitFor({ timeout: 5000 });
+    ok((await gr.locator('.outline-item').first().innerText()).includes('Heading'), 'outline lists headings');
+    await gr.locator('.outline-item').first().click();
+    await sleep(300);
+    await gr.locator('.outline-btn').click();
+    await sleep(200);
+
+    ok((await gr.locator('.statusbar').innerText()).includes('words'), 'status bar shows document stats');
+
+    const spellOn = await gr.locator('textarea').evaluate(ta => ta.spellcheck);
+    await gr.locator('.tab-settings').click();
+    await gr.locator('.settings-pane').waitFor({ timeout: 5000 });
+    const spellToggle = gr.locator('.settings-row', { hasText: 'Spellcheck' }).locator('.toggle');
+    // A toast sits over the bottom-right corner; wait for it so it can't
+    // swallow the click (its close button is the one clickable part).
+    await page.waitForFunction(() => document.querySelectorAll('.toast').length === 0, null, { timeout: 8000 });
+    await spellToggle.click();
+    await sleep(300);
+    await gr.locator('.tab-edit').click();
+    await sleep(400);
+    const spellOff = await gr.locator('textarea').evaluate(ta => ta.spellcheck);
+    ok(spellOn === true && spellOff === false, 'spellcheck can be turned off');
+
+    await gr.locator('.focus-btn').click();
+    await sleep(300);
+    ok(await gr.locator('.wrap.focus-mode').count() === 1, 'focus mode hides the sidebar');
+    await gr.locator('.focus-btn').click();
 
     // Sandboxed frames cannot read sessionStorage; the app tolerates it.
     const realErrors = errors.filter(e => !e.includes('sessionStorage'));

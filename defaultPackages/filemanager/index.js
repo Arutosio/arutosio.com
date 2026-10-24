@@ -552,6 +552,7 @@ class VirtualBackend {
         return sortEntries(node.children.map(c => ({
             name: c.name, kind: c.isDir ? 'dir' : 'file',
             size: c.isDir ? 0 : ((c.content && c.content.byteLength) || (typeof c.content === 'string' ? c.content.length : 0)),
+            mtime: c.mtime || '',
             mime: c.mime || '',
         })));
     }
@@ -569,6 +570,7 @@ class VirtualBackend {
         if (!n || n.isDir) throw new Error('not_found');
         n.content = bytes instanceof Uint8Array ? bytes : new TextEncoder().encode(bytes || '');
         n.mime = mime || n.mime || mimeFromName(n.name);
+        n.mtime = new Date().toISOString();
         this._persist();
     }
     async createFile(parentPath, name, content, mime) {
@@ -577,7 +579,7 @@ class VirtualBackend {
         if (p.children.some(c => c.name === name)) throw new Error('exists');
         const np = parentPath ? parentPath + '/' + name : name;
         const bytes = content instanceof Uint8Array ? content : new TextEncoder().encode(content || '');
-        p.children.push({ name, path: np, isDir: false, content: bytes, mime: mime || mimeFromName(name) });
+        p.children.push({ name, path: np, isDir: false, content: bytes, mime: mime || mimeFromName(name), mtime: new Date().toISOString() });
         this._persist();
         return np;
     }
@@ -586,7 +588,7 @@ class VirtualBackend {
         if (!p || !p.isDir) throw new Error('no_parent');
         if (p.children.some(c => c.name === name)) throw new Error('exists');
         const np = parentPath ? parentPath + '/' + name : name;
-        p.children.push({ name, path: np, isDir: true, children: [] });
+        p.children.push({ name, path: np, isDir: true, children: [], mtime: new Date().toISOString() });
         this._persist();
     }
     async deleteNode(path) {
@@ -607,6 +609,7 @@ class VirtualBackend {
         const rewrite = (node, newPath) => {
             node.name = newPath.split('/').pop() || newPath;
             node.path = newPath;
+            node.mtime = new Date().toISOString();
             if (node.isDir) for (const c of node.children) rewrite(c, newPath ? newPath + '/' + c.name : c.name);
         };
         rewrite(n, np);
@@ -694,6 +697,8 @@ class MachineBackend {
             name: it.name,
             kind: it.kind === 'dir' ? 'dir' : 'file',
             size: it.size || 0,
+            mtime: it.mtime || '',
+            mode: it.mode || '',
             mime: it.kind === 'file' ? mimeFromName(it.name) : '',
             symlink: it.kind === 'symlink',
             link: it.link || '',
@@ -895,7 +900,19 @@ export default {
                         <option value="name">Name A–Z</option>
                         <option value="name-desc">Name Z–A</option>
                         <option value="size">Size</option>
+                        <option value="mtime">Modified</option>
                     </select>
+                    <select id="fm-type" class="fm-sort" aria-label="Filter by type">
+                        <option value="all">All types</option>
+                        <option value="folders">Folders</option>
+                        <option value="images">Images</option>
+                        <option value="text">Text</option>
+                        <option value="docs">Documents</option>
+                        <option value="media">Audio/Video</option>
+                        <option value="archives">Archives</option>
+                    </select>
+                    <button class="fm-btn" data-act="deep" title="Search subfolders" aria-label="Search subfolders">⌕</button>
+                    <span class="fm-busy" id="fm-busy" hidden></span>
                     <span class="fm-spacer"></span>
                     <span class="fm-breadcrumb" id="fm-crumb">/</span>
                     <button class="fm-btn" data-act="view" title="Grid view" aria-label="Toggle grid view">▦</button>
@@ -922,6 +939,10 @@ export default {
                         <input type="checkbox" id="fm-set-hidden">
                     </label>
                     <small>Names starting with a dot, like .gitignore.</small>
+                    <label class="fm-set-row">
+                        <span>Colored icons</span>
+                        <input type="checkbox" id="fm-set-icons">
+                    </label>
                     <label class="fm-set-row">
                         <span>Grid view</span>
                         <input type="checkbox" id="fm-set-grid">
@@ -974,9 +995,14 @@ export default {
         let clipboard = null;       // { mode, source, items }
         let thumbToken = 0;
         let thumbURLs = [];
+        let typeFilter = 'all';
+        let deepSearch = false;
+        let searchResults = null;
+        let searchSeq = 0;
+        let searchTimer = 0;
 
         const THUMB_PX = { s: 64, m: 88, l: 128 };
-        const DEFAULT_SETTINGS = { preview: true, hidden: false, startPath: '', view: 'list', thumbSize: 'm', favorites: {} };
+        const DEFAULT_SETTINGS = { preview: true, hidden: false, startPath: '', view: 'list', thumbSize: 'm', icons: true, favorites: {} };
         let settings = { ...DEFAULT_SETTINGS };
         try {
             const saved = await ctx.storage.get('settings');
@@ -998,8 +1024,10 @@ export default {
             const $h = root.querySelector('#fm-set-hidden');
             const $g = root.querySelector('#fm-set-grid');
             const $t = root.querySelector('#fm-set-thumb');
+            const $i = root.querySelector('#fm-set-icons');
             if ($p) $p.checked = !!settings.preview;
             if ($h) $h.checked = !!settings.hidden;
+            if ($i) $i.checked = settings.icons !== false;
             if ($g) $g.checked = settings.view === 'grid';
             if ($t) $t.value = settings.thumbSize;
             applyView();
@@ -1164,6 +1192,125 @@ export default {
             else resetPreview();
         }
 
+        function fmtDate(iso) {
+            if (!iso) return '—';
+            const d = new Date(iso);
+            return Number.isNaN(d.getTime()) ? String(iso) : d.toLocaleString();
+        }
+
+        function showModal({ title, bodyHTML, buttons }) {
+            return new Promise((resolve) => {
+                const overlay = document.createElement('div');
+                overlay.className = 'fm-modal-overlay';
+                overlay.innerHTML = `
+                    <div class="fm-modal" role="dialog" aria-modal="true" aria-label="${escapeHTML(title)}">
+                        <div class="fm-modal-head">
+                            <strong>${escapeHTML(title)}</strong>
+                            <button class="fm-btn" data-modal-close title="Close">✕</button>
+                        </div>
+                        <div class="fm-modal-body">${bodyHTML}</div>
+                        <div class="fm-modal-actions"></div>
+                    </div>`;
+                const actions = overlay.querySelector('.fm-modal-actions');
+                (buttons || [{ id: 'ok', label: 'Close', primary: true }]).forEach(b => {
+                    const btn = document.createElement('button');
+                    btn.className = 'fm-btn' + (b.primary ? ' fm-primary' : '') + (b.danger ? ' fm-danger' : '');
+                    btn.textContent = b.label;
+                    btn.addEventListener('click', () => close(b.id));
+                    actions.appendChild(btn);
+                });
+                function close(value) {
+                    overlay.remove();
+                    document.removeEventListener('keydown', onKey, true);
+                    resolve(value);
+                }
+                function onKey(ev) {
+                    if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); close(null); }
+                }
+                overlay.querySelector('[data-modal-close]').addEventListener('click', () => close(null));
+                overlay.addEventListener('mousedown', (ev) => { if (ev.target === overlay) close(null); });
+                document.addEventListener('keydown', onKey, true);
+                root.appendChild(overlay);
+                actions.querySelector('.fm-btn')?.focus();
+            });
+        }
+
+        async function showProperties(it) {
+            const path = it.path || itemPath(it);
+            let stat = null;
+            if (backend?.kind === 'machine' && ctx.fs?.stat) {
+                try { stat = await ctx.fs.stat(path); } catch {}
+            }
+            const rows = [
+                ['Name', it.name],
+                ['Path', '/' + path],
+                ['Type', it.kind === 'dir' ? 'Folder' : (it.mime || mimeFromName(it.name))],
+                ['Size', it.kind === 'dir' ? '—' : fmtSize(it.size ?? stat?.size ?? 0)],
+                ['Modified', fmtDate(it.mtime || stat?.mtime)],
+                ['Mode', it.mode || stat?.mode || '—'],
+            ];
+            if (it.symlink) rows.push(['Link target', it.link || '—']);
+            const body = `<dl class="fm-props">${rows.map(([k, v]) => `<dt>${escapeHTML(k)}</dt><dd>${escapeHTML(String(v))}</dd>`).join('')}</dl>`;
+            await showModal({ title: 'Properties', bodyHTML: body, buttons: [{ id: 'ok', label: 'Close', primary: true }] });
+        }
+
+        async function bulkRename() {
+            const items = selectedItems();
+            if (!items.length || !backend?.isWritable?.()) return;
+            if (items.some(it => it.kind === 'dir' && backend.kind === 'profile')) {
+                ctx.toast?.('Folders cannot be renamed in this source', 'warning');
+                return;
+            }
+            const pattern = (prompt('Rename pattern. Use {name}, {ext}, {n}:', '{name}') || '').trim();
+            if (!pattern) return;
+            const pad = String(items.length).length;
+            const plan = items.map((it, i) => {
+                const dot = it.name.lastIndexOf('.');
+                const base = dot > 0 ? it.name.slice(0, dot) : it.name;
+                const ext = dot > 0 ? it.name.slice(dot) : '';
+                const name = pattern
+                    .replace(/\{name\}/g, base)
+                    .replace(/\{ext\}/g, ext)
+                    .replace(/\{n\}/g, String(i + 1).padStart(pad, '0'));
+                return { it, name };
+            });
+            const bad = plan.find(p => !validName(p.name));
+            if (bad) { ctx.toast?.('Pattern produced an invalid name: ' + bad.name, 'error'); return; }
+            if (new Set(plan.map(p => p.name)).size !== plan.length) {
+                ctx.toast?.('Pattern produces duplicate names', 'error');
+                return;
+            }
+            const preview = plan.slice(0, 12).map(p => `${p.it.name} → ${p.name}`).join('\n')
+                + (plan.length > 12 ? `\n…and ${plan.length - 12} more` : '');
+            if (!confirm(`Rename ${plan.length} item${plan.length === 1 ? '' : 's'}?\n\n${preview}`)) return;
+            let done = 0;
+            const errors = [];
+            for (const p of plan) {
+                if (p.name === p.it.name) continue;
+                if (await nameExists(backend, cwd, p.name)) { errors.push(p.name + ': already exists'); continue; }
+                try { await backend.rename(itemPath(p.it), p.name); done++; }
+                catch (e) { errors.push(p.it.name + ': ' + (e.message || e)); }
+            }
+            await refresh();
+            if (errors.length) ctx.toast?.(`${done} renamed, ${errors.length} failed: ${errors[0]}`, 'error');
+            else ctx.toast?.(`Renamed ${done} item${done === 1 ? '' : 's'}`, 'success');
+        }
+
+        async function chooseConflict(name) {
+            const choice = await showModal({
+                title: 'Name already exists',
+                bodyHTML: `<p><strong>${escapeHTML(name)}</strong> is already in this folder.</p>
+                    <p class="fm-modal-note">Folders are always copied as a new “name (n)” folder.</p>`,
+                buttons: [
+                    { id: 'overwrite', label: 'Overwrite all', danger: true },
+                    { id: 'keep', label: 'Keep both', primary: true },
+                    { id: 'skip', label: 'Skip' },
+                    { id: 'cancel', label: 'Cancel' },
+                ],
+            });
+            return choice;
+        }
+
         async function uniqueName(name, b, dir) {
             const dot = name.lastIndexOf('.');
             const base = dot > 0 ? name.slice(0, dot) : name;
@@ -1209,6 +1356,28 @@ export default {
             ctx.toast?.((mode === 'cut' ? 'Cut ' : 'Copied ') + items.length + ' item' + (items.length === 1 ? '' : 's'), 'info');
         }
 
+        async function copyTreeFrom(srcB, srcDir, dstB, dstDir, name, budget, depth) {
+            if (depth > 16) throw new Error('folder nested too deeply');
+            if (budget.files >= 2000) throw new Error('more than 2000 files');
+            await dstB.createDir(dstDir, name);
+            const newDir = joinPath(dstDir, name);
+            const children = await srcB.list(srcDir);
+            for (const it of children) {
+                budget.files += 1;
+                if (budget.files > 2000) throw new Error('more than 2000 files');
+                const childSrc = joinPath(srcDir, it.name);
+                if (it.kind === 'dir') {
+                    await copyTreeFrom(srcB, childSrc, dstB, newDir, it.name, budget, depth + 1);
+                } else {
+                    const data = await srcB.readFile(childSrc);
+                    budget.bytes += data.bytes.byteLength;
+                    if (budget.bytes > 512 * 1024 * 1024) throw new Error('copy is larger than 512 MB');
+                    await dstB.createFile(newDir, it.name, data.bytes);
+                }
+            }
+            return newDir;
+        }
+
         async function pasteClipboard() {
             if (!clipboard?.items?.length) return;
             if (!backend?.isWritable?.() || currentSource === 'packages') { ctx.toast?.('This source is read-only', 'warning'); return; }
@@ -1216,38 +1385,63 @@ export default {
             const srcBackend = src === currentSource ? backend : await backendForSource(src);
             if (!srcBackend) { ctx.toast?.('The original source is not available', 'warning'); return; }
             const clip = clipboard;
+            const sameSource = src === currentSource;
+            const budget = { files: 0, bytes: 0 };
+            let policy = null;
             let done = 0;
             const errors = [];
-            for (const item of clip.items) {
-                const sameSource = src === currentSource;
-                if (item.kind === 'dir' && !(clip.mode === 'cut' && sameSource)) {
-                    errors.push(item.name + ': copy a folder with drag & drop between sources, or cut it');
+            for (let i = 0; i < clip.items.length; i++) {
+                const item = clip.items[i];
+                setBusy(`Pasting ${i + 1}/${clip.items.length}…`);
+                if (clip.mode === 'cut' && sameSource && item.kind !== 'dir') {
+                    if (parentPath(item.path) === cwd) continue;
+                    try { await backend.move(item.path, cwd); done++; }
+                    catch (e) { errors.push(item.name + ': ' + (e.message || e)); }
                     continue;
                 }
-                if (clip.mode === 'cut' && sameSource) {
-                    if (parentPath(item.path) === cwd) continue; // already here
+                if (clip.mode === 'cut' && sameSource && item.kind === 'dir') {
+                    if (parentPath(item.path) === cwd) continue;
                     try { await backend.move(item.path, cwd); done++; }
                     catch (e) { errors.push(item.name + ': ' + (e.message || e)); }
                     continue;
                 }
                 try {
                     let name = item.name;
-                    let exists = await nameExists(backend, cwd, name);
-                    if (exists && clip.mode === 'copy' && sameSource && parentPath(item.path) === cwd) {
+                    const exists = await nameExists(backend, cwd, name);
+                    const sameDirCopy = clip.mode === 'copy' && sameSource && parentPath(item.path) === cwd;
+                    if (exists && sameDirCopy) {
                         name = await uniqueName(name, backend, cwd);
-                        exists = false;
-                    } else if (exists && !confirm(`Overwrite "${name}"?`)) {
-                        continue;
+                    } else if (exists) {
+                        if (item.kind === 'dir') {
+                            // Never merge folders: keep both.
+                            name = await uniqueName(name, backend, cwd);
+                        } else if (policy === 'overwrite') {
+                            // write below
+                        } else if (policy === 'skip') {
+                            continue;
+                        } else if (policy === 'keep') {
+                            name = await uniqueName(name, backend, cwd);
+                        } else {
+                            policy = await chooseConflict(name);
+                            if (!policy || policy === 'cancel') { clipboard = null; setBusy(''); await refresh(); return; }
+                            if (policy === 'skip') { if (clip.items.length === 1) { clipboard = null; await refresh(); return; } continue; }
+                            if (policy === 'keep') name = await uniqueName(name, backend, cwd);
+                        }
                     }
-                    const data = await srcBackend.readFile(item.path);
-                    const bytes = data.bytes instanceof Uint8Array ? data.bytes : new Uint8Array(data.bytes || []);
-                    const mime = data.mime || mimeFromName(name);
-                    if (exists) await backend.writeFile(joinPath(cwd, name), bytes, mime);
-                    else await backend.createFile(cwd, name, bytes);
+                    if (item.kind === 'dir') {
+                        await copyTreeFrom(srcBackend, item.path, backend, cwd, name, budget, 0);
+                    } else {
+                        const data = await srcBackend.readFile(item.path);
+                        const bytes = data.bytes instanceof Uint8Array ? data.bytes : new Uint8Array(data.bytes || []);
+                        const mime = data.mime || mimeFromName(name);
+                        if (name === item.name && exists) await backend.writeFile(joinPath(cwd, name), bytes, mime);
+                        else await backend.createFile(cwd, name, bytes);
+                    }
                     if (clip.mode === 'cut') await srcBackend.deleteNode(item.path);
                     done++;
                 } catch (e) { errors.push(item.name + ': ' + (e.message || e)); }
             }
+            setBusy('');
             clipboard = null;
             await refresh();
             if (errors.length) ctx.toast?.(`${done} done, ${errors.length} failed: ${errors[0]}`, 'error');
@@ -1496,7 +1690,9 @@ export default {
             let uploaded = 0;
             try {
                 if (entries.length) {
-                    for (const entry of entries) {
+                    for (let i = 0; i < entries.length; i++) {
+                        const entry = entries[i];
+                        setBusy(`Dropping ${i + 1}/${entries.length}…`);
                         if (entry.isFile) {
                             const f = await new Promise((res, rej) => entry.file(res, rej));
                             if (await uploadOneFile(f, destDir, f.name)) uploaded++;
@@ -1506,13 +1702,16 @@ export default {
                         }
                     }
                 } else {
-                    for (const f of Array.from(dt.files || [])) {
-                        if (await uploadOneFile(f, destDir, f.name)) uploaded++;
+                    const files = Array.from(dt.files || []);
+                    for (let i = 0; i < files.length; i++) {
+                        setBusy(`Dropping ${i + 1}/${files.length}…`);
+                        if (await uploadOneFile(files[i], destDir, files[i].name)) uploaded++;
                     }
                 }
             } catch (e) {
                 ctx.toast?.('Upload failed: ' + (e.message || e), 'error');
             }
+            setBusy('');
             await refresh();
             if (uploaded) ctx.toast?.(`Uploaded ${uploaded} item${uploaded === 1 ? '' : 's'}`, 'success');
         }
@@ -1558,11 +1757,6 @@ export default {
         async function copyToSource(payload, targetSource) {
             if (!payload || !backend || payload.source === targetSource) return;
             const items = payload.items?.length ? payload.items : [payload];
-            const files = items.filter(x => x.kind === 'file');
-            if (files.length !== items.length) {
-                ctx.toast?.('Only files can be copied between sources', 'warning');
-                if (!files.length) return;
-            }
             try {
                 const target = await backendForSource(targetSource);
                 if (!target) {
@@ -1574,23 +1768,34 @@ export default {
                     return;
                 }
                 let copied = 0;
+                const budget = { files: 0, bytes: 0 };
                 const errors = [];
-                for (const item of files) {
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    setBusy(`Copying ${i + 1}/${items.length}…`);
                     try {
-                        const data = await backend.readFile(item.path);
                         const exists = await nameExists(target, '', item.name);
+                        if (item.kind === 'dir') {
+                            const name = exists ? await uniqueName(item.name, target, '') : item.name;
+                            await copyTreeFrom(backend, item.path, target, '', name, budget, 0);
+                            copied++;
+                            continue;
+                        }
                         if (exists && !confirm(`Overwrite "${item.name}"?`)) continue;
+                        const data = await backend.readFile(item.path);
                         const bytes = data.bytes instanceof Uint8Array ? data.bytes : new Uint8Array(data.bytes || []);
                         if (exists) await target.writeFile(item.name, bytes, data.mime || mimeFromName(item.name));
                         else await target.createFile('', item.name, bytes);
                         copied++;
                     } catch (e) { errors.push(item.name + ': ' + (e.message || e)); }
                 }
+                setBusy('');
                 if (typeof target.flush === 'function') await target.flush();
                 await selectSource(targetSource);
                 if (errors.length) ctx.toast?.(`${copied} copied, ${errors.length} failed: ${errors[0]}`, 'error');
                 else if (copied) ctx.toast?.(`Copied ${copied} item${copied === 1 ? '' : 's'} to ${targetSource}`, 'success');
             } catch (e) {
+                setBusy('');
                 ctx.toast?.('Copy failed: ' + (e.message || e), 'error');
             }
         }
@@ -1601,16 +1806,43 @@ export default {
             copy.sort((a, b) => {
                 if (a.kind !== b.kind) return a.kind === 'dir' ? -1 : 1;
                 if (sortMode === 'size') return (b.size || 0) - (a.size || 0);
+                if (sortMode === 'mtime') {
+                    const at = Date.parse(a.mtime || '') || 0;
+                    const bt = Date.parse(b.mtime || '') || 0;
+                    if (at !== bt) return bt - at;
+                }
                 const cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
                 return sortMode === 'name-desc' ? -cmp : cmp;
             });
             return copy;
         }
 
+        function matchesType(it) {
+            const mime = it.kind === 'file' ? (it.mime || mimeFromName(it.name)) : '';
+            switch (typeFilter) {
+                case 'folders': return it.kind === 'dir';
+                case 'images': return /^image\//.test(mime);
+                case 'text': return it.kind === 'file' && isTextLike(it.name, mime);
+                case 'docs': return it.kind === 'file' && /\.(pdf|docx?|odt|rtf|xlsx?|ods|pptx?|odp|csv|epub)$/i.test(it.name);
+                case 'media': return /^(audio|video)\//.test(mime);
+                case 'archives': return it.kind === 'file' && /\.(zip|tar|gz|tgz|bz2|xz|rar|7z|zst)$/i.test(it.name);
+                default: return true;
+            }
+        }
+
         function renderList() {
             const q = filterText.trim().toLowerCase();
+            if (deepSearch && q.length >= 2) {
+                scheduleDeepSearch(q);
+                return;
+            }
+            if (searchResults !== null) {
+                searchResults = null;
+                searchSeq++;
+            }
             const items = sortedForUI(currentItems.filter(it => {
                 if (!settings.hidden && it.name.startsWith('.')) return false;
+                if (!matchesType(it)) return false;
                 return !q || it.name.toLowerCase().includes(q);
             }));
             visibleItems = items;
@@ -1631,6 +1863,120 @@ export default {
             wireEntries(items);
             paintSelection();
             loadThumbs(items);
+        }
+
+        function setBusy(text) {
+            const $busy = root.querySelector('#fm-busy');
+            if (!$busy) return;
+            $busy.hidden = !text;
+            $busy.textContent = text || '';
+        }
+
+        function scheduleDeepSearch(q) {
+            clearTimeout(searchTimer);
+            setBusy('Searching…');
+            searchTimer = setTimeout(() => runDeepSearch(q), 300);
+        }
+
+        async function runDeepSearch(q) {
+            const seq = ++searchSeq;
+            const found = [];
+            let scanned = 0, read = 0, bytes = 0;
+            const MAX_ENTRIES = 3000, MAX_RESULTS = 200, MAX_DEPTH = 10, MAX_READ = 200, MAX_BYTES = 8 * 1024 * 1024;
+            async function walk(dir, depth) {
+                if (seq !== searchSeq || found.length >= MAX_RESULTS || scanned >= MAX_ENTRIES) return;
+                let items;
+                try { items = await backend.list(dir); } catch { return; }
+                for (const it of items) {
+                    if (seq !== searchSeq) return;
+                    if (scanned++ >= MAX_ENTRIES) return;
+                    if (!settings.hidden && it.name.startsWith('.')) continue;
+                    const full = dir ? dir + '/' + it.name : it.name;
+                    if (it.name.toLowerCase().includes(q)) {
+                        found.push({ ...it, dir, path: full, snippet: '' });
+                    } else if (it.kind === 'file' && read < MAX_READ && (it.size || 0) <= 256 * 1024
+                        && bytes < MAX_BYTES && isTextLike(it.name, it.mime || mimeFromName(it.name))) {
+                        read++;
+                        try {
+                            const data = await backend.readFile(full, 256 * 1024);
+                            if (seq !== searchSeq) return;
+                            bytes += data.bytes.byteLength;
+                            const text = new TextDecoder().decode(data.bytes);
+                            const at = text.toLowerCase().indexOf(q);
+                            if (at >= 0) {
+                                const start = Math.max(0, at - 40);
+                                const snippet = text.slice(start, at + q.length + 60).replace(/\s+/g, ' ').trim();
+                                found.push({ ...it, dir, path: full, snippet });
+                            }
+                        } catch {}
+                    }
+                    if (found.length >= MAX_RESULTS || scanned >= MAX_ENTRIES) return;
+                    if (it.kind === 'dir' && depth < MAX_DEPTH) await walk(full, depth + 1);
+                }
+            }
+            await walk(cwd, 0);
+            if (seq !== searchSeq) return;
+            setBusy('');
+            searchResults = found;
+            renderSearchResults(q);
+        }
+
+        function renderSearchResults(q) {
+            const items = searchResults || [];
+            let html = `<div class="fm-warn">Subfolders: ${items.length} result${items.length === 1 ? '' : 's'} for “${escapeHTML(q)}”.</div>`;
+            if (items.length) {
+                html += `<div class="fm-list">` + items.map((it, i) => {
+                    const fallback = it.kind === 'dir' ? '📁' : '📄';
+                    const where = it.snippet ? escapeHTML(it.snippet) : escapeHTML(it.dir || '/');
+                    return `<div class="fm-entry fm-search-result" data-sres="${i}">
+                        <span class="fm-entry-icon">${entryIcon(it.name, it.kind, it.symlink, fallback)}</span>
+                        <span class="fm-entry-name">${escapeHTML(it.name)}</span>
+                        <span class="fm-entry-meta fm-search-where" title="${escapeHTML(it.path)}">${where}</span>
+                        <button class="fm-row-more" data-sres-more title="More actions">⋯</button>
+                    </div>`;
+                }).join('') + '</div>';
+            } else {
+                html += `<div class="fm-empty">Nothing matched in this folder and its subfolders.</div>`;
+            }
+            $tree.innerHTML = html;
+            visibleItems = items;
+            $tree.querySelectorAll('[data-sres]').forEach(el => {
+                const it = items[Number(el.dataset.sres)];
+                el.addEventListener('click', async (ev) => {
+                    if (ev.target.closest('[data-sres-more]')) return;
+                    await revealResult(it);
+                });
+                el.querySelector('[data-sres-more]')?.addEventListener('click', async (ev) => {
+                    ev.stopPropagation();
+                    const r = ev.target.getBoundingClientRect();
+                    const choice = await ctx.contextMenu.show({ x: r.left, y: r.bottom, items: [
+                        { id: 'reveal', label: 'Show in folder', icon: '📍' },
+                        { id: 'props', label: 'Properties', icon: 'ℹ' },
+                    ] });
+                    if (choice === 'reveal') await revealResult(it);
+                    else if (choice === 'props') await showProperties(it);
+                });
+            });
+        }
+
+        async function revealResult(it) {
+            deepSearch = false;
+            root.querySelector('[data-act="deep"]')?.classList.remove('fm-active');
+            searchResults = null;
+            searchSeq += 1;
+            filterText = '';
+            const $s = root.querySelector('#fm-search');
+            if ($s) $s.value = '';
+            if (it.kind === 'dir') { await navigate(it.path); return; }
+            await navigate(it.dir);
+            const idx = visibleItems.findIndex(v => v.name === it.name);
+            if (idx < 0) return;
+            selection = new Set([it.name]);
+            selected = visibleItems[idx];
+            anchorIdx = idx;
+            paintSelection();
+            $tree.querySelector(`.fm-entry[data-idx="${idx}"]`)?.scrollIntoView({ block: 'center' });
+            if (selected.kind === 'file') renderPreview();
         }
 
         async function refresh() {
@@ -1672,6 +2018,7 @@ export default {
             if (multi) {
                 items.push({ id: 'copy', label: `Copy ${count} items`, icon: '⧉' });
                 if (writable) items.push({ id: 'cut', label: `Cut ${count} items`, icon: '✂' });
+                if (writable) items.push({ id: 'bulkRename', label: `Rename ${count} items`, icon: '✎' });
                 if (writable) items.push({ separator: true });
                 if (writable) items.push({ id: 'delete', label: `Delete ${count} items`, icon: '🗑', danger: true });
             } else {
@@ -1679,6 +2026,7 @@ export default {
                 if (canHandoff) items.push({ id: 'openGrimoire', label: 'Open in Grimoire', icon: '📜' });
                 if (items.length) items.push({ separator: true });
                 items.push({ id: 'copy', label: 'Copy', icon: '⧉' });
+                items.push({ id: 'props', label: 'Properties', icon: 'ℹ' });
                 if (writable) {
                     const canRename = it.kind === 'file' || backend.kind === 'virtual' || backend.kind === 'machine';
                     items.push({ id: 'cut', label: 'Cut', icon: '✂' });
@@ -1691,6 +2039,8 @@ export default {
             if (!choice) return;
             if (choice === 'copy' || choice === 'cut') { setClipboard(choice); return; }
             if (choice === 'delete' && multi) { await deleteSelection(); return; }
+            if (choice === 'bulkRename') { await bulkRename(); return; }
+            if (choice === 'props') { await showProperties(it); return; }
             await runRowAction(choice, it);
         }
 
@@ -1713,17 +2063,22 @@ export default {
             else if (choice === 'refresh') { resetPreview(); await refresh(); }
         }
 
+        function entryIcon(name, kind, symlink, fallback) {
+            if (settings.icons === false) return `<span class="fm-emoji">${fallback}</span>`;
+            const iconId = kind === 'dir'
+                ? folderIconId(name, false, false)
+                : fileIconId(name, { symlink: !!symlink });
+            return iconHTML(ctx, iconId, 'fm-icon', fallback);
+        }
+
         function renderEntries(items) {
             const writable = !!backend && backend.isWritable?.() && currentSource !== 'packages';
             return items.map((it, i) => {
                 const fallback = it.kind === 'dir' ? '📁' : '📄';
-                const iconId = it.kind === 'dir'
-                    ? folderIconId(it.name, false, false)
-                    : fileIconId(it.name, { symlink: !!it.symlink });
                 const hiddenCls = it.name.startsWith('.') ? ' fm-hidden-entry' : '';
                 return `
                 <div class="fm-entry${hiddenCls}" data-idx="${i}">
-                    <span class="fm-entry-icon">${iconHTML(ctx, iconId, 'fm-icon', fallback)}</span>
+                    <span class="fm-entry-icon">${entryIcon(it.name, it.kind, it.symlink, fallback)}</span>
                     <span class="fm-entry-name">${escapeHTML(it.name)}</span>
                     <span class="fm-entry-meta">${it.kind === 'file' ? fmtSize(it.size) : ''}</span>
                     ${rowActionsHTML(it, writable)}
@@ -1949,6 +2304,16 @@ export default {
             sortMode = $sort.value;
             renderList();
         });
+        root.querySelector('#fm-type').addEventListener('change', (ev) => {
+            typeFilter = ev.target.value;
+            renderList();
+        });
+        root.querySelector('[data-act="deep"]').addEventListener('click', () => {
+            deepSearch = !deepSearch;
+            root.querySelector('[data-act="deep"]').classList.toggle('fm-active', deepSearch);
+            renderList();
+            if (deepSearch) $search.focus();
+        });
         root.querySelector('[data-act="back"]').addEventListener('click', goBack);
         root.querySelector('[data-act="forward"]').addEventListener('click', goForward);
         root.querySelector('[data-act="up"]').addEventListener('click', async () => {
@@ -1986,10 +2351,12 @@ export default {
             if (!backend?.isWritable?.()) return;
             const files = Array.from($uploadInput.files || []);
             $uploadInput.value = '';
-            for (const f of files) {
-                try { await uploadOneFile(f, cwd, f.name); }
-                catch (e) { ctx.toast?.('Upload failed: ' + f.name + ' — ' + (e.message || e), 'error'); }
+            for (let i = 0; i < files.length; i++) {
+                setBusy(`Uploading ${i + 1}/${files.length}…`);
+                try { await uploadOneFile(files[i], cwd, files[i].name); }
+                catch (e) { ctx.toast?.('Upload failed: ' + files[i].name + ' — ' + (e.message || e), 'error'); }
             }
+            setBusy('');
             await refresh();
         });
 
@@ -2026,6 +2393,11 @@ export default {
             selected = null;
             anchorIdx = -1;
             resetPreview();
+            renderList();
+        });
+        root.querySelector('#fm-set-icons').addEventListener('change', (ev) => {
+            settings.icons = ev.target.checked;
+            saveSettings();
             renderList();
         });
         root.querySelector('#fm-set-grid').addEventListener('change', (ev) => {

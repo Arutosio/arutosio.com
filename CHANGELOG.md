@@ -9,6 +9,32 @@ either git commit SHAs or the `version` field inside a package's
 
 ## Site
 
+### 2026-10 — Search, properties and writing tools (`arutosiod` 0.5.8)
+
+- **Files (1.9.0)**
+  - Subfolder search from the toolbar: matches names and file contents with
+    caps (3000 entries, 200 content reads, 8 MB), flat results with snippets,
+    click to reveal the file in its folder.
+  - Type filter (folders/images/text/documents/audio-video/archives) and
+    sorting by modified date.
+  - Properties dialog (path, type, size, modified, mode, symlink target).
+  - Bulk rename with `{name}`, `{ext}`, `{n}` and a confirmation preview.
+  - Folder copy: copy/paste and cross-source drag now duplicate whole trees
+    (keep-both on name clashes) with size/file caps.
+  - Paste conflict dialog: overwrite all, keep both, skip or cancel; folders
+    are always kept as a new copy.
+  - Icon style setting (colored icons or emoji) and a busy indicator for
+    uploads, copies and pastes.
+- **Grimoire (1.12.0)**
+  - Find & replace (Ctrl+F / Ctrl+H) with match count, next/previous,
+    replace and replace all.
+  - Outline panel listing Markdown headings; click to jump.
+  - Status bar with words, characters, lines and reading time.
+  - Focus mode hides the sidebar and centres the editor.
+  - Spellcheck toggle, plus daily/meeting/draft templates and “save a copy”
+    in the docs menu.
+  - Toasts stay click-through (only their close button takes clicks).
+
 ### 2026-10 — Files explorer upgrade (`arutosiod` 0.5.7)
 
 - **Files (1.8.0)**

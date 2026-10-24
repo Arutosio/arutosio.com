@@ -300,3 +300,21 @@ func TestSessionsPersist(t *testing.T) {
 		t.Fatal("logged-out session came back after a reload")
 	}
 }
+
+func TestResolveEntryHandlesDanglingSymlink(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Symlink("missing-target", filepath.Join(dir, "link")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	s := &server{root: dir}
+	full, rel, err := s.resolveEntry("link")
+	if err != nil {
+		t.Fatalf("resolveEntry: %v", err)
+	}
+	if rel != "link" || full != filepath.Join(dir, "link") {
+		t.Fatalf("full=%q rel=%q", full, rel)
+	}
+	if _, _, err := s.resolveEntry("../escape"); err == nil {
+		t.Fatal("resolveEntry accepted a path outside the root")
+	}
+}

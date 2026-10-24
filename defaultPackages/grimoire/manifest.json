@@ -2,7 +2,7 @@
     "id": "grimoire",
     "name": "Grimoire",
     "icon": "📜",
-    "version": "1.11.0",
+    "version": "1.12.0",
     "minSdk": 2,
     "roles": ["app"],
     "author": "Arutosio",

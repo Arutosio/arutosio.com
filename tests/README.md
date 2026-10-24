@@ -5,8 +5,10 @@ and checks the Files and Grimoire packages: file icons, search, folder-first
 sorting, drag-to-move, OS drop upload, context-menu placement, the custom
 cursor over app frames, the Files settings panel (preview off, hidden files,
 start folder, go-to-path, persistence), multi-selection, keyboard shortcuts,
-copy/cut/paste across sources, favorites, history, grid thumbnails,
-Files → Grimoire handoff, and the Markdown preview.
+copy/cut/paste across sources (files and folders), favorites, history, grid
+thumbnails, subfolder search, type filters, properties, bulk rename, the
+conflict dialog, Files → Grimoire handoff, the Markdown preview, find &
+replace, the outline, stats, spellcheck and focus mode.
 
 ```sh
 # build the daemon first (release build is fine too)

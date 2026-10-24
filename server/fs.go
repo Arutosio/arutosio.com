@@ -314,7 +314,7 @@ func (s *server) handleFSRename(w http.ResponseWriter, r *http.Request) {
 	if !parseJSONBody(w, r, &req) {
 		return
 	}
-	fromFull, _, err := s.resolvePath(req.From)
+	fromFull, _, err := s.resolveEntry(req.From)
 	if err != nil {
 		fsError(w, http.StatusBadRequest, err.Error())
 		return
@@ -354,7 +354,7 @@ func (s *server) handleFSDelete(w http.ResponseWriter, r *http.Request) {
 	if !parseJSONBody(w, r, &req) {
 		return
 	}
-	full, rel, err := s.resolvePath(req.Path)
+	full, rel, err := s.resolveEntry(req.Path)
 	if err != nil {
 		fsError(w, http.StatusBadRequest, err.Error())
 		return
@@ -435,6 +435,38 @@ func (s *server) resolvePath(p string) (string, string, error) {
 		rel = ""
 	}
 	return real, rel, nil
+}
+
+// resolveEntry resolves a path without following its final component, so a
+// dangling symlink can still be listed, renamed or deleted. The parent is
+// resolved and checked, which keeps deletes inside the root.
+func (s *server) resolveEntry(p string) (string, string, error) {
+	p = strings.TrimSpace(p)
+	p = strings.TrimPrefix(p, "/")
+	if strings.ContainsRune(p, 0) {
+		return "", "", errors.New("invalid path")
+	}
+	clean := filepath.Clean(p)
+	if clean == "." || clean == "" {
+		return "", "", errors.New("path required")
+	}
+	if clean == ".." || strings.HasPrefix(clean, ".."+string(os.PathSeparator)) {
+		return "", "", errors.New("path escapes root")
+	}
+	full := filepath.Join(s.root, clean)
+	realParent, err := filepath.EvalSymlinks(filepath.Dir(full))
+	if err != nil {
+		return "", "", err
+	}
+	if !within(s.root, realParent) {
+		return "", "", errors.New("path escapes root")
+	}
+	full = filepath.Join(realParent, filepath.Base(full))
+	rel, err := filepath.Rel(s.root, full)
+	if err != nil {
+		return "", "", err
+	}
+	return full, filepath.ToSlash(rel), nil
 }
 
 func (s *server) resolvePathForCreate(p string) (string, string, error) {
