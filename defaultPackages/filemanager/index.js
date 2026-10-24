@@ -26,6 +26,10 @@ function fmtSize(n) {
 function escapeHTML(s) {
     return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
+function validName(name) {
+    name = String(name || '').trim();
+    return !!name && name !== '.' && name !== '..' && !/[/\x00-\x1f\x7f]/.test(name);
+}
 function sortEntries(arr) {
     arr.sort((a, b) => {
         if (a.kind !== b.kind) return a.kind === 'dir' ? -1 : 1;
@@ -47,8 +51,16 @@ class VirtualBackend {
     _persist() {
         if (this._saveTimer) clearTimeout(this._saveTimer);
         this._saveTimer = setTimeout(() => {
-            this.ctx.storage.set(VirtualBackend.key, this._tree).catch(e => console.warn('[filemanager] persist', e));
+            this._saveTimer = null;
+            this.flush().catch(e => console.warn('[filemanager] persist', e));
         }, 200);
+    }
+    async flush() {
+        if (this._saveTimer) {
+            clearTimeout(this._saveTimer);
+            this._saveTimer = null;
+        }
+        await this.ctx.storage.set(VirtualBackend.key, this._tree);
     }
     _find(path, node = this._tree) {
         if (node.path === path) return node;
@@ -108,9 +120,10 @@ class VirtualBackend {
     async rename(path, newName) {
         const n = this._find(path);
         if (!n) throw new Error('not_found');
+        if (newName === n.name) return;
         const parentPath = path.split('/').slice(0, -1).join('/');
         const parent = this._find(parentPath);
-        if (parent && parent.children.some(c => c.name === newName)) throw new Error('exists');
+        if (parent && parent.children.some(c => c !== n && c.name === newName)) throw new Error('exists');
         const np = parentPath ? parentPath + '/' + newName : newName;
         const rewrite = (node, newPath) => {
             node.name = newPath.split('/').pop() || newPath;
@@ -149,6 +162,8 @@ class ProfileBackend {
     async deleteNode(path) { await this.ctx.profile.remove(path); }
     async rename(path, newName) {
         const parentPath = path.split('/').slice(0, -1).join('/');
+        const items = await this.ctx.profile.list(parentPath);
+        if (items.some(it => it.name === newName)) throw new Error('exists');
         const np = parentPath ? parentPath + '/' + newName : newName;
         const r = await this.ctx.profile.read(path);
         await this.ctx.profile.write(np, r.bytes, r.mime);
@@ -264,6 +279,10 @@ class ExternalBackend {
         // FS Access API has no atomic rename — copy + delete.
         const oldFH = await dir.getFileHandle(oldName, { create: false }).catch(() => null);
         if (!oldFH) throw new Error('rename_dir_unsupported');
+        const existing = await dir.getFileHandle(newName, { create: false })
+            .then(() => true)
+            .catch(e => e?.name === 'TypeMismatchError');
+        if (existing) throw new Error('exists');
         const f = await oldFH.getFile();
         const bytes = new Uint8Array(await f.arrayBuffer());
         const newFH = await dir.getFileHandle(newName, { create: true });
@@ -356,9 +375,13 @@ export default {
         let cwd = '';
         let selected = null;  // { name, kind, size, mime } relative to cwd
         let previewURL = null;
+        let previewToken = 0;
 
         // ── Source switching ──────────────────────────────────
         async function selectSource(id) {
+            if (backend?.kind === 'virtual') {
+                try { await backend.flush(); } catch (e) { console.warn('[filemanager] flush', e); }
+            }
             currentSource = id; cwd = ''; selected = null;
             resetPreview();
             root.querySelectorAll('.fm-source').forEach(el => el.classList.toggle('active', el.dataset.source === id));
@@ -419,10 +442,24 @@ export default {
             $crumb.textContent = '/' + cwd;
         }
 
+        async function nameExists(parentPath, name) {
+            if (backend?.kind === 'machine') {
+                try {
+                    await ctx.fs.stat(parentPath ? parentPath + '/' + name : name);
+                    return true;
+                } catch { return false; }
+            }
+            try {
+                const items = await backend.list(parentPath || '');
+                return items.some(it => it.name === name);
+            } catch { return false; }
+        }
+
         // ── Tree rendering ─────────────────────────────────────
         async function refresh() {
             if (!backend) return;
             selected = null;
+            resetPreview();
             try {
                 const items = await backend.list(cwd);
                 if (currentSource === 'profile') {
@@ -443,24 +480,23 @@ export default {
         }
 
         function rowActionsHTML(it, writable) {
-            if (it.kind !== 'file') return '';
-            // Hide the menu entirely when there's nothing actionable.
-            const canHandoff = isTextLike(it.name, it.mime) && currentSource !== 'packages';
-            if (!canHandoff && !writable && currentSource === 'packages') {
-                // Packages still offer Download — keep the menu.
-            }
+            if (it.kind === 'dir' && !writable) return '';
             return `<button class="fm-row-more" data-row-more title="More actions">⋯</button>`;
         }
 
         async function openRowMenu(anchorBtn, it) {
             const writable = !!backend && backend.isWritable?.() && currentSource !== 'packages';
-            const canHandoff = isTextLike(it.name, it.mime) && currentSource !== 'packages';
+            const canHandoff = it.kind === 'file' && isTextLike(it.name, it.mime) && currentSource !== 'packages';
             const items = [];
-            items.push({ id: 'download', label: 'Download', icon: '⬇' });
+            if (it.kind === 'file') items.push({ id: 'download', label: 'Download', icon: '⬇' });
             if (canHandoff) items.push({ id: 'openGrimoire', label: 'Open in Grimoire', icon: '📜' });
-            if (writable) items.push({ separator: true });
-            if (writable) items.push({ id: 'rename', label: 'Rename', icon: '✎' });
-            if (writable) items.push({ id: 'delete', label: 'Delete', icon: '🗑', danger: true });
+            if (writable) {
+                const canRename = it.kind === 'file' || backend.kind === 'virtual' || backend.kind === 'machine';
+                if (items.length) items.push({ separator: true });
+                if (canRename) items.push({ id: 'rename', label: 'Rename', icon: '✎' });
+                items.push({ id: 'delete', label: 'Delete', icon: '🗑', danger: true });
+            }
+            if (!items.length) return;
             const r = anchorBtn.getBoundingClientRect();
             const choice = await ctx.contextMenu.show({ x: r.right, y: r.bottom, items });
             if (choice) await runRowAction(choice, it);
@@ -483,7 +519,7 @@ export default {
                 const idx = Number(el.dataset.idx);
                 const it = items[idx];
                 el.addEventListener('contextmenu', (ev) => {
-                    if (it.kind !== 'file') return;
+                    if (it.kind === 'dir' && !(backend?.isWritable?.() && currentSource !== 'packages')) return;
                     ev.preventDefault();
                     openRowMenu(el, it);
                 });
@@ -513,14 +549,19 @@ export default {
         async function runRowAction(act, it) {
             const path = cwd ? cwd + '/' + it.name : it.name;
             if (act === 'rename') {
-                const n = prompt('New name:', it.name);
+                const n = (prompt('New name:', it.name) || '').trim();
                 if (!n || n === it.name) return;
+                if (!validName(n)) { ctx.toast?.('Invalid name', 'error'); return; }
+                if (await nameExists(cwd, n)) { ctx.toast?.('A file or folder with that name already exists', 'error'); return; }
                 try { await backend.rename(path, n); await refresh(); resetPreview(); }
                 catch (e) { ctx.toast?.('Rename failed: ' + (e.message || e), 'error'); }
                 return;
             }
             if (act === 'delete') {
-                if (!confirm(`Delete "${it.name}"?`)) return;
+                const msg = it.kind === 'dir'
+                    ? `Delete folder "${it.name}" and its contents?`
+                    : `Delete "${it.name}"?`;
+                if (!confirm(msg)) return;
                 try { await backend.deleteNode(path); await refresh(); resetPreview(); }
                 catch (e) { ctx.toast?.('Delete failed: ' + (e.message || e), 'error'); }
                 return;
@@ -566,11 +607,13 @@ export default {
 
         // ── Preview ────────────────────────────────────────────
         function resetPreview() {
+            previewToken++;
             if (previewURL) { try { URL.revokeObjectURL(previewURL); } catch {} previewURL = null; }
             $preview.innerHTML = `<div class="fm-empty">Select a file to preview.</div>`;
         }
         async function renderPreview() {
             resetPreview();
+            const token = previewToken;
             if (!selected || selected.kind !== 'file') return;
             const path = cwd ? cwd + '/' + selected.name : selected.name;
             const name = selected.name;
@@ -603,9 +646,11 @@ export default {
             let data;
             try { data = await backend.readFile(path, isText ? 256 * 1024 : 32 * 1024 * 1024); }
             catch (e) {
+                if (token !== previewToken) return;
                 $preview.innerHTML = `<div class="fm-empty">Read failed: ${escapeHTML(e.message || e)}</div>`;
                 return;
             }
+            if (token !== previewToken) return;
             const size = fmtSize(data.bytes.byteLength);
 
             let body = '';
@@ -638,15 +683,17 @@ export default {
         root.querySelector('[data-act="refresh"]').addEventListener('click', async () => { resetPreview(); await refresh(); });
         root.querySelector('[data-act="newfile"]').addEventListener('click', async () => {
             if (!backend?.isWritable?.()) return;
-            const name = prompt('New file name:');
-            if (!name) return;
+            const name = (prompt('New file name:') || '').trim();
+            if (!validName(name)) { if (name) ctx.toast?.('Invalid name', 'error'); return; }
+            if (await nameExists(cwd, name)) { ctx.toast?.('A file or folder with that name already exists', 'error'); return; }
             try { await backend.createFile(cwd, name, ''); await refresh(); }
             catch (e) { ctx.toast?.('Create failed: ' + (e.message || e), 'error'); }
         });
         root.querySelector('[data-act="newdir"]').addEventListener('click', async () => {
             if (!backend?.isWritable?.()) return;
-            const name = prompt('New folder name:');
-            if (!name) return;
+            const name = (prompt('New folder name:') || '').trim();
+            if (!validName(name)) { if (name) ctx.toast?.('Invalid name', 'error'); return; }
+            if (await nameExists(cwd, name)) { ctx.toast?.('A file or folder with that name already exists', 'error'); return; }
             try { await backend.createDir(cwd, name); await refresh(); }
             catch (e) { ctx.toast?.('Create failed: ' + (e.message || e), 'error'); }
         });
@@ -656,21 +703,34 @@ export default {
             const files = Array.from($uploadInput.files || []);
             $uploadInput.value = '';
             for (const f of files) {
+                const np = cwd ? cwd + '/' + f.name : f.name;
+                let exists = false;
                 try {
+                    exists = await nameExists(cwd, f.name);
+                    if (exists && !confirm(`Overwrite "${f.name}"?`)) continue;
                     if (backend.kind === 'machine' && ctx.fs.upload) {
-                        const np = cwd ? cwd + '/' + f.name : f.name;
-                        try {
-                            await ctx.fs.upload(np, f, false);
-                        } catch (e) {
-                            if (!String(e.message || e).includes('already exists')) throw e;
-                            if (!confirm(`Overwrite "${f.name}"?`)) continue;
-                            await ctx.fs.upload(np, f, true);
-                        }
+                        await ctx.fs.upload(np, f, exists);
                     } else {
                         const bytes = new Uint8Array(await f.arrayBuffer());
-                        await backend.createFile(cwd, f.name, bytes);
+                        const mime = f.type || mimeFromName(f.name);
+                        if (exists) await backend.writeFile(np, bytes, mime);
+                        else await backend.createFile(cwd, f.name, bytes);
                     }
-                } catch (e) { ctx.toast?.('Upload failed: ' + f.name + ' — ' + (e.message || e), 'error'); }
+                } catch (e) {
+                    const msg = String(e.message || e);
+                    if (!exists && /exists|already exists|409/i.test(msg) && confirm(`Overwrite "${f.name}"?`)) {
+                        try {
+                            if (backend.kind === 'machine' && ctx.fs.upload) {
+                                await ctx.fs.upload(np, f, true);
+                            } else {
+                                const bytes = new Uint8Array(await f.arrayBuffer());
+                                await backend.writeFile(np, bytes, f.type || mimeFromName(f.name));
+                            }
+                            continue;
+                        } catch (e2) { e = e2; }
+                    }
+                    ctx.toast?.('Upload failed: ' + f.name + ' — ' + (e.message || e), 'error');
+                }
             }
             await refresh();
         });
@@ -702,6 +762,15 @@ export default {
         root.__fmRO = ro;
 
         // ── Boot ───────────────────────────────────────────────
+        const flushOnHide = () => {
+            Promise.resolve(backend?.flush?.()).catch(() => {});
+        };
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') flushOnHide();
+        });
+        window.addEventListener('pagehide', flushOnHide);
+        root.__fmFlush = async () => { await backend?.flush?.(); };
+
         root.querySelectorAll('.fm-source').forEach(el => {
             el.addEventListener('click', () => selectSource(el.dataset.source));
         });
@@ -709,6 +778,7 @@ export default {
     },
 
     async unmount(root, ctx) {
+        try { await root.__fmFlush?.(); } catch {}
         try { root.__fmRO?.disconnect(); } catch {}
         // Any popup is mounted on document.body; remove the latest if still open.
         document.querySelectorAll('.fm-popup').forEach(p => p.remove());

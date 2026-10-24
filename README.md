@@ -95,7 +95,7 @@ installing anything.
 The installer asks for confirmation, whether to expose the daemon on the LAN,
 and whether to open the port in `ufw`/`firewalld`. Use `--yes` for a
 non-interactive install. Useful options: `--port 7777`, `--prefix DIR`,
-`--version v0.5.1`, `--lan`, `--open-firewall`, `--no-firewall`,
+`--version v0.5.2`, `--lan`, `--open-firewall`, `--no-firewall`,
 `--no-service`.
 
 It links `~/.local/bin/arutosiod` to the installed binary. If that directory
@@ -204,8 +204,8 @@ Releases are built by [`.github/workflows/release.yml`](./.github/workflows/rele
 when a `v*` tag is pushed:
 
 ```bash
-git tag v0.5.1
-git push origin v0.5.1
+git tag v0.5.2
+git push origin v0.5.2
 ```
 
 Disable checks with `-update-url ""`, or point them at a mirror returning the

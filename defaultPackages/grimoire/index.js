@@ -89,6 +89,11 @@ function escapeHTML(s) {
     return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
+function validName(name) {
+    name = String(name || '').trim();
+    return !!name && name !== '.' && name !== '..' && !/[/\x00-\x1f\x7f]/.test(name);
+}
+
 // ── CRC32 (precomputed table) ────────────────────
 const _CRC32_TABLE = (() => {
     const t = new Uint32Array(256);
@@ -383,9 +388,12 @@ class DiskBackend {
         if (fromPath === toParentPath) return;
         const src = this._findNode(fromPath);
         const destDir = this._findNode(toParentPath);
-        if (!src || !destDir) return;
+        if (!src || !destDir || !destDir.handle) return;
         const srcParentPath = fromPath.split('/').slice(0, -1).join('/');
         if (srcParentPath === toParentPath) return;
+        if (src.isDir) throw new Error('directory_move_unsupported');
+        const existing = await destDir.handle.getFileHandle(src.name, { create: false }).catch(() => null);
+        if (existing) throw new Error('exists');
         if (src.handle && typeof src.handle.move === 'function') {
             try {
                 await src.handle.move(destDir.handle, src.name);
@@ -431,8 +439,17 @@ class VirtualBackend {
     _persist() {
         if (this._saveTimer) clearTimeout(this._saveTimer);
         this._saveTimer = setTimeout(() => {
-            this.ctx.storage.set('virtualFS', { name: this._name, tree: this._tree }).catch(e => console.warn('[grimoire] virtualFS save failed', e));
+            this._saveTimer = null;
+            this.flush().catch(e => console.warn('[grimoire] virtualFS save failed', e));
         }, 200);
+    }
+
+    async flush() {
+        if (this._saveTimer) {
+            clearTimeout(this._saveTimer);
+            this._saveTimer = null;
+        }
+        await this.ctx.storage.set('virtualFS', { name: this._name, tree: this._tree });
     }
 
     async readFile(path) {
@@ -499,6 +516,9 @@ class VirtualBackend {
         if (!src || !destDir || !destDir.isDir) return;
         const srcParentPath = fromPath.split('/').slice(0, -1).join('/');
         if (srcParentPath === toParentPath) return;
+        if (src.isDir && (toParentPath === fromPath || toParentPath.startsWith(fromPath + '/'))) {
+            throw new Error('cannot_move_into_self');
+        }
         const srcParent = this._findNode(srcParentPath);
         if (!srcParent) return;
         if (destDir.children.some(c => c.name === src.name)) throw new Error('exists');
@@ -634,6 +654,11 @@ export default {
         const $tabs    = root.querySelectorAll('.view-tabs button');
         const $body    = root.querySelector('.body');
         const $saveInd = root.querySelector('.save-indicator');
+        $saveInd.addEventListener('click', () => {
+            const d = active();
+            if (d?._conflict) resolveConflict(d).catch(() => {});
+            else if (d?._dirty) saveDoc(d).catch(() => {});
+        });
         const $folderLabel   = root.querySelector('.folder-label');
         const $folderNewFile = root.querySelector('.folder-new-file');
         const $folderNewDir  = root.querySelector('.folder-new-dir');
@@ -652,6 +677,7 @@ export default {
         const expanded = new Set();
         const _fileDocs = new Map(); // path → doc
         let fileSaveTimer = null;
+        let openSeq = 0;
 
         // Edit-view refs
         let $editor = null, $paper = null, $ta = null, $gutter = null, $activeLine = null;
@@ -818,6 +844,7 @@ export default {
                 $ta.addEventListener('input', () => {
                     d.content = $ta.value;
                     d.updatedAt = Date.now();
+                    d._dirty = true;
                     onContentChange();
                     scheduleHighlight();
                     scheduleFileSave();
@@ -833,6 +860,7 @@ export default {
                         $ta.value = $ta.value.slice(0, start) + ins + $ta.value.slice(end);
                         $ta.selectionStart = $ta.selectionEnd = start + ins.length;
                         d.content = $ta.value;
+                        d._dirty = true;
                         onContentChange();
                         scheduleHighlight();
                         scheduleFileSave();
@@ -884,31 +912,101 @@ export default {
             }
         }
 
+        function setSaveIndicator(d) {
+            if (!d) {
+                $saveInd.textContent = '';
+                $saveInd.title = '';
+                $saveInd.style.cursor = 'default';
+                return;
+            }
+            if (d._conflict) {
+                $saveInd.textContent = 'conflict — reload';
+                $saveInd.title = 'The file changed on disk. Click to reload the disk version.';
+                $saveInd.style.cursor = 'pointer';
+            } else if (d._dirty) {
+                $saveInd.textContent = 'unsaved';
+                $saveInd.title = 'Unsaved changes — click to save now.';
+                $saveInd.style.cursor = 'pointer';
+            } else {
+                $saveInd.textContent = '';
+                $saveInd.title = '';
+                $saveInd.style.cursor = 'default';
+            }
+        }
+
+        async function resolveConflict(d, b = backend, path = d?.id?.slice(5)) {
+            if (!d || !b || !path) return;
+            if (!window.confirm('This file changed on disk. Reload the disk version? Your local changes will be lost.')) return;
+            try {
+                const content = await b.readFile(path);
+                d.content = content;
+                d._conflict = false;
+                d._dirty = false;
+                if (active() === d) {
+                    setSaveIndicator(d);
+                    await renderBody();
+                } else {
+                    setSaveIndicator(active());
+                }
+            } catch (e) {
+                alert('Could not reload the file: ' + (e.message || e));
+            }
+        }
+
+        async function saveDoc(d, b = backend, path = d?.id?.slice(5)) {
+            if (!d || !b || !path || !b.isWritable() || d._conflict) return false;
+            if (active() === d) $saveInd.textContent = 'saving…';
+            try {
+                await b.writeFile(path, d.content || '');
+                d._dirty = false;
+                d.updatedAt = Date.now();
+                if (active() === d) {
+                    $saveInd.textContent = 'saved';
+                    setTimeout(() => {
+                        if (active() === d && !d._dirty && !d._conflict) $saveInd.textContent = '';
+                    }, 1400);
+                }
+                return true;
+            } catch (e) {
+                console.warn('[grimoire] autosave failed', e);
+                const conflict = e?.code === 'conflict' || /conflict|file changed/i.test(String(e?.message || e));
+                d._dirty = true;
+                if (conflict) {
+                    d._conflict = true;
+                    if (active() === d) setSaveIndicator(d);
+                    Promise.resolve(ctx.toast?.('File changed on disk — click the save indicator to reload it.', 'warning')).catch(() => {});
+                } else if (active() === d) {
+                    $saveInd.textContent = 'save failed';
+                }
+                return false;
+            }
+        }
+
         function scheduleFileSave() {
             const d = active();
-            if (!d || !backend) return;
-            // Only autosave writable backends.
-            if (!backend.isWritable()) return;
-            if (d._conflict) return;
-            $saveInd.textContent = 'saving…';
+            if (!d || !backend || !backend.isWritable() || d._conflict) return;
+            d._dirty = true;
             if (fileSaveTimer) clearTimeout(fileSaveTimer);
-            fileSaveTimer = setTimeout(async () => {
-                try {
-                    const path = d.id.slice(5);
-                    await backend.writeFile(path, d.content || '');
-                    $saveInd.textContent = 'saved';
-                    setTimeout(() => { $saveInd.textContent = ''; }, 1400);
-                } catch (e) {
-                    console.warn('[grimoire] autosave failed', e);
-                    if (e.code === 'conflict') {
-                        d._conflict = true;
-                        $saveInd.textContent = 'conflict — reopen';
-                        Promise.resolve(ctx.toast?.(e.message, 'warning')).catch(() => {});
-                    } else {
-                        $saveInd.textContent = 'save failed';
-                    }
-                }
+            const b = backend;
+            const path = d.id.slice(5);
+            if (active() === d) $saveInd.textContent = 'saving…';
+            fileSaveTimer = setTimeout(() => {
+                fileSaveTimer = null;
+                saveDoc(d, b, path);
             }, 450);
+        }
+
+        async function flushPendingSave() {
+            if (fileSaveTimer) {
+                clearTimeout(fileSaveTimer);
+                fileSaveTimer = null;
+            }
+            const d = active();
+            if (!d) return true;
+            if (d._conflict) return false;
+            if (!d._dirty) return true;
+            if (!backend?.isWritable()) return true;
+            return await saveDoc(d, backend, d.id.slice(5));
         }
 
         async function persistActive() {
@@ -1038,10 +1136,13 @@ export default {
         }
 
         // ── Launcher (shown when no backend is active) ───────
-        function showLauncher() {
+        async function showLauncher() {
             const canPicker = !ctx.local && 'showDirectoryPicker' in window;
+            const saved = await ctx.storage.get('virtualFS').catch(() => null);
+            const hasSaved = !!(saved?.tree?.children?.length);
             const parts = [];
             if (canPicker) parts.push('<button class="launcher-btn" data-launch="disk">📁 Open real folder</button>');
+            if (hasSaved) parts.push('<button class="launcher-btn" data-launch="virtual-saved">📝 Continue saved workspace</button>');
             parts.push('<button class="launcher-btn" data-launch="virtual">📝 New virtual workspace</button>');
             if (!ctx.local && !canPicker) parts.push('<button class="launcher-btn" data-launch="webkit">📁 Open folder (read-only)</button>');
             const hint = ctx.local
@@ -1061,7 +1162,11 @@ export default {
                     const kind = btn.dataset.launch;
                     if (kind === 'disk') await openDiskPicker();
                     else if (kind === 'webkit') openWebkitDirInput();
-                    else if (kind === 'virtual') await openVirtualWorkspace();
+                    else if (kind === 'virtual-saved') await openVirtualWorkspace(saved);
+                    else if (kind === 'virtual') {
+                        if (hasSaved && !window.confirm('Starting a new virtual workspace replaces the saved one. Continue?')) return;
+                        await openVirtualWorkspace();
+                    }
                 });
             });
         }
@@ -1081,24 +1186,46 @@ export default {
         }
 
         async function setBackend(b) {
+            let nextTree;
+            try {
+                nextTree = await b.list();
+            } catch (e) {
+                alert('Could not open folder: ' + (e.message || e));
+                return false;
+            }
+            if (!(await flushPendingSave())) {
+                alert('Could not save the current file. Resolve the conflict before switching folder.');
+                return false;
+            }
+            try { await backend?.flush?.(); } catch (e) { console.warn('[grimoire] flush failed', e); }
+            openSeq++;
             backend = b;
-            tree = await backend.list();
+            tree = nextTree;
             expanded.clear();
             _fileDocs.clear();
             activeId = null;
+            setSaveIndicator(null);
             updateHeaderControls();
             renderFolderTree();
             await renderBody();
             await persistActive();
+            return true;
         }
 
         async function closeFolder() {
             // Virtual workspace persists automatically — clearing UI state
             // only; user's virtualFS stays in ctx.storage for next boot.
+            if (!(await flushPendingSave())) {
+                alert('Could not save the current file. Resolve the conflict before closing the folder.');
+                return;
+            }
+            try { await backend?.flush?.(); } catch (e) { console.warn('[grimoire] flush failed', e); }
+            openSeq++;
             backend = null; tree = null;
             expanded.clear();
             _fileDocs.clear();
             activeId = null;
+            setSaveIndicator(null);
             try { await ctx.storage.remove('machineFile'); } catch {}
             updateHeaderControls();
             showLauncher();
@@ -1111,7 +1238,7 @@ export default {
                 const handle = await window.showDirectoryPicker();
                 const b = new DiskBackend({ rootHandle: handle });
                 showTreeMessage('Reading folder…');
-                await setBackend(b);
+                if (!(await setBackend(b))) return;
                 try { await ctx.storage.remove('machineFile'); } catch {}
             } catch (e) {
                 if (e?.name === 'AbortError') return;
@@ -1130,7 +1257,7 @@ export default {
                 if (!files.length) { showTreeMessage('No files in folder.', false); return; }
                 const rootName = files[0].webkitRelativePath.split('/')[0] || 'folder';
                 const b = new DiskBackend({ fallbackFiles: files, rootNameFallback: rootName });
-                await setBackend(b);
+                if (!(await setBackend(b))) return;
                 try { await ctx.storage.remove('machineFile'); } catch {}
             });
             input.click();
@@ -1138,10 +1265,11 @@ export default {
 
         async function openVirtualWorkspace(initial) {
             const b = new VirtualBackend(ctx, initial);
-            await setBackend(b);
+            if (!(await setBackend(b))) return false;
             try { await ctx.storage.remove('machineFile'); } catch {}
             // Ensure an initial persist so reloads pick it up.
             b._persist();
+            return true;
         }
 
         function showTreeMessage(msg, isErr) {
@@ -1155,7 +1283,7 @@ export default {
             wireTreeInteractions();
         }
         function renderNode(node, depth, isRoot) {
-            const canWrite = backend?.isWritable();
+            const canWrite = backend?.isWritable() && backend.kind !== 'machine';
             if (node.isDir) {
                 const collapsed = !isRoot && !expanded.has(node.path);
                 const kids = (node.children || []).map(c => renderNode(c, depth + 1, false)).join('');
@@ -1245,20 +1373,34 @@ export default {
         }
 
         async function promptAndCreateFile(parentPath) {
-            const name = window.prompt('New file name (e.g. notes.md)');
-            if (!name || !name.trim()) return;
+            const name = (window.prompt('New file name (e.g. notes.md)') || '').trim();
+            if (!validName(name)) {
+                if (name) alert('Invalid file name.');
+                return;
+            }
+            if (backend?._findNode?.(parentPath)?.children?.some(c => c.name === name)) {
+                alert('A file with that name already exists.');
+                return;
+            }
             try {
-                const newPath = await backend.createFile(parentPath, name.trim());
+                const newPath = await backend.createFile(parentPath, name);
                 expanded.add(parentPath);
                 await refreshTree();
                 await openFileFromTree(newPath);
             } catch (e) { alert('Could not create file: ' + (e.message || e)); }
         }
         async function promptAndCreateDir(parentPath) {
-            const name = window.prompt('New folder name');
-            if (!name || !name.trim()) return;
+            const name = (window.prompt('New folder name') || '').trim();
+            if (!validName(name)) {
+                if (name) alert('Invalid folder name.');
+                return;
+            }
+            if (backend?._findNode?.(parentPath)?.children?.some(c => c.name === name)) {
+                alert('A folder with that name already exists.');
+                return;
+            }
             try {
-                const newPath = await backend.createDir(parentPath, name.trim());
+                const newPath = await backend.createDir(parentPath, name);
                 expanded.add(parentPath);
                 expanded.add(newPath);
                 await refreshTree();
@@ -1266,29 +1408,71 @@ export default {
         }
         async function doMove(fromPath, toParentPath) {
             try {
-                await backend.moveNode(fromPath, toParentPath);
+                if (!(await flushPendingSave())) {
+                    alert('Could not save the current file. Resolve the conflict before moving it.');
+                    return;
+                }
+                const newPath = await backend.moveNode(fromPath, toParentPath);
+                if (newPath && newPath !== fromPath) remapDocPaths(fromPath, newPath);
                 await refreshTree();
+                await persistActive();
+                if (active()) setSaveIndicator(active());
             } catch (e) { alert('Could not move: ' + (e.message || e)); }
+        }
+
+        function remapDocPaths(oldPath, newPath) {
+            for (const [path, doc] of Array.from(_fileDocs.entries())) {
+                let next = null;
+                if (path === oldPath) next = newPath;
+                else if (path.startsWith(oldPath + '/')) next = newPath + path.slice(oldPath.length);
+                if (next == null) continue;
+                _fileDocs.delete(path);
+                doc.id = 'file:' + next;
+                _fileDocs.set(next, doc);
+                if (activeId === 'file:' + path) activeId = doc.id;
+            }
         }
 
         async function openFileFromTree(path) {
             if (!backend) return;
-            const content = await backend.readFile(path);
-            const name = path.split('/').pop();
-            const title = name.replace(/\.[^.]+$/, '');
-            const lang = langFromFilename(name);
-            _fileDocs.set(path, {
-                id: 'file:' + path,
-                title: name,
-                lang,
-                content,
-                updatedAt: Date.now(),
-                displayTitle: title,
-            });
-            activeId = 'file:' + path;
+            const seq = ++openSeq;
+            await flushPendingSave();
+            if (seq !== openSeq) return;
+            let doc = _fileDocs.get(path);
+            try {
+                if (!doc || (!doc._dirty && !doc._conflict)) {
+                    const content = await backend.readFile(path);
+                    if (seq !== openSeq) return;
+                    if (typeof content === 'string' && content.length > 8 * 1024 * 1024) {
+                        alert('This file is larger than 8 MB; open it from Files instead.');
+                        return;
+                    }
+                    const name = path.split('/').pop();
+                    const title = name.replace(/\.[^.]+$/, '');
+                    const lang = langFromFilename(name);
+                    doc = {
+                        id: 'file:' + path,
+                        title: doc?.title || name,
+                        lang: doc?.lang || lang,
+                        content,
+                        updatedAt: Date.now(),
+                        displayTitle: doc?.displayTitle || title,
+                        _dirty: false,
+                        _conflict: false,
+                    };
+                    _fileDocs.set(path, doc);
+                }
+            } catch (e) {
+                if (seq !== openSeq) return;
+                alert('Could not open file: ' + (e.message || e));
+                return;
+            }
+            if (seq !== openSeq) return;
+            activeId = doc.id;
             view = 'edit';
             $tabs.forEach(x => x.classList.toggle('active', x.dataset.view === 'edit'));
             renderFolderTree();
+            setSaveIndicator(doc);
             await renderBody();
             await persistActive();
         }
@@ -1326,9 +1510,10 @@ export default {
         if (savedMachine && savedMachine.path) {
             try {
                 const b = new MachineBackend(ctx, savedMachine);
-                await setBackend(b);
-                await openFileFromTree(savedMachine.path);
-                restored = true;
+                if (await setBackend(b)) {
+                    await openFileFromTree(savedMachine.path);
+                    restored = true;
+                }
             } catch (e) {
                 console.warn('[grimoire] machine restore failed', e);
                 try { await ctx.storage.remove('machineFile'); } catch {}
@@ -1337,8 +1522,9 @@ export default {
         if (!restored) {
             const savedVirtual = await ctx.storage.get('virtualFS');
             if (savedVirtual && savedVirtual.tree) {
-                await openVirtualWorkspace(savedVirtual);
-            } else {
+                restored = await openVirtualWorkspace(savedVirtual);
+            }
+            if (!restored) {
                 activeId = null;
                 await persistActive();
                 showLauncher();
@@ -1359,7 +1545,7 @@ export default {
                     return;
                 }
                 const b = new MachineBackend(ctx, payload);
-                await setBackend(b);
+                if (!(await setBackend(b))) return;
                 await openFileFromTree(payload.path);
                 try {
                     await ctx.storage.set('machineFile', {
@@ -1375,7 +1561,7 @@ export default {
                 const content = typeof payload.content === 'string' ? payload.content : '';
                 if (!(backend instanceof VirtualBackend)) {
                     const existing = await ctx.storage.get('virtualFS');
-                    await openVirtualWorkspace(existing || { name: 'inbox', tree: { name: 'inbox', path: '', isDir: true, children: [] } });
+                    if (!(await openVirtualWorkspace(existing || { name: 'inbox', tree: { name: 'inbox', path: '', isDir: true, children: [] } }))) return;
                 }
                 // Unique filename if collision.
                 let name = payload.name;
@@ -1410,5 +1596,22 @@ export default {
         document.addEventListener('arutosio:handoff', (e) => {
             handleHandoff(e.detail).catch((err) => console.warn('[grimoire] handoff failed', err));
         });
+
+        const flushOnHide = () => {
+            flushPendingSave().catch(() => {});
+            Promise.resolve(backend?.flush?.()).catch(() => {});
+        };
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') flushOnHide();
+        });
+        window.addEventListener('pagehide', flushOnHide);
+        root.__grimoireFlush = async () => {
+            await flushPendingSave();
+            await backend?.flush?.();
+        };
+    },
+
+    async unmount(root) {
+        try { await root.__grimoireFlush?.(); } catch {}
     }
 };

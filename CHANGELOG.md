@@ -9,6 +9,19 @@ either git commit SHAs or the `version` field inside a package's
 
 ## Site
 
+### 2026-10 — Files/Grimoire stability (`arutosiod` 0.5.2)
+
+- **Files (1.5.0)** — rename/delete for folders, name validation, duplicate
+  detection, consistent overwrite prompts on upload, safer rename for profile
+  and external folders, stale-preview guard, and immediate flush of the
+  virtual workspace on source switch/unmount.
+- **Grimoire (1.10.0)** — autosave is flushed before switching file/folder and
+  on close/hide; unsaved documents are reused instead of re-read; moving an
+  open file remaps its path; conflicts keep the local text and offer a reload;
+  directory moves are cycle-guarded; machine files no longer expose broken
+  tree actions; the launcher can reopen the saved virtual workspace and warns
+  before replacing it.
+
 ### 2026-10 — `arutosiod` 0.5.1
 
 - **PATH link** — the installer links `~/.local/bin/arutosiod`; `uninstall`
