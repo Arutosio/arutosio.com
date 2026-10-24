@@ -94,6 +94,12 @@ sniff the network. Do not use LAN mode on public Wi-Fi or untrusted networks,
 and do not expose the port to the internet. No Tailscale, Cloudflare Tunnel or
 other relay is used.
 
+If the LAN URL is unreachable, `arutosiod status` shows the bind address, port
+and firewall state; `arutosiod url --lan` prints the IP URLs. A hostname such
+as `aru-pi` may not resolve from another device: try `aru-pi.local` (mDNS) or
+the IP. Also check the router's client isolation and that both devices are on
+the same network.
+
 ## Daily commands
 
 ```bash

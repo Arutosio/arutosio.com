@@ -150,6 +150,12 @@ This binds `0.0.0.0`, offers to open the port in `ufw`/`firewalld`, and prints
 the LAN URLs. LAN traffic is plain HTTP, so use it only on a trusted network;
 SSH remains the recommended path over untrusted networks.
 
+If `http://<host>:7777` does not open from another device, run
+`arutosiod status`: it shows whether LAN mode is enabled, which port is bound,
+and the firewall state. Use the IP printed by `arutosiod url --lan` if the
+hostname does not resolve (`<host>.local` works on networks with mDNS), and
+make sure both devices are on the same network.
+
 ### Manage the daemon
 
 ```bash
