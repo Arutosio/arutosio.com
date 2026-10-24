@@ -9,6 +9,11 @@ either git commit SHAs or the `version` field inside a package's
 
 ## Site
 
+### 2026-10 — Outline/find layout fix (`arutosiod` 0.5.9)
+
+- **Grimoire (1.12.1)** — the outline panel now starts below an open find
+  bar, so the two close buttons no longer overlap.
+
 ### 2026-10 — Search, properties and writing tools (`arutosiod` 0.5.8)
 
 - **Files (1.9.0)**

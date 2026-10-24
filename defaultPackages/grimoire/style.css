@@ -731,6 +731,8 @@ body {
 }
 .main { position: relative; }
 .toolbar, .findbar { position: relative; z-index: 13; }
+/* Keep the outline below an open find bar so their close buttons don't stack. */
+.findbar:not([hidden]) ~ .outline-panel { top: 82px; }
 [data-theme="light"] .outline-panel { background: rgba(255, 252, 240, 0.98); }
 .outline-panel[hidden] { display: none; }
 .outline-head {
