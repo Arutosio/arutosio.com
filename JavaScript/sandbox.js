@@ -221,7 +221,8 @@ async function _handleCall(appId, method, args) {
                 x += r.left; y += r.top;
             }
             const items = Array.isArray(opts.items) ? opts.items : [];
-            return await window.contextMenu.show({ x, y, items });
+            const bounds = iframe ? iframe.getBoundingClientRect() : null;
+            return await window.contextMenu.show({ x, y, items, bounds });
         }
         case 'profile.isLinked': return !!window.profile?.isLinked?.();
         case 'profile.list':  return await window.profile.listFolder(String(args[0] || ''));
@@ -301,6 +302,18 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:transparent;color
         if (t && t.closest && t.closest('input, textarea, [contenteditable="true"], [contenteditable=""]')) return;
         e.preventDefault();
     });
+    // The host draws the custom cursor and only sees mousemove on its own
+    // document. Forward ours once per frame so the dot follows the pointer.
+    let pQueued = false, pX = 0, pY = 0;
+    document.addEventListener('mousemove', (e) => {
+        pX = e.clientX; pY = e.clientY;
+        if (pQueued) return;
+        pQueued = true;
+        requestAnimationFrame(() => {
+            pQueued = false;
+            parent.postMessage({ __arutosio_sdk: true, type: 'pointer', x: pX, y: pY }, '*');
+        });
+    }, { passive: true });
     const pending = new Map();
     let nextId = 1;
     function call(method, ...args) {
@@ -552,6 +565,8 @@ async function mountApp(appId) {
             } catch (err) {
                 iframe.contentWindow.postMessage({ __arutosio_sdk: true, type: 'reply', id: d.id, error: String(err.message || err) }, '*');
             }
+        } else if (d.type === 'pointer') {
+            window.__arutosioCursorTo?.(iframe, d.x, d.y);
         } else if (d.type === 'error') {
             console.warn('[sandbox]', appId, d.error);
         }
@@ -711,6 +726,8 @@ async function mountWidget(widgetId, opts) {
             } catch (err) {
                 iframe.contentWindow.postMessage({ __arutosio_sdk: true, type: 'reply', id: d.id, error: String(err.message || err) }, '*');
             }
+        } else if (d.type === 'pointer') {
+            window.__arutosioCursorTo?.(iframe, d.x, d.y);
         } else if (d.type === 'error') {
             console.warn('[sandbox:widget]', widgetId, d.error);
         } else if (d.type === 'mounted' && typeof opts.onReady === 'function') {

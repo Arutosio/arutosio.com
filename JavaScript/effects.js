@@ -294,16 +294,24 @@ function initMagicCursor() {
     // Batch cursor position updates via rAF — mousemove can fire 100+ times per
     // second on fast mice, but the compositor only commits at display refresh.
     let px = 0, py = 0, scheduled = false;
-    window.addEventListener('mousemove', e => {
-        if (mq.matches) return;
-        px = e.clientX; py = e.clientY;
+    const moveTo = (x, y) => {
+        if (mq.matches || !document.documentElement.classList.contains('magic-cursor-active')) return;
+        px = x; py = y;
         if (scheduled) return;
         scheduled = true;
         requestAnimationFrame(() => {
             el.style.transform = `translate(${px}px,${py}px)`;
             scheduled = false;
         });
-    });
+    };
+    window.addEventListener('mousemove', e => moveTo(e.clientX, e.clientY));
+    // App iframes cannot see this document's mousemove; sandbox.js forwards
+    // theirs so the dot keeps following the pointer over windows too.
+    window.__arutosioCursorTo = (iframe, x, y) => {
+        if (!iframe) return;
+        const r = iframe.getBoundingClientRect();
+        moveTo(r.left + x, r.top + y);
+    };
 
     // Ring expands over interactive elements (delegation handles dynamic cards)
     document.addEventListener('mouseover', e => {

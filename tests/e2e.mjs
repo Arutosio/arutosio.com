@@ -66,6 +66,7 @@ await writeFile(path.join(root, 'notes.md'), '# Heading\n\nSome **bold** text an
 await writeFile(path.join(root, 'package.json'), '{}\n');
 await writeFile(path.join(root, 'style.css'), 'body{}\n');
 await writeFile(path.join(root, 'src', 'main.js'), 'console.log(1)\n');
+await writeFile(path.join(root, '.hidden.txt'), 'dotfile\n');
 await symlink('README.md', path.join(root, 'link.md'));
 
 const daemon = spawn(bin, [
@@ -137,6 +138,77 @@ try {
     });
     await sleep(1000);
     ok((await readFile(path.join(root, 'dropped.txt'), 'utf8').catch(() => null)) === 'dropped content', 'OS drop uploads into the current folder');
+
+    // Right-click near the frame's bottom-right: the menu must stay inside
+    // the app window, not just inside the browser viewport.
+    const frameBox = await page.locator('#win-filemanager .sandbox-iframe').boundingBox();
+    await fm.locator('.fm-entry', { hasText: 'package.json' }).evaluate((row) => {
+        row.dispatchEvent(new MouseEvent('contextmenu', {
+            bubbles: true, cancelable: true,
+            clientX: window.innerWidth - 2, clientY: window.innerHeight - 2,
+        }));
+    });
+    await sleep(300);
+    const menuBox = await page.locator('.ctx-menu').boundingBox();
+    const insideWindow = menuBox
+        && menuBox.x >= frameBox.x - 1 && menuBox.y >= frameBox.y - 1
+        && menuBox.x + menuBox.width <= frameBox.x + frameBox.width + 1
+        && menuBox.y + menuBox.height <= frameBox.y + frameBox.height + 1;
+    ok(insideWindow, 'context menu stays inside the app window');
+    await page.keyboard.press('Escape');
+    await sleep(200);
+
+    // The host's custom cursor follows pointer moves inside the app frame.
+    const cursorBefore = await page.evaluate(() => getComputedStyle(document.getElementById('magic-cursor')).transform);
+    await fm.locator('.fm-shell').evaluate((el) => {
+        el.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 120, clientY: 60 }));
+    });
+    await sleep(300);
+    const cursorAfter = await page.evaluate(() => getComputedStyle(document.getElementById('magic-cursor')).transform);
+    const expectedX = Math.round(frameBox.x + 120);
+    const cursorPos = cursorAfter.match(/matrix\(1, 0, 0, 1, (-?[\d.]+), (-?[\d.]+)\)/);
+    ok(cursorAfter !== cursorBefore && cursorPos && Math.abs(Number(cursorPos[1]) - expectedX) <= 2, 'custom cursor follows the pointer inside apps');
+
+    // ── Files settings ────────────────────────────────────
+    await fm.locator('[data-act="settings"]').click();
+    await sleep(200);
+    const hiddenBefore = await fm.locator('.fm-entry-name').allInnerTexts();
+    ok(!hiddenBefore.includes('.hidden.txt'), 'dotfiles hidden by default');
+    await fm.locator('#fm-set-hidden').check();
+    await sleep(300);
+    ok((await fm.locator('.fm-entry-name').allInnerTexts()).includes('.hidden.txt'), 'hidden files setting shows dotfiles');
+
+    await fm.locator('#fm-set-preview').uncheck();
+    await sleep(300);
+    ok(await fm.locator('.fm-shell.fm-no-preview').count() === 1, 'preview can be disabled from settings');
+    ok(!(await fm.locator('#fm-preview').isVisible()), 'preview pane hidden when disabled');
+
+    await fm.locator('#fm-set-path').fill('src');
+    await fm.locator('[data-act="goPath"]').click();
+    await sleep(600);
+    ok((await fm.locator('#fm-crumb').innerText()).includes('src'), 'go-to-path navigates');
+
+    // Start folder applies on the next source switch.
+    await fm.locator('[data-act="settings"]').click();
+    await fm.locator('#fm-set-start').fill('src');
+    await fm.locator('#fm-set-start').blur();
+    await sleep(300);
+    await fm.locator('.fm-source[data-source="virtual"]').click();
+    await sleep(500);
+    await fm.locator('.fm-source[data-source="machine"]').click();
+    await sleep(700);
+    const crumbAfter = await fm.locator('#fm-crumb').innerText();
+    const namesAfter = await fm.locator('.fm-entry-name').allInnerTexts();
+    ok(crumbAfter.includes('src') && namesAfter.includes('main.js'), 'start folder is applied when switching source');
+
+    // Settings survive closing and reopening the app.
+    await page.evaluate(() => window.closeWindow('filemanager'));
+    await sleep(600);
+    await page.evaluate(() => window.openWindow('filemanager'));
+    const fm2 = page.frameLocator('#win-filemanager .sandbox-iframe');
+    await fm2.locator('#fm-tree .fm-entry, #fm-crumb').first().waitFor({ timeout: 20000 });
+    await sleep(600);
+    ok(await fm2.locator('.fm-shell.fm-no-preview').count() === 1, 'settings persist across reopen');
 
     // ── Grimoire ──────────────────────────────────────────
     await page.evaluate(() => { window.openWindow('grimoire'); const w = document.getElementById('win-grimoire'); if (w) window.toggleMaximize(w); });

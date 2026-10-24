@@ -22,10 +22,12 @@
      * Show a context menu.
      * @param {object} opts
      *   - x, y (viewport coords, required)
+     *   - bounds ({left, top, width, height}): keep the menu inside this box
+     *     (an app window) instead of only inside the viewport
      *   - items: Array<{id, label, icon?, danger?, disabled?, separator?}>
      * @returns {Promise<string|null>} chosen item id, or null on dismiss
      */
-    function show({ x = 0, y = 0, items = [] } = {}) {
+    function show({ x = 0, y = 0, items = [], bounds = null } = {}) {
         closeMenu(null); // singleton
         return new Promise((resolve) => {
             const el = document.createElement('div');
@@ -43,14 +45,19 @@
             }).join('');
             document.body.appendChild(el);
 
-            // Position + viewport clamp
+            // Position + clamp to the requesting window (when it fits), then
+            // to the viewport.
             const w = el.offsetWidth, h = el.offsetHeight;
             const vw = window.innerWidth, vh = window.innerHeight;
-            let left = x, top = y;
-            if (left + w > vw - 4) left = Math.max(4, vw - w - 4);
-            if (top  + h > vh - 4) top  = Math.max(4, vh - h - 4);
-            if (left < 4) left = 4;
-            if (top  < 4) top  = 4;
+            let minX = 4, minY = 4, maxX = vw - 4, maxY = vh - 4;
+            if (bounds && bounds.width > w + 8 && bounds.height > h + 8) {
+                minX = Math.max(minX, bounds.left + 4);
+                minY = Math.max(minY, bounds.top + 4);
+                maxX = Math.min(maxX, bounds.left + bounds.width - 4);
+                maxY = Math.min(maxY, bounds.top + bounds.height - 4);
+            }
+            const left = Math.min(Math.max(x, minX), Math.max(minX, maxX - w));
+            const top  = Math.min(Math.max(y, minY), Math.max(minY, maxY - h));
             el.style.left = left + 'px';
             el.style.top  = top  + 'px';
 

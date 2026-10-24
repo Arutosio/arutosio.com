@@ -897,18 +897,45 @@ export default {
                     <span class="fm-spacer"></span>
                     <span class="fm-breadcrumb" id="fm-crumb">/</span>
                     <button class="fm-btn fm-toggle-preview" data-act="togglePreview" title="Toggle preview">👁</button>
+                    <button class="fm-btn" data-act="settings" title="Files settings" aria-label="Files settings">⚙</button>
                 </div>
                 <aside class="fm-sources" id="fm-sources">
                     ${SOURCES.map(s => `<div class="fm-source" data-source="${s.id}"><span class="fm-source-icon">${s.icon}</span>${s.label}</div>`).join('')}
                 </aside>
                 <section class="fm-tree" id="fm-tree"><div class="fm-empty">Select a source…</div></section>
                 <aside class="fm-preview" id="fm-preview"><div class="fm-empty">Select a file to preview.</div></aside>
+                <aside class="fm-settings" id="fm-settings" hidden>
+                    <div class="fm-set-head">
+                        <strong>Files settings</strong>
+                        <button class="fm-btn" data-act="closeSettings" title="Close">✕</button>
+                    </div>
+                    <label class="fm-set-row">
+                        <span>File preview</span>
+                        <input type="checkbox" id="fm-set-preview">
+                    </label>
+                    <small>Show the preview pane. Off keeps the list wider.</small>
+                    <label class="fm-set-row">
+                        <span>Hidden files</span>
+                        <input type="checkbox" id="fm-set-hidden">
+                    </label>
+                    <small>Names starting with a dot, like .gitignore.</small>
+                    <label class="fm-set-row" for="fm-set-start"><span>Start folder</span></label>
+                    <input id="fm-set-start" class="fm-set-input" placeholder="e.g. projects/site" spellcheck="false">
+                    <small>Opened when you switch source. Relative to the source root.</small>
+                    <label class="fm-set-row" for="fm-set-path"><span>Go to path</span></label>
+                    <div class="fm-set-go">
+                        <input id="fm-set-path" class="fm-set-input" placeholder="/" spellcheck="false">
+                        <button class="fm-btn" data-act="goPath">Go</button>
+                    </div>
+                </aside>
             </div>
         `;
 
         const $tree    = root.querySelector('#fm-tree');
         const $preview = root.querySelector('#fm-preview');
         const $crumb   = root.querySelector('#fm-crumb');
+        const $shell   = root.querySelector('.fm-shell');
+        const $settings = root.querySelector('#fm-settings');
         const $uploadInput = root.querySelector('#fm-upload-input');
 
         let backend = null;
@@ -920,6 +947,58 @@ export default {
         let currentItems = [];
         let filterText = '';
         let sortMode = 'name';
+
+        const DEFAULT_SETTINGS = { preview: true, hidden: false, startPath: '' };
+        let settings = { ...DEFAULT_SETTINGS };
+        try {
+            const saved = await ctx.storage.get('settings');
+            if (saved && typeof saved === 'object') settings = { ...DEFAULT_SETTINGS, ...saved };
+        } catch (e) { console.warn('[filemanager] settings', e); }
+
+        function saveSettings() {
+            Promise.resolve(ctx.storage.set('settings', settings)).catch((e) => console.warn('[filemanager] settings', e));
+        }
+
+        function applySettings() {
+            $shell.classList.toggle('fm-no-preview', !settings.preview);
+            if (!settings.preview) {
+                $shell.classList.remove('fm-preview-open');
+                resetPreview();
+            }
+            const $p = root.querySelector('#fm-set-preview');
+            const $h = root.querySelector('#fm-set-hidden');
+            if ($p) $p.checked = !!settings.preview;
+            if ($h) $h.checked = !!settings.hidden;
+        }
+
+        // Paths are source-root relative; ".." would escape the root.
+        function normalizePath(raw) {
+            const parts = String(raw || '').replace(/\\/g, '/').split('/').filter(p => p && p !== '.');
+            if (parts.includes('..')) return null;
+            return parts.join('/');
+        }
+
+        async function goToPath(raw) {
+            if (!backend) return false;
+            const path = normalizePath(raw);
+            if (path === null) {
+                ctx.toast?.('Path cannot contain ".."', 'error');
+                return false;
+            }
+            try {
+                await backend.list(path);
+            } catch (e) {
+                ctx.toast?.('Cannot open "' + (path || '/') + '": ' + (e.message || e), 'error');
+                return false;
+            }
+            cwd = path;
+            selected = null;
+            resetPreview();
+            await refresh();
+            const $path = root.querySelector('#fm-set-path');
+            if ($path) $path.value = cwd;
+            return true;
+        }
 
         // ── Source switching ──────────────────────────────────
         async function selectSource(id) {
@@ -955,6 +1034,9 @@ export default {
                     return;
                 } else if (id === 'packages') {
                     backend = new PackagesBackend(ctx);
+                }
+                if (settings.startPath) {
+                    try { await backend.list(settings.startPath); cwd = settings.startPath; } catch {}
                 }
                 await refresh();
             } catch (e) {
@@ -1218,7 +1300,10 @@ export default {
 
         function renderList() {
             const q = filterText.trim().toLowerCase();
-            const items = sortedForUI(currentItems.filter(it => !q || it.name.toLowerCase().includes(q)));
+            const items = sortedForUI(currentItems.filter(it => {
+                if (!settings.hidden && it.name.startsWith('.')) return false;
+                return !q || it.name.toLowerCase().includes(q);
+            }));
             let html = '';
             if (currentSource === 'profile') {
                 html += `<div class="fm-warn">⚠ Changes sync to your linked folder immediately.</div>`;
@@ -1256,7 +1341,7 @@ export default {
             return `<button class="fm-row-more" data-row-more title="More actions">⋯</button>`;
         }
 
-        async function openRowMenu(anchorBtn, it) {
+        async function openRowMenu(it, x, y) {
             const writable = !!backend && backend.isWritable?.() && currentSource !== 'packages';
             const canHandoff = it.kind === 'file' && isTextLike(it.name, it.mime) && currentSource !== 'packages';
             const items = [];
@@ -1269,8 +1354,7 @@ export default {
                 items.push({ id: 'delete', label: 'Delete', icon: '🗑', danger: true });
             }
             if (!items.length) return;
-            const r = anchorBtn.getBoundingClientRect();
-            const choice = await ctx.contextMenu.show({ x: r.right, y: r.bottom, items });
+            const choice = await ctx.contextMenu.show({ x, y, items });
             if (choice) await runRowAction(choice, it);
         }
 
@@ -1299,13 +1383,14 @@ export default {
                 el.addEventListener('contextmenu', (ev) => {
                     if (it.kind === 'dir' && !(backend?.isWritable?.() && currentSource !== 'packages')) return;
                     ev.preventDefault();
-                    openRowMenu(el, it);
+                    openRowMenu(it, ev.clientX, ev.clientY);
                 });
                 el.addEventListener('click', async (ev) => {
                     const moreBtn = ev.target.closest('[data-row-more]');
                     if (moreBtn) {
                         ev.stopPropagation();
-                        openRowMenu(moreBtn, it);
+                        const r = moreBtn.getBoundingClientRect();
+                        openRowMenu(it, r.left, r.bottom);
                         return;
                     }
                     $tree.querySelectorAll('.fm-entry').forEach(e => e.classList.remove('active'));
@@ -1319,8 +1404,8 @@ export default {
                     } else {
                         selected = it;
                         await renderPreview();
-                        if (root.querySelector('.fm-shell').classList.contains('fm-narrow')) {
-                            root.querySelector('.fm-shell').classList.add('fm-preview-open');
+                        if (settings.preview && $shell.classList.contains('fm-narrow')) {
+                            $shell.classList.add('fm-preview-open');
                         }
                     }
                 });
@@ -1436,7 +1521,7 @@ export default {
         async function renderPreview() {
             resetPreview();
             const token = previewToken;
-            if (!selected || selected.kind !== 'file') return;
+            if (!settings.preview || !selected || selected.kind !== 'file') return;
             const path = cwd ? cwd + '/' + selected.name : selected.name;
             const name = selected.name;
             const mime = mimeFromName(name);
@@ -1542,9 +1627,62 @@ export default {
         });
 
         // Preview overlay toggle (narrow layouts).
-        const $shell = root.querySelector('.fm-shell');
         root.querySelector('[data-act="togglePreview"]').addEventListener('click', () => {
             $shell.classList.toggle('fm-preview-open');
+        });
+
+        // ── Settings ───────────────────────────────────────────
+        function openSettings() {
+            $settings.hidden = false;
+            const $path = root.querySelector('#fm-set-path');
+            const $start = root.querySelector('#fm-set-start');
+            if ($path) $path.value = cwd;
+            if ($start) $start.value = settings.startPath;
+            applySettings();
+        }
+        function closeSettings() { $settings.hidden = true; }
+        root.querySelector('[data-act="settings"]').addEventListener('click', () => {
+            if ($settings.hidden) openSettings(); else closeSettings();
+        });
+        root.querySelector('[data-act="closeSettings"]').addEventListener('click', closeSettings);
+        root.querySelector('#fm-set-preview').addEventListener('change', (ev) => {
+            settings.preview = ev.target.checked;
+            saveSettings();
+            applySettings();
+            if (settings.preview && selected) renderPreview();
+        });
+        root.querySelector('#fm-set-hidden').addEventListener('change', (ev) => {
+            settings.hidden = ev.target.checked;
+            saveSettings();
+            selected = null;
+            resetPreview();
+            renderList();
+        });
+        root.querySelector('#fm-set-start').addEventListener('change', async (ev) => {
+            const path = normalizePath(ev.target.value);
+            if (path === null) {
+                ctx.toast?.('Path cannot contain ".."', 'error');
+                ev.target.value = settings.startPath;
+                return;
+            }
+            if (path && backend) {
+                try { await backend.list(path); }
+                catch { ctx.toast?.('Folder not found in this source', 'error'); ev.target.value = settings.startPath; return; }
+            }
+            settings.startPath = path;
+            saveSettings();
+            ctx.toast?.(path ? 'Start folder saved' : 'Start folder reset', 'success');
+        });
+        const goPath = async () => {
+            const $path = root.querySelector('#fm-set-path');
+            if (await goToPath($path?.value || '')) closeSettings();
+        };
+        root.querySelector('[data-act="goPath"]').addEventListener('click', goPath);
+        root.querySelector('#fm-set-path').addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') { ev.preventDefault(); goPath(); }
+        });
+        root.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Escape' && !$settings.hidden) closeSettings();
         });
         // Click the ✕ pseudo-element area at the top-right of the overlay preview.
         root.querySelector('#fm-preview').addEventListener('click', (ev) => {
@@ -1623,6 +1761,7 @@ export default {
         window.addEventListener('dragover', preventFileDrop);
         window.addEventListener('drop', preventFileDrop);
 
+        applySettings();
         await selectSource(ctx.local ? 'machine' : 'virtual');
     },
 

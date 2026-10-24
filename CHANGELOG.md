@@ -9,6 +9,19 @@ either git commit SHAs or the `version` field inside a package's
 
 ## Site
 
+### 2026-10 — Files settings, menu and cursor fixes (`arutosiod` 0.5.5)
+
+- **Files (1.7.0)** — new settings panel (⚙) with: a preview on/off switch that
+  widens the list, hidden-files toggle for dotfiles, a start folder applied
+  when switching source, and a "go to path" box for jumping anywhere inside
+  the current source (`..` is rejected).
+- The row context menu now opens at the pointer and is clamped inside the app
+  window instead of spilling over its edge.
+- The custom site cursor now follows the pointer inside app frames: the
+  sandbox forwards mousemove once per frame and the host offsets it by the
+  frame's position. Before, the dot froze at the frame edge and the pointer
+  was invisible while over an app.
+
 ### 2026-10 — Update fallback fix (`arutosiod` 0.5.4)
 
 - Fixed the rate-limit update fallback: it built
