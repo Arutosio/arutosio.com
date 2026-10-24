@@ -165,7 +165,10 @@
                 "icons/xml.svg",
                 "icons/yaml.svg",
                 "icons/yarn.svg",
-                "icons/zip.svg"
+                "icons/zip.svg",
+                "vendor/highlight.min.js",
+                "vendor/highlight-theme.css",
+                "vendor/LICENSE"
             ]
         },
         {

@@ -64,7 +64,7 @@ const DEFAULT_SETTINGS = {
     liveHighlight: true,
     wrap:          false,
     tabWidth:      4,
-    spellcheck:    true,
+    spellcheck:    false,
 };
 
 const SKIP_DIRS = new Set(['node_modules', '.git', '.svn', '.hg', '.DS_Store', 'dist', 'build', '.next', '.cache', '.idea', '.vscode']);
@@ -1203,8 +1203,12 @@ class MachineBackend {
 
 export default {
     async mount(root, ctx) {
-        loadCSS(HLJS_THEME);
-        const hljsReady = loadScript(HLJS_SCRIPT).catch(() => null);
+        // Prefer the vendored build so highlighting works offline (and on a
+        // LAN-only daemon); older installs fall back to the CDN.
+        const hljsURL = (ctx.asset && ctx.asset('vendor/highlight.min.js')) || HLJS_SCRIPT;
+        const hljsCSS = (ctx.asset && ctx.asset('vendor/highlight-theme.css')) || HLJS_THEME;
+        loadCSS(hljsCSS);
+        const hljsReady = loadScript(hljsURL).catch(() => null);
 
         root.innerHTML = `
             <div class="wrap">
@@ -1357,9 +1361,9 @@ export default {
             try { syncHLScroll(); } catch {}
         }
 
-        function selectRange(start, end) {
+        function selectRange(start, end, focus = true) {
             if (!$ta) return;
-            $ta.focus();
+            if (focus) $ta.focus();
             $ta.setSelectionRange(start, end);
             scrollToOffset(start);
         }
@@ -1372,7 +1376,7 @@ export default {
                 await renderBody();
             }
             $findbar.hidden = false;
-            $replaceInput.style.display = withReplace ? '' : 'none';
+            $findbar.classList.toggle('with-replace', withReplace);
             $findInput.focus();
             $findInput.select();
             if (findState.q) updateFind(false);
@@ -1394,7 +1398,7 @@ export default {
                 : (findState.idx + delta + findState.matches.length) % findState.matches.length;
             const start = findState.matches[findState.idx];
             $findCount.textContent = `${findState.idx + 1}/${findState.matches.length}`;
-            selectRange(start, start + findState.q.length);
+            selectRange(start, start + findState.q.length, false);
         }
 
         function replaceCurrent() {
@@ -1417,7 +1421,7 @@ export default {
             if (findState.matches.length) {
                 const at = findState.matches[findState.idx];
                 $findCount.textContent = `${findState.idx + 1}/${findState.matches.length}`;
-                selectRange(at, at + findState.q.length);
+                selectRange(at, at + findState.q.length, false);
             } else {
                 $findCount.textContent = '0';
             }
@@ -1449,7 +1453,7 @@ export default {
             if (act === 'close') closeFind();
             else if (act === 'next') stepFind(1);
             else if (act === 'prev') stepFind(-1);
-            else if (act === 'replace') replaceCurrent();
+            else if (act === 'replace') { $findbar.classList.add('with-replace'); replaceCurrent(); }
             else if (act === 'replaceAll') replaceAll();
         });
         $findInput.addEventListener('input', () => updateFind(false));
@@ -1571,7 +1575,10 @@ export default {
         // ── Editor helpers (unchanged) ──────────────────────────
         function applyEditorSettings() {
             if (!$editor) return;
-            if ($ta) $ta.spellcheck = settings.spellcheck !== false;
+            if ($ta) {
+                const lang = active()?.lang || 'plaintext';
+                $ta.spellcheck = settings.spellcheck === true && (lang === 'markdown' || lang === 'plaintext');
+            }
             $editor.classList.toggle('opt-activeline', settings.activeLine);
             $editor.classList.toggle('opt-linenums',   settings.lineNumbers);
             $editor.classList.toggle('opt-hl-live',    settings.liveHighlight);
@@ -1716,7 +1723,7 @@ export default {
                 $hlLayer    = $body.querySelector('.hl-layer');
                 $hlCode     = $hlLayer.querySelector('code');
                 $ta.value = d.content || '';
-                $ta.spellcheck = settings.spellcheck !== false;
+                $ta.spellcheck = settings.spellcheck === true && (d.lang === 'markdown' || d.lang === 'plaintext');
                 applyEditorSettings();
                 updateGutter();
                 updateActiveLine();
@@ -1769,7 +1776,7 @@ export default {
                 $body.innerHTML = `
                     <div class="settings-pane">
                         <h3>Editor</h3>
-                        <p>These apply to every file; changes save automatically.</p>
+                        <p>These apply to every file; changes save automatically. View options are applied when you return to Edit.</p>
                         <div class="settings-row"><div class="label"><strong>Highlight active line</strong><small>Soft glow on the line containing the cursor.</small></div><button class="toggle" data-opt="activeLine" type="button"></button></div>
                         <div class="settings-row"><div class="label"><strong>Show line numbers</strong><small>Gutter on the left with 1, 2, 3…</small></div><button class="toggle" data-opt="lineNumbers" type="button"></button></div>
                         <div class="settings-row"><div class="label"><strong>Grid paper background</strong><small>Math-notebook ruled background.</small></div><button class="toggle" data-opt="grid" type="button"></button></div>

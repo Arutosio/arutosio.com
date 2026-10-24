@@ -2,7 +2,7 @@
     "id": "filemanager",
     "name": "Files",
     "icon": "📁",
-    "version": "1.9.0",
+    "version": "1.10.0",
     "minSdk": 2,
     "roles": ["app"],
     "author": "Arutosio",

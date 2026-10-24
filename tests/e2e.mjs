@@ -113,6 +113,18 @@ try {
     const names = await fm.locator('.fm-entry-name').allInnerTexts();
     ok(names.includes('src') && names.indexOf('src') < names.indexOf('README.md'), 'folders sort before files');
 
+    ok(await fm.locator('.fm-list-head').count() === 1, 'list shows column headers');
+    const sections = await fm.locator('.fm-section').allTextContents();
+    ok(sections.includes('Folders') && sections.includes('Files'), 'folders and files are separate sections');
+    const mtimes = await fm.locator('.fm-entry-mtime').allInnerTexts();
+    ok(mtimes.some(t => /\d/.test(t)), 'modified column shows dates');
+    await fm.locator('.fm-list-head [data-sort="mtime"]').click();
+    await sleep(400);
+    const mtimeHead = await fm.locator('.fm-list-head [data-sort="mtime"]').innerText();
+    ok(mtimeHead.includes('↓'), 'clicking a header sorts by that column (' + mtimeHead + ')');
+    await fm.locator('.fm-list-head [data-sort="name"]').click();
+    await sleep(200);
+
     await fm.locator('#fm-search').fill('READ');
     await sleep(250);
     const filtered = await fm.locator('.fm-entry-name').allInnerTexts();
@@ -439,6 +451,11 @@ try {
     await gr.locator('textarea').waitFor({ timeout: 15000 });
     await sleep(600);
     ok((await gr.locator('textarea').inputValue()).startsWith('# Heading'), 'dropping a machine file opens it');
+    const assets = await gr.locator('body').evaluate(() => ({
+        hljs: !!window.hljs,
+        resources: performance.getEntriesByType('resource').map(r => r.name),
+    }));
+    ok(assets.hljs && !assets.resources.some(n => n.includes('cdnjs')), 'syntax highlighting loads from the package');
 
     const treeIcons = await gr.locator('.ftree-icon img').evaluateAll(imgs => imgs.filter(i => i.offsetParent !== null).map(i => i.naturalWidth));
     ok(treeIcons.length >= 1 && treeIcons.every(w => w > 0), `tree icons rendered (${treeIcons.length})`);
@@ -456,6 +473,7 @@ try {
     // Find, replace, outline, stats, spellcheck, focus mode.
     await page.keyboard.press('Control+f');
     await gr.locator('.findbar').waitFor({ timeout: 5000 });
+    ok(!(await gr.locator('.replace-input').isVisible()), 'ctrl+f hides the replace field');
     await gr.locator('.find-input').fill('Heading');
     await page.waitForTimeout(200);
     ok((await gr.locator('.find-count').innerText()) === '1/1', 'find counts matches');
@@ -464,6 +482,7 @@ try {
     ok(selected === 'Heading', 'find selects the match');
 
     await page.keyboard.press('Control+h');
+    ok(await gr.locator('.replace-input').isVisible(), 'ctrl+h shows the replace field');
     await gr.locator('.replace-input').fill('strong');
     await gr.locator('.find-input').fill('bold');
     await gr.locator('[data-find="replaceAll"]').click();
@@ -481,7 +500,7 @@ try {
 
     ok((await gr.locator('.statusbar').innerText()).includes('words'), 'status bar shows document stats');
 
-    const spellOn = await gr.locator('textarea').evaluate(ta => ta.spellcheck);
+    const spellOff = await gr.locator('textarea').evaluate(ta => ta.spellcheck);
     await gr.locator('.tab-settings').click();
     await gr.locator('.settings-pane').waitFor({ timeout: 5000 });
     const spellToggle = gr.locator('.settings-row', { hasText: 'Spellcheck' }).locator('.toggle');
@@ -492,8 +511,8 @@ try {
     await sleep(300);
     await gr.locator('.tab-edit').click();
     await sleep(400);
-    const spellOff = await gr.locator('textarea').evaluate(ta => ta.spellcheck);
-    ok(spellOn === true && spellOff === false, 'spellcheck can be turned off');
+    const spellOn = await gr.locator('textarea').evaluate(ta => ta.spellcheck);
+    ok(spellOff === false && spellOn === true, 'spellcheck is off by default and can be enabled');
 
     await gr.locator('.focus-btn').click();
     await sleep(300);

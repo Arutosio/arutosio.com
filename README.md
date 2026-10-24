@@ -44,14 +44,17 @@ mode stores everything on your machine.
   (Ctrl/Shift+click, Ctrl+A), keyboard shortcuts (F2, Del, Enter, Backspace,
   arrows, type to filter), copy/cut/paste across sources (folders included,
   with a keep-both/overwrite choice), back/forward history, pinned favorites,
-  subfolder search (names and contents), type filters, sort by modified date,
+  subfolder search (names and contents), type filters, a table list with
+  sortable Name/Size/Modified columns and separate Folders/Files sections,
   file properties, bulk rename with a pattern, a grid view with image
   thumbnails. Its ⚙ settings turn the preview pane off, show dotfiles, choose
   colored or emoji icons, the view and thumbnail size, manage favorites, set
   the folder opened on switch, and jump to any path.
 - **Grimoire** — a writing/notes editor with file-type icons and a Markdown
   preview. Find & replace, an outline panel, word/reading stats, focus mode,
-  spellcheck, daily/meeting/draft templates and “save a copy”. In local mode it
+  optional spellcheck (off by default, prose formats only), daily/meeting/draft
+  templates and “save a copy”. Syntax highlighting ships with the package, so
+  it also works offline. In local mode it
   opens and saves real files with conflict detection and restore. Drop a
   machine file from Files to open it, or drop text files from the OS into a
   workspace.
@@ -109,7 +112,7 @@ installing anything.
 The installer asks for confirmation, whether to expose the daemon on the LAN,
 and whether to open the port in `ufw`/`firewalld`. Use `--yes` for a
 non-interactive install. Useful options: `--port 7777`, `--prefix DIR`,
-`--version v0.5.9`, `--lan`, `--open-firewall`, `--no-firewall`,
+`--version v0.5.10`, `--lan`, `--open-firewall`, `--no-firewall`,
 `--no-service`.
 
 It links `~/.local/bin/arutosiod` to the installed binary. If that directory
@@ -218,8 +221,8 @@ Releases are built by [`.github/workflows/release.yml`](./.github/workflows/rele
 when a `v*` tag is pushed:
 
 ```bash
-git tag v0.5.9
-git push origin v0.5.9
+git tag v0.5.10
+git push origin v0.5.10
 ```
 
 Disable checks with `-update-url ""`, or point them at a mirror returning the

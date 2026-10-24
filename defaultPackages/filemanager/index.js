@@ -896,12 +896,6 @@ export default {
                     <input type="file" id="fm-upload-input" multiple style="display:none;">
                     <button class="fm-btn" data-act="refresh">⟳</button>
                     <input id="fm-search" class="fm-search" type="search" placeholder="Filter…" aria-label="Filter files">
-                    <select id="fm-sort" class="fm-sort" aria-label="Sort files">
-                        <option value="name">Name A–Z</option>
-                        <option value="name-desc">Name Z–A</option>
-                        <option value="size">Size</option>
-                        <option value="mtime">Modified</option>
-                    </select>
                     <select id="fm-type" class="fm-sort" aria-label="Filter by type">
                         <option value="all">All types</option>
                         <option value="folders">Folders</option>
@@ -989,7 +983,8 @@ export default {
         let previewToken = 0;
         let currentItems = [];
         let filterText = '';
-        let sortMode = 'name';
+        let sortMode = 'name';   // name | size | mtime
+        let sortDir = 1;         // 1 asc, -1 desc
         let history = [];
         let historyIdx = -1;
         let clipboard = null;       // { mode, source, items }
@@ -1805,16 +1800,26 @@ export default {
             const copy = items.slice();
             copy.sort((a, b) => {
                 if (a.kind !== b.kind) return a.kind === 'dir' ? -1 : 1;
-                if (sortMode === 'size') return (b.size || 0) - (a.size || 0);
-                if (sortMode === 'mtime') {
-                    const at = Date.parse(a.mtime || '') || 0;
-                    const bt = Date.parse(b.mtime || '') || 0;
-                    if (at !== bt) return bt - at;
-                }
-                const cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
-                return sortMode === 'name-desc' ? -cmp : cmp;
+                let cmp;
+                if (sortMode === 'size') cmp = (a.size || 0) - (b.size || 0);
+                else if (sortMode === 'mtime') cmp = (Date.parse(a.mtime || '') || 0) - (Date.parse(b.mtime || '') || 0);
+                else cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+                return cmp * sortDir;
             });
             return copy;
+        }
+
+        function setSort(key) {
+            if (sortMode === key) sortDir = -sortDir;
+            else {
+                sortMode = key;
+                sortDir = key === 'name' ? 1 : -1;
+            }
+            renderList();
+        }
+
+        function sortArrow(key) {
+            return sortMode === key ? (sortDir > 0 ? ' ↑' : ' ↓') : '';
         }
 
         function matchesType(it) {
@@ -1853,13 +1858,37 @@ export default {
                 html += `<div class="fm-warn">⚠ Changes are written directly to this machine.</div>`;
             }
             if (items.length) {
-                html += `<div class="fm-list">${renderEntries(items)}</div>`;
+                if (settings.view === 'grid') {
+                    html += `<div class="fm-list">${renderEntries(items)}</div>`;
+                } else {
+                    const dirs = items.filter(it => it.kind === 'dir');
+                    const files = items.filter(it => it.kind !== 'dir');
+                    html += `<div class="fm-list fm-table">
+                        <div class="fm-list-head">
+                            <span></span>
+                            <span data-sort="name" class="${sortMode === 'name' ? 'sorted' : ''}">Name${sortArrow('name')}</span>
+                            <span data-sort="size" class="fm-col-size ${sortMode === 'size' ? 'sorted' : ''}">Size${sortArrow('size')}</span>
+                            <span data-sort="mtime" class="fm-col-mtime ${sortMode === 'mtime' ? 'sorted' : ''}">Modified${sortArrow('mtime')}</span>
+                            <span></span>
+                        </div>`;
+                    if (dirs.length) {
+                        html += `<div class="fm-section">Folders</div>` + renderEntries(dirs, 0);
+                    }
+                    if (files.length) {
+                        html += `<div class="fm-section">Files</div>` + renderEntries(files, dirs.length);
+                    }
+                    html += `</div>`;
+                }
             } else if (q) {
                 html += `<div class="fm-empty">No matches for “${escapeHTML(filterText)}”.</div>`;
             } else {
                 html += `<div class="fm-empty">${currentSource === 'virtual' || currentSource === 'packages' ? 'Empty.' : 'Empty folder.'}</div>`;
             }
             $tree.innerHTML = html;
+            $tree.querySelectorAll('.fm-list-head [data-sort]').forEach(el => {
+                el.addEventListener('click', () => setSort(el.dataset.sort));
+            });
+            visibleItems = items;
             wireEntries(items);
             paintSelection();
             loadThumbs(items);
@@ -2071,16 +2100,24 @@ export default {
             return iconHTML(ctx, iconId, 'fm-icon', fallback);
         }
 
-        function renderEntries(items) {
+        function shortDate(iso) {
+            if (!iso) return '—';
+            const d = new Date(iso);
+            if (Number.isNaN(d.getTime())) return '—';
+            return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
+        }
+
+        function renderEntries(items, offset = 0) {
             const writable = !!backend && backend.isWritable?.() && currentSource !== 'packages';
             return items.map((it, i) => {
                 const fallback = it.kind === 'dir' ? '📁' : '📄';
                 const hiddenCls = it.name.startsWith('.') ? ' fm-hidden-entry' : '';
                 return `
-                <div class="fm-entry${hiddenCls}" data-idx="${i}">
+                <div class="fm-entry${hiddenCls}" data-idx="${offset + i}">
                     <span class="fm-entry-icon">${entryIcon(it.name, it.kind, it.symlink, fallback)}</span>
                     <span class="fm-entry-name">${escapeHTML(it.name)}</span>
-                    <span class="fm-entry-meta">${it.kind === 'file' ? fmtSize(it.size) : ''}</span>
+                    <span class="fm-entry-meta fm-entry-size">${it.kind === 'file' ? fmtSize(it.size) : ''}</span>
+                    <span class="fm-entry-meta fm-entry-mtime">${shortDate(it.mtime)}</span>
                     ${rowActionsHTML(it, writable)}
                 </div>
             `;
@@ -2295,13 +2332,8 @@ export default {
 
         // ── Toolbar actions ────────────────────────────────────
         const $search = root.querySelector('#fm-search');
-        const $sort = root.querySelector('#fm-sort');
         $search?.addEventListener('input', () => {
             filterText = $search.value;
-            renderList();
-        });
-        $sort?.addEventListener('change', () => {
-            sortMode = $sort.value;
             renderList();
         });
         root.querySelector('#fm-type').addEventListener('change', (ev) => {

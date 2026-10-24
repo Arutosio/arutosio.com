@@ -691,6 +691,10 @@ body {
     outline: none;
 }
 .findbar input:focus { border-color: var(--g); }
+/* Ctrl+F shows find only; Ctrl+H (or Replace) reveals the replacement UI. */
+.findbar:not(.with-replace) .replace-input,
+.findbar:not(.with-replace) [data-find="replace"],
+.findbar:not(.with-replace) [data-find="replaceAll"] { display: none; }
 .find-btn {
     background: transparent;
     border: 1px solid rgba(255, 200, 87, 0.25);

@@ -9,6 +9,22 @@ either git commit SHAs or the `version` field inside a package's
 
 ## Site
 
+### 2026-10 — Table list and editor fixes (`arutosiod` 0.5.10)
+
+- **Files (1.10.0)** — the list is now a table with Name, Size and Modified
+  columns; click a header to sort (again to reverse). Folders and files are
+  separated by section labels, and the modified date comes from the daemon.
+- **Grimoire (1.12.2)**
+  - Spellcheck is off by default and only runs for Markdown/plain text, so
+    code and notes no longer show red “syntax error” underlines.
+  - Ctrl+F shows only the find row; Ctrl+H (or the Replace button) reveals
+    the replace field and its buttons.
+  - Highlight.js and its theme are bundled with the package (BSD-3, license
+    included) and loaded from the app assets, so syntax highlighting works
+    offline and on a LAN-only daemon; the CDN stays as a fallback.
+  - Find navigation keeps the caret in the find field, and the settings pane
+    notes that view options apply when you return to Edit.
+
 ### 2026-10 — Outline/find layout fix (`arutosiod` 0.5.9)
 
 - **Grimoire (1.12.1)** — the outline panel now starts below an open find
